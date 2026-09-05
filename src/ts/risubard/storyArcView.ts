@@ -5,6 +5,7 @@ type WikiDocument = NarrativeMemoryWikiMarkdown['documents'][number]
 const STORY_ARC_TITLES = [
     '스토리 아크 플롯',
     'Story Arc Plot',
+    'ストーリーアークプロット',
     '스토리 아크 지도',
     'Story Arc Map',
 ] as const

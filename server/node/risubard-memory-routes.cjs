@@ -619,7 +619,7 @@ function registerRisuBardMemoryRoutes(app, options) {
             const optionalKeys = ['append', 'writingLanguage']
                 .filter((key) => req.body?.[key] !== undefined)
             if (!hasExactKeys(req.body, [...keys, ...optionalKeys])
-                || (req.body.writingLanguage !== undefined && !['ko', 'en'].includes(req.body.writingLanguage))
+                || (req.body.writingLanguage !== undefined && !['ko', 'en', 'ja'].includes(req.body.writingLanguage))
                 || !hasBoundedId(req.body.characterId)
                 || !hasBoundedId(req.body.chatId)
                 || !Array.isArray(req.body.sourceMessageIds)
@@ -661,7 +661,7 @@ function registerRisuBardMemoryRoutes(app, options) {
                     ...keys, ...optionalKeys,
                 ])
                 if (!validShape
-                    || (req.body.writingLanguage !== undefined && !['ko', 'en'].includes(req.body.writingLanguage))
+                    || (req.body.writingLanguage !== undefined && !['ko', 'en', 'ja'].includes(req.body.writingLanguage))
                     || !hasBoundedId(req.body.characterId)
                     || !hasBoundedId(req.body.chatId)
                     || (req.body.documentId !== undefined

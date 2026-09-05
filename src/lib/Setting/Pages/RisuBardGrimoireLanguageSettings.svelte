@@ -6,13 +6,14 @@
         normalizeBardLoreAnalysisLanguage,
     } from 'src/ts/lorebook/bardLoreLanguage'
     import type { WikiWritingLanguage } from 'src/ts/risubard/wikiWritingLanguage'
+    import { normalizeWikiWritingLanguage } from 'src/ts/risubard/wikiWritingLanguage'
     import { DBState } from 'src/ts/stores.svelte'
 
     let selectedLanguage = $derived(normalizeBardLoreAnalysisLanguage(
         DBState.db.risuBardGrimoireLanguage
     ))
     let wikiLanguage = $derived<WikiWritingLanguage>(
-        DBState.db.risuBardWikiWritingLanguage === 'en' ? 'en' : 'ko'
+        normalizeWikiWritingLanguage(DBState.db.risuBardWikiWritingLanguage)
     )
     let instruction = $derived(buildBardLoreAnalysisInstructions(
         undefined,
@@ -47,6 +48,7 @@
         <option value="follow-bardwiki" class="bg-darkbg">{language.risuBardGrimoireLanguageFollowWiki}</option>
         <option value="en" class="bg-darkbg">{language.risuBardGrimoireLanguageEnglish}</option>
         <option value="ko" class="bg-darkbg">{language.risuBardGrimoireLanguageKorean}</option>
+        <option value="ja" class="bg-darkbg">日本語</option>
         <option value="bilingual" class="bg-darkbg">{language.risuBardGrimoireLanguageBilingual}</option>
     </select>
 </div>

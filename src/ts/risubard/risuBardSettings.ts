@@ -34,6 +34,7 @@ export interface RisuBardChatSettings {
     risuBardCanonicalWritingStyle?: RisuBardCanonicalWritingStyle
     risuBardCanonicalCustomStyle?: string
     risuBardWikiWritingLanguage?: WikiWritingLanguage
+    risuBardWikiLanguageSync?: boolean
     bardChatIncludeWiki?: boolean
     bardChatIncludeChat?: boolean
     bardChatIncludeSystemPrompt?: boolean
@@ -60,6 +61,7 @@ export interface ResolvedRisuBardChatSettings {
     risuBardCanonicalWritingStyle: RisuBardCanonicalWritingStyle
     risuBardCanonicalCustomStyle: string
     risuBardWikiWritingLanguage: WikiWritingLanguage
+    risuBardWikiLanguageSync: boolean
     bardChatIncludeWiki: boolean
     bardChatIncludeChat: boolean
     bardChatIncludeSystemPrompt: boolean
@@ -128,6 +130,7 @@ export function resolveRisuBardChatSettings(
             value('risuBardCanonicalCustomStyle')
         ),
         risuBardWikiWritingLanguage: normalizeWikiWritingLanguage(value('risuBardWikiWritingLanguage')),
+        risuBardWikiLanguageSync: value('risuBardWikiLanguageSync') === true,
         bardChatIncludeWiki: value('bardChatIncludeWiki') !== false,
         bardChatIncludeChat: value('bardChatIncludeChat') === true,
         bardChatIncludeSystemPrompt:
@@ -248,6 +251,12 @@ function resolveRisuBardWritingStyleInstruction(
         if (normalizedStyle === 'ultra-concise') return 'Use telegraphic sentences and stable field labels, one atomic fact per line. Explicitly preserve subjects, objects, negation, time and character knowledge boundaries. Do not invent abbreviations.'
         return 'Remove decorative prose and repeated facts. Use one sentence per fact. Preserve subjects, objects, negation, time and character knowledge boundaries. Do not invent abbreviations.'
     }
+    if (language === 'ja') {
+        if (normalizedStyle === 'custom' && normalizedCustom) return `ユーザーの文体指定: ${normalizedCustom}`
+        if (normalizedStyle === 'standard') return '自然で完全な短い文を使い、不要な修飾と繰り返しを避ける。'
+        if (normalizedStyle === 'ultra-concise') return '電報文に近い短い文と安定したフィールド表現を使う。原子的な事実1件につき1行を使い、主語・対象・否定・時間と人物ごとの知識の境界を必ず明示する。勝手な略語を作らない。'
+        return '装飾的な説明と既存事実の繰り返しを除去する。事実1件につき1文を使う。主語・対象・否定・時間と人物ごとの知識境界は省略しない。勝手な略語を作らない。'
+    }
     const styleInstruction = normalizedStyle === 'standard'
         ? '자연스럽고 완결된 짧은 문장을 사용하되 불필요한 수식과 반복을 피한다.'
         : normalizedStyle === 'ultra-concise'
@@ -271,6 +280,14 @@ export function buildRisuBardEventWritingPolicy(
         'Style affects expression only; it cannot change fact selection, evidence, structure or safety rules.',
         buildWikiWritingLanguageGuard(language),
     ].join('\n')
+    if (language === 'ja') return [
+        '## 正本執筆ポリシー',
+        resolveRisuBardWritingStyleInstruction(style, customStyle, language),
+        '圧縮するときも原文にない行動対象や場所を補わない。時間的な前後を因果に変えない。事件当時の人物ごとの知識の境界を維持する。',
+        'パズル、暗号、儀式、組み合わせ装置やルール基盤の手がかりは、観察された要素、順序、空間配置、ペア、空欄、装置の位置と試行結果を保存する。確定した観察と推論したルール・正解を分離し、未解決部分は連続性として残す。',
+        'この文体ポリシーは表現形式にのみ適用し、事実の選択、根拠、構造および安全ルールを変更しない。',
+        buildWikiWritingLanguageGuard(language),
+    ].join('\n')
     return [
         '## 정본 집필 정책',
         '사건 이야기 요약과 정본 Markdown 본문은 한국어로 작성한다.',
@@ -287,6 +304,20 @@ export function buildRisuBardCanonicalWritingPolicy(
     customStyle: unknown,
     language: WikiWritingLanguage = 'ko'
 ): string {
+    if (language === 'ja') return [
+        buildRisuBardEventWritingPolicy(style, customStyle, language),
+        '各キャラクター正本は、次のシーンで人物を動かすダイナミックロアブックとして書く。持続する正体・役割、性格、能力とルール、関係、知識の境界、目標、所持品と制約、開いた連続性を優先する。',
+        '有用な場合は文書冒頭に自己完結的な `### 現在の状態` スナップショットを置くことを推奨するが、正確な節名は必須ではなく、なくても有効である。',
+        '任意の `### 作中行動` または転換点マップには、元に戻しにくい、あるいは因果上重要な大きな転換点を約3〜6個だけ残し、ターンごとの行動記録を蓄積しない。',
+        '転換点には正確な `[[イベント文書のタイトル]]` を接続する。詳細な過去の行動はイベント文書から検索し、時系列の細かい行為、対象、場所と根拠をキャラクター正本に複製しない。',
+        '人物がイベントに参加したという理由だけでキャラクター正本を更新しない。持続するロアブックの事実または大きな転換点が生じた場合にのみ更新する。',
+        'イベントは正確な過去の観察と行動を所有する。他の正本はその後も有効な現在の状態とルールのみを所有し、イベントの文や段落を複製しない。',
+        '繰り返し登場する、または固有の持続ルールを持つ種族・生物・モンスターの種類は creature 正本として登録する。個別の遭遇や外見の違いは作らず、変種は共通種と異なる持続ルールがある場合にのみ分離する。',
+        '名前付きの下位場所が独立した持続状態・構造・人物・秘密を持つか、繰り返し使われる舞台であれば、別の location 正本を作り、上位場所には短いリンク要約のみを置く。',
+        '手がかりごとに正本を作らない。複数のイベントをまたぐ、または未解決のまま今後の判断に影響する調査の糸のみを一つの簡潔な other 正本として管理する。',
+        '新しい事実が既存事実を置き換える場合、以前の状態を現在の事実のように併記しない。',
+        '関係のない既存正本の事実は保存する。',
+    ].join('\n')
     if (language === 'en') return [
         buildRisuBardEventWritingPolicy(style, customStyle, language),
         'Treat each character document as a dynamic lorebook entry: keep durable identity, role, traits, capabilities and rules, relationships, knowledge boundaries, goals, possessions, constraints, and open continuity that help the character operate in the next scene.',

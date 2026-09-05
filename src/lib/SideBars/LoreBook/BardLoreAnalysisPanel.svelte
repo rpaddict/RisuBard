@@ -32,6 +32,7 @@
         type BardLoreAnalysisSettings,
     } from 'src/ts/lorebook/bardLoreAnalysisSettings'
     import { orderLorebookEntriesForDisplay } from 'src/ts/lorebook/workspaceOperations'
+    import { normalizeWikiWritingLanguage } from 'src/ts/risubard/wikiWritingLanguage'
     import {
         applyBardLoreAnalysisDraft,
         auditBardLoreAnalysisDraft,
@@ -168,7 +169,7 @@
             const { tokenize } = await import('src/ts/tokenizer')
             const analysisLanguage = resolveBardLoreAnalysisLanguage(
                 DBState.db.risuBardGrimoireLanguage,
-                DBState.db.risuBardWikiWritingLanguage === 'en' ? 'en' : 'ko',
+                normalizeWikiWritingLanguage(DBState.db.risuBardWikiWritingLanguage),
             )
             plannedTargets = targets
             plannedLanguage = analysisLanguage

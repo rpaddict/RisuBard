@@ -856,4 +856,44 @@ describe('progressive Markdown inquiry', () => {
         expect(result.metrics.selectedTokens).toBeGreaterThan(256)
         expect(result.metrics.selectedTokens).toBeLessThanOrEqual(512)
     })
+
+    test('retrieves Japanese documents from clause queries via particle stripping', () => {
+        const result = inquireMarkdownDocuments({
+            currentInput: '校則データベースでクリットリングを確認した。',
+            documents: [document({
+                id: 'rules', type: 'concept', title: '校則データベース',
+                relativePath: 'concepts/rules.md',
+                content: '## 校則データベース\n\n第三章にクリットリングの規定がある。',
+            })],
+        })
+
+        expect(result.sources.map((source) => source.id)).toEqual([
+            'narrative-memory:wiki:concepts/rules.md',
+        ])
+    })
+
+    test('prefers ja current-state sections for ja state queries', () => {
+        const result = inquireMarkdownDocuments({
+            currentInput: 'シロの現在の状態は？',
+            documents: [document({
+                id: 'shiro', type: 'character', title: 'シロ',
+                relativePath: 'characters/shiro.md',
+                content: [
+                    '## シロ',
+                    '',
+                    '### 現在の状態',
+                    '',
+                    '- 学園の新入生。',
+                    '',
+                    '### 作中行動',
+                    '',
+                    `- ${'古い記録 '.repeat(200)}`,
+                ].join('\n'),
+            })],
+        })
+
+        expect(result.sources).toHaveLength(1)
+        expect(result.sources[0]?.content).toContain('### 現在の状態')
+        expect(result.sources[0]?.content).toContain('学園の新入生')
+    })
 })

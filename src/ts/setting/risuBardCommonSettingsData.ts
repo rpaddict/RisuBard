@@ -246,8 +246,17 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         options: { selectOptions: [
             { value: 'ko', label: '한국어' },
             { value: 'en', label: 'English' },
+            { value: 'ja', label: '日本語' },
         ] },
-        keywords: ['wiki', 'language', 'English', '위키', '언어', '영어'],
+        keywords: ['wiki', 'language', 'English', 'Japanese', '위키', '언어', '영어', '일본어'],
+    },
+    {
+        id: 'risubard.common.wikiLanguageSync',
+        type: 'check',
+        labelKey: 'risuBardWikiLanguageSync',
+        helpKey: 'risuBardWikiLanguageSync',
+        bindKey: 'risuBardWikiLanguageSync',
+        keywords: ['wiki', 'language', 'sync', 'chat', '위키', '언어', '채팅', '동기화', '일치'],
     },
     {
         id: 'risubard.common.canonicalWritingStyle',

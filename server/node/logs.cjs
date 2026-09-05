@@ -18,6 +18,7 @@ const stateFile = path.join(logRoot, 'state.json');
 const writeLockFile = path.join(logRoot, '.write.lock');
 const LOCK_WAIT_MS = 5;
 const LOCK_TIMEOUT_MS = 5000;
+const LOCK_TOTAL_WAIT_MS = 30000;
 const LOCK_OWNER_GRACE_MS = 100;
 const LOCK_STALE_MS = 30000;
 const lockWaitBuffer = new Int32Array(new SharedArrayBuffer(4));
@@ -47,9 +48,26 @@ function removeStaleWriteLock() {
     }
 }
 
+function writeLockOwner() {
+    try {
+        return fs.readFileSync(writeLockFile, 'utf8');
+    } catch (error) {
+        return error?.code === 'ENOENT' ? null : undefined;
+    }
+}
+
 function acquireWriteLock() {
     const startedAt = Date.now();
-    while (Date.now() - startedAt < LOCK_TIMEOUT_MS) {
+    // Contended-but-progressing lock traffic keeps resetting the stall window:
+    // only an owner that holds the lock (or no progress at all) for longer
+    // than LOCK_TIMEOUT_MS should trip the timeout. An absolute cap still
+    // bounds the wait under sustained heavy contention.
+    let stallStartedAt = Date.now();
+    let lastObservedOwner = writeLockOwner();
+    while (Date.now() - startedAt < LOCK_TOTAL_WAIT_MS) {
+        if (Date.now() - stallStartedAt >= LOCK_TIMEOUT_MS) {
+            throw new Error('Timed out waiting for the system log write lock');
+        }
         try {
             const fd = fs.openSync(writeLockFile, 'wx', 0o600);
             fs.writeFileSync(fd, String(process.pid), 'utf8');
@@ -59,6 +77,11 @@ function acquireWriteLock() {
                 && (error?.code === 'EPERM' || error?.code === 'EACCES');
             if (error?.code !== 'EEXIST' && !isWindowsLockContention) throw error;
             removeStaleWriteLock();
+            const currentOwner = writeLockOwner();
+            if (currentOwner !== lastObservedOwner) {
+                lastObservedOwner = currentOwner;
+                stallStartedAt = Date.now();
+            }
             Atomics.wait(lockWaitBuffer, 0, 0, LOCK_WAIT_MS);
         }
     }

@@ -3309,6 +3309,7 @@ export const languageKorean = {
   risuBardCanonicalTargetLimit: "분석 1회당 자동 정본 대상 한도",
   risuBardCanonicalWritingStyle: "정본 집필 문체",
   risuBardWikiWritingLanguage: "위키 작성 언어",
+  risuBardWikiLanguageSync: "위키 언어를 채팅에 맞추기",
   risuBardWikiLanguageGlobal: "공통 설정 사용",
   risuBardGrimoireSettings: "Grimoire 옵션",
   risuBardGrimoireLanguage: "메타데이터 언어",

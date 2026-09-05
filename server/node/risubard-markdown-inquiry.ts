@@ -2,6 +2,10 @@ import { basename } from 'node:path'
 import { get_encoding, type Tiktoken } from '@dqbd/tiktoken'
 import type { MarkdownWikiDocument } from './risubard-markdown-wiki'
 import { normalizeRisuBardInquiryTokenBudget } from '../../src/ts/risubard/risuBardSettings'
+import {
+    expandQueryTerm,
+    isJapaneseQueryStopword,
+} from '../../src/ts/risubard/wikiWritingLanguage'
 import { selectMarkdownExcerpt } from './risubard-markdown-excerpt'
 
 const MAX_SELECTED_DOCUMENTS = 12
@@ -164,11 +168,17 @@ function normalizedQueryTerm(value: string): string {
 }
 
 function queryTerms(value: string): string[] {
-    return [...new Set(normalized(value).split(/[^\p{L}\p{N}_]+/u)
-        .filter((term) => term.length > 1 && !QUERY_STOPWORDS.has(term))
-        .map(normalizedQueryTerm)
-        .filter((term) => term.length > 1 && !QUERY_STOPWORDS.has(term)))]
-        .slice(0, 32)
+    const rawTerms = [...new Set(normalized(value).split(/[^\p{L}\p{N}_]+/u)
+        .filter((term) => term.length > 1))]
+    const expanded = rawTerms.flatMap((term) => {
+        if (QUERY_STOPWORDS.has(term)) return []
+        return expandQueryTerm(normalizedQueryTerm(term))
+            .filter((candidate) => (candidate.length > 1
+                || /^[〆々\u3400-\u4DBF\u4E00-\u9FFF]$/u.test(candidate))
+                && !QUERY_STOPWORDS.has(candidate)
+                && !isJapaneseQueryStopword(candidate))
+    })
+    return [...new Set(expanded)].slice(0, 32)
 }
 
 function hasPastIntent(value: string): boolean {

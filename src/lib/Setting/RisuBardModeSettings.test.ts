@@ -141,7 +141,7 @@ describe('RisuBard mode settings', () => {
         expect(databaseSource).toContain('risuBardCanonicalCustomStyle?: string')
         expect(settingsData).toContain("bindKey: 'risuBardCanonicalWritingStyle'")
         expect(settingsData).toContain("bindKey: 'risuBardWikiWritingLanguage'")
-        expect(databaseSource).toContain('data.risuBardWikiWritingLanguage ===')
+        expect(databaseSource).toContain('data.risuBardWikiWritingLanguage = normalizeWikiWritingLanguage(')
         expect(processSource).toContain('wikiWritingLanguage: settings.risuBardWikiWritingLanguage')
         expect(processSource).toContain("wikiWritingLanguage: job.writingLanguage ?? 'ko'")
         expect(settingsData).toContain("value: 'standard'")

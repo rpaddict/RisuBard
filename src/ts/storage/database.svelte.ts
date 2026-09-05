@@ -32,6 +32,7 @@ import {
 } from '../lorebook/ownerIdentity';
 import { normalizeBardLoreOwnerState, type BardLoreState } from '../lorebook/bardLore';
 import { normalizeBardLoreAnalysisLanguage } from '../lorebook/bardLoreLanguage';
+import { normalizeWikiWritingLanguage } from '../risubard/wikiWritingLanguage';
 import {
     normalizeBardLoreAnalysisDefaults,
     type BardLoreAnalysisSettings,
@@ -935,7 +936,7 @@ export function setDatabase(data:Database){
         normalizeRisuBardHistoricalSourceMatchLimit(
             data.risuBardHistoricalSourceMatchLimit
         )
-    data.risuBardWikiWritingLanguage = data.risuBardWikiWritingLanguage === 'en' ? 'en' : 'ko'
+    data.risuBardWikiWritingLanguage = normalizeWikiWritingLanguage(data.risuBardWikiWritingLanguage)
     data.risuBardGrimoireLanguage = normalizeBardLoreAnalysisLanguage(
         data.risuBardGrimoireLanguage
     )
@@ -1715,6 +1716,7 @@ export interface Database{
     risuBardCanonicalWritingStyle?: import('../risubard/risuBardSettings').RisuBardCanonicalWritingStyle
     risuBardCanonicalCustomStyle?: string
     risuBardWikiWritingLanguage?: import('../risubard/wikiWritingLanguage').WikiWritingLanguage
+    risuBardWikiLanguageSync?: boolean
     risuBardGrimoireLanguage?: import('../lorebook/bardLoreLanguage').BardLoreAnalysisLanguage
     risuBardGrimoireAnalysisDefaults?: BardLoreAnalysisSettings
     risuBardArcPlotterEnabled?: boolean

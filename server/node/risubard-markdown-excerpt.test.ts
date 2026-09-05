@@ -120,4 +120,33 @@ describe('bounded Markdown excerpts', () => {
         expect(excerpt).not.toContain('무관한 설명 무관한 설명')
         expect(excerpt.length).toBeLessThanOrEqual(500)
     })
+
+    test('prefers Japanese current-state and history lanes for ja headings', () => {
+        const jaCharacter = [
+            '## シロ',
+            '',
+            '### 物語要約',
+            '',
+            `- ${'古い記録 '.repeat(400)}`,
+            '',
+            '### 現在の状態',
+            '',
+            '- 学園の新入生。',
+            '',
+            '### 関係',
+            '',
+            '- 白雪凛と知り合った。',
+        ].join('\n')
+        const excerpt = selectMarkdownExcerpt({
+            content: jaCharacter,
+            documentType: 'character',
+            query: 'シロの現在の状態は？',
+            maximumCharacters: 2_000,
+            chronologyIntent: false,
+        })
+
+        expect(excerpt).toContain('### 現在の状態')
+        expect(excerpt).toContain('学園の新入生')
+        expect(excerpt).not.toContain('古い記録 古い記録 古い記録')
+    })
 })

@@ -71,4 +71,12 @@ describe('story so far projection', () => {
         expect(entries[0]?.summary).toEqual(['남아 있던 사건을 표시한다.'])
     })
 
+    it('reads Japanese summaries without including related links', () => {
+        const entries = buildStorySoFar([event({
+            content: '## 催眠発動\n\n### 物語要約\n\n- [[リサ]]は変化した。\n\n### 関連文書\n\n- [[高山小太郎]]',
+        })])
+
+        expect(entries[0]?.summary).toEqual(['リサは変化した。'])
+    })
+
 })

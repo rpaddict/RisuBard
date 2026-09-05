@@ -5,7 +5,12 @@ import {
 import skillInstructions from '../../src/ts/risubard/skills/bardwiki-memory-writer/SKILL.md?raw'
 import eventSchemaReference from '../../src/ts/risubard/skills/bardwiki-memory-writer/references/event-schema.md?raw'
 import englishContract from '../../src/ts/risubard/skills/bardwiki-memory-writer/references/english-contract.md?raw'
-import { normalizeWikiWritingLanguage, wikiWritingHeadings, type WikiWritingLanguage } from '../../src/ts/risubard/wikiWritingLanguage'
+import {
+    buildWikiWritingLanguageGuard,
+    normalizeWikiWritingLanguage,
+    wikiWritingHeadings,
+    type WikiWritingLanguage,
+} from '../../src/ts/risubard/wikiWritingLanguage'
 import { normalizeCanonicalSectionHeading } from './risubard-markdown-section-patch'
 
 const itemString = { type: 'string', minLength: 1, maxLength: 500 }
@@ -233,7 +238,14 @@ export const memoryWriterSystemPrompt = [
 ].join('\n\n')
 
 export function buildMemoryWriterSystemPrompt(language: WikiWritingLanguage): string {
-    return language === 'en' ? englishContract.trim() : memoryWriterSystemPrompt
+    if (language === 'en') return englishContract.trim()
+    if (language === 'ja') {
+        return [
+            englishContract.trim(),
+            buildWikiWritingLanguageGuard('ja'),
+        ].join('\n\n')
+    }
+    return memoryWriterSystemPrompt
 }
 
 export interface MemoryWriterDraft {

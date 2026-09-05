@@ -86,9 +86,10 @@ import {
 
 let analysisTokenizer: Tiktoken | undefined
 
-const CHARACTER_CURRENT_STATE_HEADINGS = ['현재 상태', 'Current State'] as const
+const CHARACTER_CURRENT_STATE_HEADINGS = ['현재 상태', 'Current State', '現在の状態'] as const
 const CHARACTER_OVERVIEW_HEADINGS = new Set([
     '개요', 'overview', '프로필', 'profile', '인물 정보', 'character profile',
+    '概要', '人物情報',
 ])
 
 function normalizeNewCharacterCurrentState(
@@ -110,7 +111,9 @@ function normalizeNewCharacterCurrentState(
     if (overviewIndex < 0) return patches
     return patches.map((patch, index) => index === overviewIndex ? {
         ...patch,
-        heading: language === 'en' ? 'Current State' : '현재 상태',
+        heading: language === 'en'
+            ? 'Current State'
+            : language === 'ja' ? '現在の状態' : '현재 상태',
     } : patch)
 }
 
@@ -1314,7 +1317,9 @@ export function createMemoryAnalysisRunner(
                                 'Use semanticUpdate as a structured coverage checklist, but verify every item against confirmedMessages before applying it.',
                                 snapshot.wikiWritingLanguage === 'en'
                                     ? 'Prefer a compact self-contained `### Current State` section near the top of character documents when verified current facts benefit from a snapshot. Its absence is not a persistence error and never justifies a structure-only rewrite.'
-                                    : '캐릭터의 확인된 현재 사실을 한눈에 볼 필요가 있으면 문서 상단의 간결한 `### 현재 상태` 절을 권장한다. 이 절이 없어도 저장할 수 있으며, 절을 만들기 위한 구조 보완만 수행하지 않는다.',
+                                    : snapshot.wikiWritingLanguage === 'ja'
+                                        ? '確認された現在の事実を一目で確認する必要がある場合は、キャラクター文書の冒頭付近に簡潔な `### 現在の状態` 節を置くことを推奨する。この節がなくても保存でき、節を作るための構造補完だけを行ってはならない。'
+                                        : '캐릭터의 확인된 현재 사실을 한눈에 볼 필요가 있으면 문서 상단의 간결한 `### 현재 상태` 절을 권장한다. 이 절이 없어도 저장할 수 있으며, 절을 만들기 위한 구조 보완만 수행하지 않는다.',
                                 'Remove superseded facts from current-state sections; retain an old state only as a clearly historical transition when it remains narratively useful.',
                                 'Preserve unrelated established identity facts, relationships, knowledge, goals, possessions, constraints, and unresolved continuity unless confirmedMessages explicitly change them.',
                                 'Apply the stateChanges.after values and relevant persistentFacts, characterKnowledge, and openContinuity to the correct subject document. Do not copy another character\'s facts into this target.',

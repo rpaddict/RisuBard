@@ -194,6 +194,24 @@ function linksFrom(content: string): string[] {
         .slice(0, 32)
 }
 
+/**
+ * Matches the program-owned related-documents heading in every supported
+ * writing language, with or without the H3 marker, so both full lines and
+ * bare heading text work; legacy ko/en documents and ja documents all stay
+ * one section.
+ */
+function relatedDocumentsHeadingPattern(): RegExp {
+    return new RegExp(
+        '^#{0,3}\\s*(?:'
+        + [...new Set(Object.values(wikiWritingHeadings)
+            .map((headings) => headings.related))]
+            .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('|')
+        + ')\\s*$',
+        'mi',
+    )
+}
+
 function appendKnownDocumentLinks(
     content: string,
     documents: readonly MarkdownWikiDocument[],
@@ -217,17 +235,91 @@ function appendKnownDocumentLinks(
         right.title.length - left.title.length
         || left.id.localeCompare(right.id)
     ).slice(0, Math.max(0, 32 - existingTargets.size))
-    if (related.length === 0) return content
+    if (related.length === 0) {
+        return collapseDuplicateRelatedSections(content)
+    }
     const bullets = related.map((document) => `- [[${document.title}]]`)
         .join('\n')
     const heading = `### ${wikiWritingHeadings[normalizeWikiWritingLanguage(writingLanguage)].related}`
-    if (/^###\s+(관련 문서|Related Documents)\s*$/mi.test(content)) {
-        return content.replace(
-            /^###\s+(관련 문서|Related Documents)\s*$/mi,
-            () => `${heading}\n\n${bullets}`
+    const relatedHeadingPattern = relatedDocumentsHeadingPattern()
+    if (relatedHeadingPattern.test(content)) {
+        return collapseDuplicateRelatedSections(
+            content.replace(
+                relatedHeadingPattern,
+                () => `${heading}\n\n${bullets}`,
+            ),
         )
     }
     return `${content}\n\n${heading}\n\n${bullets}`
+}
+
+/**
+ * Older saves could append a second localized related-documents section; merge
+ * its unique link bullets into the first section and drop the duplicate so
+ * section-patch duplicate-heading validation never rejects the document.
+ */
+function collapseDuplicateRelatedSections(content: string): string {
+    const pattern = relatedDocumentsHeadingPattern()
+    const first = pattern.exec(content)
+    if (!first) return content
+    let cursor = first.index + first[0].length
+    while (cursor < content.length) {
+        const next = pattern.exec(content.slice(cursor))
+        if (!next) break
+        const start = cursor + next.index
+        const following = content.slice(start + next[0].length)
+        const nextSection = following.match(/^#{1,6}\s+\S/m)
+        const sectionEnd = nextSection?.index !== undefined
+            ? start + next[0].length + nextSection.index
+            : content.length
+        const duplicateBody = following.slice(
+            0,
+            sectionEnd - start - next[0].length,
+        )
+        content = content.slice(0, start)
+            + content.slice(sectionEnd).replace(/^\s*\r?\n/, '')
+        content = mergeRelatedSectionBullets(
+            content,
+            pattern,
+            duplicateBody,
+        )
+        cursor = first.index + first[0].length
+    }
+    return content
+}
+
+function mergeRelatedSectionBullets(
+    content: string,
+    pattern: RegExp,
+    duplicateBody: string
+): string {
+    const bullets = [...duplicateBody.matchAll(/^\s*[-*+]\s+\[\[.+?\]\]\s*$/gm)]
+        .map((match) => match[0].trim())
+        .filter((bullet) => !content.includes(bullet))
+    if (bullets.length === 0) return content
+    const section = pattern.exec(content)
+    if (!section) return content
+    const headingEnd = section.index + section[0].length
+    const rest = content.slice(headingEnd)
+    const nextHeading = rest.match(/^#{1,6}\s+\S/m)
+    const sectionBodyEnd = nextHeading?.index !== undefined
+        ? headingEnd + nextHeading.index
+        : content.length
+    const body = content.slice(headingEnd, sectionBodyEnd)
+    const existingBullets = [...body.matchAll(/^\s*[-*+]\s+\[\[.+?\]\]\s*$/gm)]
+    const insertAfter = existingBullets.at(-1)
+    if (insertAfter) {
+        const bulletEnd = headingEnd
+            + (insertAfter.index ?? 0)
+            + insertAfter[0].replace(/\s+$/, '').length
+        const tail = content.slice(bulletEnd)
+        return content.slice(0, bulletEnd)
+            + `\n${bullets.join('\n')}`
+            + (tail.startsWith('\n\n') ? tail : `\n${tail}`)
+    }
+    return content.slice(0, headingEnd)
+        + `\n\n${bullets.join('\n')}`
+        + rest
 }
 
 function parseRebootRecoveryManifest(value: unknown): RebootRecoveryManifest {
@@ -298,7 +390,8 @@ function removeCharacterEventLinksFromRelatedDocuments(
         if (heading) {
             if (heading[1].length <= 3) {
                 inRelatedDocuments = heading[1].length === 3
-                    && /^(관련 문서|Related Documents)$/i.test(heading[2].normalize('NFKC').trim())
+                    && relatedDocumentsHeadingPattern()
+                        .test(heading[2].normalize('NFKC').trim())
             }
             return true
         }
@@ -309,7 +402,7 @@ function removeCharacterEventLinksFromRelatedDocuments(
             .toLocaleLowerCase().trim())
     })
     const relatedHeading = filtered.findIndex((line) =>
-        /^###\s+(관련 문서|Related Documents)\s*$/i.test(line))
+        relatedDocumentsHeadingPattern().test(line))
     if (relatedHeading >= 0) {
         const nextSection = filtered.findIndex((line, index) =>
             index > relatedHeading && /^#{1,3}\s+\S/.test(line))
@@ -853,8 +946,11 @@ export function createMarkdownNarrativeWiki(
         const workspace = workspaceFor(characterId, chatId)
         const documents = await refreshDocuments(characterId, chatId)
         const indexLanguage = writingLanguage ?? (
-            documents.some((document) => /^###\s+(Story Summary|Story History|Related Documents)\s*$/mi.test(document.content))
-                && !documents.some((document) => /^###\s+이야기 요약\s*$/m.test(document.content))
+            documents.some((document) => /^###\s+(物語要約|作中行動|関連文書)\s*$/mi.test(document.content))
+                && !documents.some((document) => /^###\s+(이야기 요약|Story Summary)\s*$/mi.test(document.content))
+                ? 'ja'
+                : documents.some((document) => /^###\s+(Story Summary|Story History|Related Documents)\s*$/mi.test(document.content))
+                    && !documents.some((document) => /^###\s+이야기 요약\s*$/m.test(document.content))
                 ? 'en' : 'ko'
         )
         const index = [
@@ -863,7 +959,9 @@ export function createMarkdownNarrativeWiki(
             'status: active',
             '---',
             '',
-            indexLanguage === 'en' ? '## Narrative Wiki' : '## 서사 위키',
+            indexLanguage === 'en' ? '## Narrative Wiki'
+                : indexLanguage === 'ja' ? '## ナラティブウィキ'
+                : '## 서사 위키',
             '',
             ...documents.map((item) =>
                 `- [[${item.relativePath.replace(/\.md$/, '')}|${item.title}]]`

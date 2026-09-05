@@ -1,3 +1,5 @@
+import { expandQueryTerm } from '../../src/ts/risubard/wikiWritingLanguage'
+
 export type ExcerptDocumentType =
     | 'event' | 'scene' | 'character' | 'location'
     | 'faction' | 'creature' | 'item' | 'concept' | 'other'
@@ -18,17 +20,21 @@ interface MarkdownSection {
     order: number
 }
 
-const CURRENT_HEADINGS = /^(?:현재\s*상태|정체성|프로필|학력|직업|관계|지식|목표|소지품|제약|current\s+state|identity|profile|education|occupation|relationships?|knowledge|goals?|inventory|constraints?)$/iu
-const HISTORY_HEADINGS = /^(?:작중\s*행적|이야기\s*요약|story\s+history|story\s+summary|history|timeline)$/iu
+const HISTORY_HEADINGS = /^(?:작중\s*행적|이야기\s*요약|物語要約|作中行動|story\s+history|story\s+summary|history|timeline)$/iu
+
+const CURRENT_HEADINGS = /^(?:현재\s*상태|정체성|프로필|학력|직업|관계|지식|목표|소지품|제약|現在の状態|概要|人物情報|現在の情報|current\s+state|identity|profile|education|occupation|relationships?|knowledge|goals?|inventory|constraints?)$/iu
 
 function normalized(value: string): string {
     return value.normalize('NFKC').toLocaleLowerCase().trim()
 }
 
 function queryTerms(value: string): string[] {
-    return [...new Set(normalized(value)
+    const rawTerms = [...new Set(normalized(value)
         .split(/[^\p{L}\p{N}_]+/u)
         .filter((term) => term.length > 1))]
+    const expanded = rawTerms.flatMap((term) =>
+        expandQueryTerm(term))
+    return [...new Set(expanded)]
         .sort((left, right) => right.length - left.length)
 }
 

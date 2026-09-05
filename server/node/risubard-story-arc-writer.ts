@@ -14,6 +14,7 @@ export const STORY_ARC_EVENT_EXCERPT_CHARACTERS = 800
 const STORY_ARC_TITLES = {
     ko: '스토리 아크 플롯',
     en: 'Story Arc Plot',
+    ja: 'ストーリーアークプロット',
 } as const
 
 const LEGACY_STORY_ARC_TITLES = ['스토리 아크 지도', 'Story Arc Map'] as const
@@ -119,7 +120,9 @@ export function buildStoryArcUpdatePlan(input: {
     const eventTitles = events.map((event) => `[[${event.title}]]`).join(', ')
     const reason = input.writingLanguage === 'en'
         ? `Compact the next confirmed event checkpoint into the routing plot: ${eventTitles}`
-        : `다음 확정 사건 체크포인트를 탐색용 아크 플롯에 압축한다: ${eventTitles}`
+        : input.writingLanguage === 'ja'
+            ? `次の確定イベントチェックポイントをナビゲーション用アークプロットに圧縮する: ${eventTitles}`
+            : `다음 확정 사건 체크포인트를 탐색용 아크 플롯에 압축한다: ${eventTitles}`
     return {
         candidate: {
             type: 'other',
@@ -148,6 +151,15 @@ export function storyArcRewriteInstruction(
             `Keep at most ${settings.maxArcs} chronological arc bullets, ${settings.maxTurningPoints} turning-point bullets, and ${settings.maxOpenThreads} open-thread bullets. Link representative events as [[event title]].`,
             'Merge older adjacent arcs when over the cap while preserving distinctive names, objects, places, causal transitions, and representative event links.',
             `Keep the complete document within ${maxCharacters} characters. Never reproduce full event summaries or character state histories.`,
+        ].join('\n')
+    }
+    if (writingLanguage === 'ja') {
+        return [
+            '予約された other 文書であるストーリーアークプロットは、storyArcEvents を根拠の束として使う。',
+            'この文書は一次的事実の根拠ではなく、圧縮されたナビゲーション用プロットである。有用なH3節であるアーク概要、主要な転換点、未解決の糸のみを維持する。',
+            `時系列のアーク箇条書き最大${settings.maxArcs}個、転換点最大${settings.maxTurningPoints}個、未解決の糸最大${settings.maxOpenThreads}個を維持し、代表的なイベントを [[イベントタイトル]] で接続する。`,
+            '上限を超えたら古い隣接アークを統合するが、固有の名前・物・場所・因果の転換と代表的なイベントリンクは保存する。',
+            `文書全体を${maxCharacters}文字以内に維持し、イベント要約の全文や人物の状態履歴を複製しない。`,
         ].join('\n')
     }
     return [

@@ -966,6 +966,7 @@ const trimSanitizeConfig = {
 }
 
 export function trimMarkdown(data:string){
+    data = data ?? ''
     // Include hideAllImages in cache key — DOMPurify hook rewrites <img> based on this flag
     const cacheKey = (DBState.db?.hideAllImages ? '1|' : '0|') + (DBState.db?.returnCSSError ? '1|' : '0|') + data
     let cached = trimCache.get(cacheKey)

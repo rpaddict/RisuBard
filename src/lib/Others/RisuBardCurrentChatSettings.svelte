@@ -79,8 +79,8 @@
         <select value={chat?.risuBardSettings?.risuBardWikiWritingLanguage ?? ''}
             onchange={(event) => setValue('risuBardWikiWritingLanguage',
                 (event.currentTarget.value || undefined) as RisuBardChatSettings['risuBardWikiWritingLanguage'])}>
-            <option value="">{language.risuBardWikiLanguageGlobal} ({global.risuBardWikiWritingLanguage === 'en' ? 'English' : '한국어'})</option>
-            <option value="ko">한국어</option><option value="en">English</option>
+            <option value="">{language.risuBardWikiLanguageGlobal} ({global.risuBardWikiWritingLanguage === 'en' ? 'English' : global.risuBardWikiWritingLanguage === 'ja' ? '日本語' : '한국어'})</option>
+            <option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option>
         </select>
     </label>
     {#if settings.risuBardCanonicalWritingStyle === 'custom'}

@@ -3102,6 +3102,7 @@ export const languageEnglish = {
     risuBardCanonicalTargetLimit: "Automatic canonical targets per analysis",
     risuBardCanonicalWritingStyle: "Canonical writing style",
     risuBardWikiWritingLanguage: "Wiki writing language",
+    risuBardWikiLanguageSync: "Match wiki language to chat",
     risuBardWikiLanguageGlobal: "Use common setting",
     risuBardGrimoireSettings: "Grimoire options",
     risuBardGrimoireLanguage: "Metadata language",

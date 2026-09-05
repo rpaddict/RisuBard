@@ -1483,4 +1483,63 @@ describe('Markdown narrative wiki', () => {
             characterId: 'character', chatId: 'chat',
         })).rejects.toThrow('changed after the BARDCHAT command')
     })
+
+    test('keeps Japanese related documents a single section across saves', async () => {
+        const root = await fs.mkdtemp(join(tmpdir(), 'risubard-md-wiki-'))
+        temporaryDirectories.push(root)
+        const wiki = createMarkdownNarrativeWiki(root)
+        await wiki.saveCanonicalDocument({
+            characterId: 'character', chatId: 'chat', type: 'location',
+            title: 'エリュシオン学園', sourceMessageIds: ['user-1'],
+            markdown: '## エリュシオン学園\n\n魔法の学園。',
+            writingLanguage: 'ja',
+        })
+        const canon = await wiki.saveCanonicalDocument({
+            characterId: 'character', chatId: 'chat', type: 'character',
+            title: 'シロ', sourceMessageIds: ['user-1', 'assistant-1'],
+            markdown: '## シロ\n\nエリュシオン学園の新入生。',
+            writingLanguage: 'ja',
+        })
+        expect(canon.content).toContain('### 関連文書')
+
+        const updated = await wiki.saveCanonicalDocument({
+            characterId: 'character', chatId: 'chat', type: 'character',
+            title: 'シロ', sourceMessageIds: ['user-2', 'assistant-2'],
+            markdown: '## シロ\n\n### 現在の状態\n\n- エリュシオン学園の新入生。',
+            writingLanguage: 'ja',
+        })
+        const sections = updated.content.match(/^### 関連文書$/gm) ?? []
+        expect(sections).toHaveLength(1)
+        expect(updated.content).toContain('### 関連文書')
+    })
+
+    test('removes event links from Japanese related documents and prunes emptied sections', async () => {
+        const root = await fs.mkdtemp(join(tmpdir(), 'risubard-md-wiki-'))
+        temporaryDirectories.push(root)
+        const wiki = createMarkdownNarrativeWiki(root)
+        const event = await wiki.saveConfirmedTurn({
+            characterId: 'character', chatId: 'chat',
+            sourceMessageIds: ['user-1', 'assistant-1'],
+            markdown: '## 出会い\n\n### 物語要約\n\n- 二人は出会った。',
+        })
+        const created = await wiki.saveCanonicalDocument({
+            characterId: 'character', chatId: 'chat', type: 'character',
+            title: 'リズレット', sourceMessageIds: ['user-1'],
+            markdown: [
+                '## リズレット',
+                '',
+                '### 作中行動',
+                '',
+                '- [[出会い]]で初めて会った。',
+                '',
+                '### 関連文書',
+                '',
+                '- [[出会い]]',
+            ].join('\n'),
+        })
+        expect(created.content).toContain('### 作中行動')
+        expect(created.content).not.toContain('### 関連文書')
+        expect(created.links).toEqual(['出会い'])
+        expect(event.id).toBeTruthy()
+    })
 })
