@@ -3287,6 +3287,7 @@ export const languageKorean = {
     },
   },
   risuBardRecentMessages: "위키 분석 최근 원문",
+  risuBardAutoConfirmLagTurns: "자동 위키 확정 지연 턴",
   risuBardResponseRecentMessages: "LLM에 전달할 최근 채팅 내역",
   risuBardResponseExcludeUsers: "과거 사용자 메시지 제외",
   risuBardTurnCanon: "이번 턴 정본",

@@ -3080,6 +3080,7 @@ export const languageEnglish = {
         },
     },
     risuBardRecentMessages: "Wiki analysis recent messages",
+    risuBardAutoConfirmLagTurns: "Automatic confirmation lag (turns)",
     risuBardResponseRecentMessages: "Recent chat messages sent to the LLM",
     risuBardResponseExcludeUsers: "Exclude earlier user messages",
     risuBardTurnCanon: "This turn's canon",

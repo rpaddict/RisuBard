@@ -66,6 +66,15 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         keywords: ['analysis', 'wiki', 'recent messages', '분석', '위키', '최근 대화'],
     },
     {
+        id: 'risubard.chat.autoConfirmLagTurns',
+        type: 'number',
+        labelKey: 'risuBardAutoConfirmLagTurns',
+        helpKey: 'risuBardAutoConfirmLagTurns',
+        bindKey: 'risuBardAutoConfirmLagTurns',
+        options: { min: 0, step: 1 },
+        keywords: ['lag', 'delay', 'auto', 'confirm', 'reroll', '지연', '자동', '확정', '리롤'],
+    },
+    {
         id: 'risubard.chat.inquiryTargetTokenBudget',
         type: 'number',
         labelKey: 'risuBardInquiryTargetTokenBudget',

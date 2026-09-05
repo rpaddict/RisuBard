@@ -29,6 +29,7 @@ export interface RisuBardChatSettings {
     risuBardAdditionalSearchLimit?: number
     risuBardCanonicalTargetLimit?: number
     risuBardRecentMessageCount?: number
+    risuBardAutoConfirmLagTurns?: number
     risuBardResponseMessageCount?: number
     risuBardResponseExcludeUserMessages?: boolean
     risuBardCanonicalWritingStyle?: RisuBardCanonicalWritingStyle
@@ -55,6 +56,7 @@ export interface ResolvedRisuBardChatSettings {
     risuBardAdditionalSearchLimit: number
     risuBardCanonicalTargetLimit: number
     risuBardRecentMessageCount: number
+    risuBardAutoConfirmLagTurns: number
     risuBardResponseMessageCount: number
     risuBardResponseExcludeUserMessages: boolean
     risuBardCanonicalWritingStyle: RisuBardCanonicalWritingStyle
@@ -115,6 +117,9 @@ export function resolveRisuBardChatSettings(
         ),
         risuBardRecentMessageCount: boundedInteger(
             value('risuBardRecentMessageCount'), 12, 1
+        ),
+        risuBardAutoConfirmLagTurns: boundedInteger(
+            value('risuBardAutoConfirmLagTurns'), 0, 0
         ),
         risuBardResponseMessageCount: boundedInteger(
             value('risuBardResponseMessageCount'), 12, 1
