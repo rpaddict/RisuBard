@@ -909,6 +909,10 @@ export function setDatabase(data:Database){
         && data.risuBardRecentMessageCount! >= 1
         ? data.risuBardRecentMessageCount
         : 12
+    data.risuBardAutoConfirmLagTurns = Number.isSafeInteger(data.risuBardAutoConfirmLagTurns)
+        && data.risuBardAutoConfirmLagTurns! >= 0
+        ? data.risuBardAutoConfirmLagTurns
+        : 0
     data.risuBardResponseMessageCount = Number.isSafeInteger(data.risuBardResponseMessageCount)
         && data.risuBardResponseMessageCount! >= 1
         ? data.risuBardResponseMessageCount
@@ -1709,6 +1713,7 @@ export interface Database{
     risuBardAutoWikiEnabled?: boolean
     risuBardWikiMarkdownPreview?: boolean
     risuBardRecentMessageCount?: number
+    risuBardAutoConfirmLagTurns?: number
     risuBardResponseMessageCount?: number
     risuBardResponseIncludeUserMessages?: boolean
     risuBardResponseExcludeUserMessages?: boolean

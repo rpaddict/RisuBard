@@ -430,6 +430,8 @@ export const helpEn = {
             "Choose a large oval, a square crop, or a compact thumbnail placed beside the title.",
         risuBardRecentMessages:
             "Maximum number of recent user and assistant messages sent to wiki analysis after a response completes.",
+        risuBardAutoConfirmLagTurns:
+            "Hold automatic wiki confirmation back by this many further turns. 0 confirms the previous response (default). Recent turns are already in the response context verbatim, so confirming them duplicates information, and a confirmed turn must have its wiki undone before it can be rerolled. Raising this frees up that many turns for rerolling; in exchange, the tail of a conversation stays unconfirmed until you update the wiki manually.",
         risuBardResponseRecentMessages:
             "Maximum number of recent messages referenced when generating a new response. The current user request counts toward this limit.",
         risuBardCanonicalWritingStyle:

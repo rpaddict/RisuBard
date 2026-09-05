@@ -80,7 +80,10 @@ import {
     collectPersonaBuilderSources,
     matchPersonaBuilderCharacterLorebook,
 } from '../personaBuilder';
-import { shouldAutomaticallyConfirmNarrativeTurn } from '../risubard/automaticWikiConfirmation';
+import {
+    selectLaggedConfirmationTarget,
+    shouldAutomaticallyConfirmNarrativeTurn,
+} from '../risubard/automaticWikiConfirmation';
 import {
     compileWikiPromptGuide,
     resolveWikiPromptPreset,
@@ -1270,9 +1273,23 @@ export async function sendChat(chatProcessIndex = -1,arg:{
     const narrativeSessionChatId = realChatId
         ?? ensureNarrativeSessionChatId(currentChat, v4)
     nowChatroom.chats[selectedChat] = currentChat
-    const narrativeTurnToConfirm = projectConfirmedMemoryTurn(
-        currentChat.message
-    )
+    const autoConfirmLagTurns =
+        resolvedRisuBardSettings(currentChat).risuBardAutoConfirmLagTurns
+    const laggedConfirmationTarget = autoConfirmLagTurns > 0
+        ? selectLaggedConfirmationTarget(
+            currentChat.message,
+            autoConfirmLagTurns
+        )
+        : undefined
+    // A positive lag with no target left means there is nothing old enough to
+    // confirm yet. Falling back to a more recent turn would defeat the lag.
+    const narrativeTurnToConfirm =
+        autoConfirmLagTurns > 0 && laggedConfirmationTarget === null
+            ? null
+            : projectConfirmedMemoryTurn(
+                currentChat.message,
+                laggedConfirmationTarget ?? undefined
+            )
     let maxContextTokens = DBState.db.maxContext
     // Output-token reservation for the context budget. Defaults to the legacy
     // global db.maxResponse (the "[채팅 봇]" max response size), overridden below
