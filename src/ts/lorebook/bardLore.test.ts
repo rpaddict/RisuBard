@@ -413,6 +413,14 @@ describe('upgradeLegacyLorebook', () => {
             updatedAt: '2026-08-31T00:00:00.000Z',
             status: 'running',
             settingsSnapshot: settings,
+            instructionPresetSnapshot: {
+                schemaVersion: 1,
+                id: 'custom-prompt',
+                name: 'Custom prompt',
+                revision: 3,
+                builtin: false,
+                content: 'Stable instruction snapshot.',
+            },
             overwriteExisting: false,
             batches: [{
                 id: 'batch',
@@ -427,6 +435,7 @@ describe('upgradeLegacyLorebook', () => {
 
         expect(normalized?.analysisRun?.status).toBe('paused')
         expect(normalized?.analysisRun?.languageSnapshot).toBeUndefined()
+        expect(normalized?.analysisRun?.instructionPresetSnapshot?.content).toBe('Stable instruction snapshot.')
         expect(normalized?.analysisRun?.batches[0].status).toBe('pending')
         ;(state.analysisRun as unknown as Record<string, unknown>).batches = 'malformed'
         const withoutBadRun = normalizeBardLoreState(state)

@@ -46,6 +46,51 @@ function select(query: string, entries: BardLoreEntry[], tokenCounts: Record<str
 }
 
 describe('selectBardLoreEntries', () => {
+    const leo = () => entry('leo', {
+        comment: '카이넬 레오', key: '카이넬 레오, 카이넬',
+        bard: { ...entry('leo').bard, kind: 'character', activation: 'keyed',
+            facets: [{ key: 'gender', value: 'male', aliases: ['남'] }] },
+    })
+
+    it('routes only the current input while retaining recent context for retrieval', () => {
+        const current = '카이넬 레오를 만난다.'
+        const result = select('장소 설명: 여자 캐릭터 3명\n' + current,
+            [leo()], { leo: 80 }, {}, current)
+        expect(result.selected.map((item) => item.entry.id)).toEqual(['leo'])
+        expect(result.plan).toMatchObject({ query: current, targetKinds: [], constraints: [] })
+    })
+
+    it('keeps a directly named character in ordinary narration mentioning a place and a woman', () => {
+        const result = select('카이넬 레오가 여자와 약속한 장소를 설명한다.', [leo()], { leo: 80 })
+        expect(result.selected.map((item) => item.entry.id)).toEqual(['leo'])
+    })
+
+    it('does not weaken a hard token exclusion into an inferred filter exclusion', () => {
+        const result = select('카이넬 레오가 여자와 약속한 장소를 설명한다.', [leo()], { leo: 900 })
+        expect(result.selected).toEqual([])
+        expect(result.excluded[0].reason).toBe('token-limit')
+    })
+
+    it('prioritizes a current title-only match over old keys and high sparse scores', () => {
+        const old = entry('old', { key: '옛 인물', content: '새 인물' })
+        const current = entry('new', { comment: '새 인물' })
+        const result = select('옛 인물\n새 인물', [old, current], { old: 10, new: 10 }, {
+            maxEntries: 1, fieldWeights: { ...settings.fieldWeights, content: 100_000 },
+        }, '새 인물')
+        expect(result.selected.map((item) => item.entry.id)).toEqual(['new'])
+    })
+
+    it('uses the current input even when the context window supplied by the caller is empty', () => {
+        expect(select('', [leo()], { leo: 80 }, {}, '카이넬 레오').selected[0]?.entry.id).toBe('leo')
+    })
+
+    it('normalizes Unicode for directly matched keys', () => {
+        const named = leo()
+        named.key = '카이넬 레오'.normalize('NFD')
+        named.comment = 'profile'
+        expect(select('카이넬 레오', [named], { leo: 80 }).selected[0]?.reason).toBe('key')
+    })
+
     it('always selects required entries and reports the reserved reason', () => {
         const required = entry('format', { bard: { ...entry('x').bard, sourceLegacyId: 'format', sourceHash: 'format', activation: 'required' } })
 

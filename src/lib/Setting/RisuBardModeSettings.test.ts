@@ -72,7 +72,10 @@ describe('RisuBard mode settings', () => {
         const currentChatSettings = readFileSync(
             resolve(process.cwd(), 'src/lib/Others/RisuBardCurrentChatSettings.svelte'), 'utf8',
         )
-        expect(currentChatSettings.match(/\bmax="\d+"/g)).toEqual(['max="32"'])
+        expect(currentChatSettings.match(/\bmax="\d+"/g)).toEqual([
+            'max="10000"',
+            'max="32"',
+        ])
         expect(currentChatSettings).toContain('risuBardHistoricalSourceMatchLimit')
         expect(memoryWiki).not.toContain('data-memory-recent-message-count')
         expect(memoryWiki).not.toContain('data-response-recent-message-count')

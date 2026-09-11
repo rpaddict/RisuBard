@@ -16,6 +16,12 @@ export default defineConfig(({command, mode}) => {
       '__APP_VERSION__': JSON.stringify(pkg.version),
     },
     plugins: [
+      {
+        name: 'risubard-app-version-html',
+        transformIndexHtml(html: string) {
+          return html.replaceAll('__RISUBARD_APP_VERSION__', pkg.version)
+        },
+      },
       svelte({
         preprocess: vitePreprocess(),
         onwarn: (warning, handler) => {

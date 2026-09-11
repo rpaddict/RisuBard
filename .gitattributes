@@ -1,1 +1,2 @@
 /scripts/*.cmd text eol=crlf
+/scripts/portable/*.bat text eol=crlf

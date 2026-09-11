@@ -43,7 +43,7 @@ describe('RisuBard Wiki Prompt settings', () => {
         expect(source).toContain('<SettingPage')
         expect(source).toContain('<PresetHeader')
         expect(source).toContain('<SettingTabs')
-        expect(source).toContain('createDefaultWikiPromptPreset')
+        expect(source).toContain('createWikiPromptPreset')
         expect(source).toContain('function createPreset()')
         expect(source).toContain('onclick={createPreset}')
         expect(source).toContain('language.risuBardWikiPrompt.createPreset')
@@ -55,32 +55,36 @@ describe('RisuBard Wiki Prompt settings', () => {
         expect(source).toContain('downloadFile(')
     })
 
-    test('renders locked core and injection blocks while editing only text blocks', () => {
+    test('uses the Prompt V2 workspace and keeps only the built-in preset immutable', () => {
         const page = readFileSync(pagePath, 'utf8')
         const block = readFileSync(blockPath, 'utf8')
 
-        expect(page).toContain('<RisuBardWikiPromptBlock')
-        expect(page).toContain("type: 'text'")
-        expect(page).toContain('moveEditableBlock')
+        expect(page).toContain('<RisuBardWikiPromptV2Workspace')
+        expect(page).toContain('readonly={activePreset.builtin}')
+        expect(page).toContain('fullWidth={activeTab === 0}')
+        expect(page).toContain('disabled={activePreset.builtin}')
         expect(block).toContain('block.readonly')
-        expect(block).toContain('bind:value={block.content}')
-        expect(block).toContain('bind:value={block.target}')
-        expect(block).toContain('onRemove')
-        expect(block).toContain("block.id !== 'main-wiki-guide'")
-        expect(block).toContain('language.risuBardWikiPrompt.blockPlaceholder')
-        expect(block).toContain('readonly={block.readonly}')
-        expect(block).toContain('resizable')
-        expect(block).toContain('language.risuBardWikiPrompt.promptingHelp')
+        const workspace = readFileSync(
+            resolve(process.cwd(), 'src/lib/Setting/Pages/RisuBardWikiPromptV2Workspace.svelte'),
+            'utf8'
+        )
+        expect(workspace).toContain("PromptV2BlockEditor")
+        expect(workspace).toContain("block.type === 'core-ref'")
+        expect(workspace).toContain('critical={selectedBlock?.type ===')
         expect(readFileSync(textAreaPath, 'utf8')).toContain('class:resize-y={resizable}')
     })
 
-    test('separates writing and response blocks and opens a field reference sheet', () => {
+    test('supports writing and response targets and opens a field reference sheet', () => {
         const page = readFileSync(pagePath, 'utf8')
+        const workspace = readFileSync(
+            resolve(process.cwd(), 'src/lib/Setting/Pages/RisuBardWikiPromptV2Workspace.svelte'),
+            'utf8'
+        )
         const reference = readFileSync(referencePath, 'utf8')
 
-        expect(page).toContain('language.risuBardWikiPrompt.writingSection')
-        expect(page).toContain('language.risuBardWikiPrompt.responseSection')
-        expect(page).toContain("addBlock('response')")
+        expect(workspace).toContain("addBlock('both')")
+        expect(workspace).toContain("addBlock('response')")
+        expect(workspace).toContain('value="canonical-rewrite"')
         expect(page).toContain('<RisuBardWikiPromptReferenceSheet')
         expect(reference).toContain('<ShDialog')
         expect(reference).toContain('establishedEvents')

@@ -1,16 +1,16 @@
 <script lang="ts">
+    import { registerSettingsBack } from "src/ts/setting/settingsBack";
     import { language } from "src/lang";
     import SettingPage from "src/lib/UI/GUI/SettingPage.svelte";
     
     import { DBState } from 'src/ts/stores.svelte';
-    import Button from "src/lib/UI/GUI/Button.svelte";
     import ModuleMenu from "src/lib/Setting/Pages/Module/ModuleMenu.svelte";
     import { exportModule, importModule, refreshModules, type RisuModule } from "src/ts/process/modules";
-    import { SquarePen, TrashIcon, Globe, PlusIcon, HardDriveUpload, Waypoints, UsersRoundIcon, DownloadIcon } from "@lucide/svelte";
+    import { SquarePen, TrashIcon, Globe, PlusIcon, HardDriveUpload, Waypoints, UsersRoundIcon, ArrowLeftIcon } from "@lucide/svelte";
     import { v4 } from "uuid";
     import { alertConfirm, notifySuccess } from "src/ts/alert";
     import TextInput from "src/lib/UI/GUI/TextInput.svelte";
-    import { onDestroy } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import { importMCPModule } from "src/ts/process/mcp/mcp";
     import { convertModuleToCharacter } from "src/ts/interchangeability";
     import { checkCharOrder, requestImmediateSave } from "src/ts/globalApi.svelte";
@@ -24,8 +24,14 @@
         description: '',
         id: v4(),
     })
+    function returnToModules() {
+        if (mode === 0) return false
+        mode = 0
+        return true
+    }
+    onMount(() => registerSettingsBack(returnToModules))
+
     let mode = $state(0)
-    let editModuleIndex = $state(-1)
     let selectedModuleFolder = $state<string | null | undefined>(undefined)
     let personaAssignmentOpen = $state(false)
     let personaAssignmentModuleId = $state('')
@@ -150,6 +156,15 @@
         refreshModules()
     })
 </script>
+{#snippet backButton()}
+    <ShButton
+        variant="ghost"
+        size="icon-sm"
+        aria-label={language.moduleBackToList}
+        title={language.moduleBackToList}
+        onclick={returnToModules}
+    ><ArrowLeftIcon size={18}/></ShButton>
+{/snippet}
 {#if mode === 0}
     <SettingPage resizable title={language.modules} description={language.collectionOrganizer.description}>
 
@@ -189,10 +204,9 @@
                         </div>
                     </div>
                     <div class="module-item-actions">
-                        <div class="module-action-column">
                         <ShButton
                             variant="outline"
-                            size="icon"
+                            size="icon-xs"
                             aria-label={language.enableGlobal}
                             title={language.enableGlobal}
                             onclick={async (e) => {
@@ -209,7 +223,7 @@
                         </ShButton>
                         <ShButton
                             variant="outline"
-                            size="icon"
+                            size="icon-xs"
                             aria-label={language.managePersonaModules}
                             title={language.managePersonaModules}
                             onclick={(e) => {
@@ -219,24 +233,20 @@
                         >
                             <UsersRoundIcon size={18}/>
                         </ShButton>
-                        </div>
-                        <div class="module-action-column module-action-column--end">
                         {#if !rmodule.mcp}
-                            <ShButton variant="outline" size="icon" aria-label={language.edit} title={language.edit} onclick={async (e) => {
+                            <ShButton variant="outline" size="icon-xs" aria-label={language.edit} title={language.edit} onclick={async (e) => {
                                 e.stopPropagation()
-                                const index = DBState.db.modules.findIndex((v) => v.id === rmodule.id)
                                 tempModule = rmodule
-                                editModuleIndex = index
                                 mode = 2
                             }}>
                                 <SquarePen size={18}/>
                             </ShButton>
                         {:else}
-                            <ShButton variant="outline" size="icon" aria-label={language.edit} disabled>
+                            <ShButton variant="outline" size="icon-xs" aria-label={language.edit} disabled>
                                 <SquarePen size={18}/>
                             </ShButton>
                         {/if}
-                        <ShButton variant="destructive" size="icon" aria-label={language.remove} title={language.remove} onclick={async (e) => {
+                        <ShButton variant="destructive" size="icon-xs" aria-label={language.remove} title={language.remove} onclick={async (e) => {
                             e.stopPropagation()
                             const d = await alertConfirm(`${language.removeConfirm}` + rmodule.name)
                             if(d){
@@ -246,7 +256,6 @@
                         }}>
                             <TrashIcon size={18}/>
                         </ShButton>
-                        </div>
                     </div>
                 </div>
             {/if}
@@ -255,33 +264,30 @@
 
     </SettingPage>
 {:else if mode === 1}
-    <SettingPage title={language.createModule}>
+    <SettingPage title={language.createModule} leading={backButton}>
     <ModuleMenu bind:currentModule={tempModule}/>
-    <Button className="mt-6" onclick={() => {
+    <ShButton variant="outline" size="xs" className="mt-6 self-start" onclick={() => {
         DBState.db.modules.push(tempModule)
         assignModuleToFolder(tempModule.id, selectedModuleFolder)
         notifySuccess(language.moduleCreated)
         mode = 0
-    }}>{language.createModule}</Button>
+    }}>{language.createModule}</ShButton>
     </SettingPage>
 {:else if mode === 2}
-    <SettingPage title={language.editModule}>
+    <SettingPage title={language.editModule} leading={backButton}>
     <ModuleMenu bind:currentModule={tempModule}/>
     {#if tempModule.name !== ''}
-        <Button className="mt-6" onclick={() => {
-            DBState.db.modules[editModuleIndex] = tempModule
-            notifySuccess(language.moduleUpdated)
-            mode = 0
-        }}>{language.editModule}</Button>
-        <Button className="mt-2" onclick={() => exportModule(tempModule)}>
-            <DownloadIcon size={18}/>{language.download}
-        </Button>
-        <Button className="mt-2" onclick={() => {
+      <div class="module-editor-actions">
+        <button type="button" class="module-editor-action" onclick={() => exportModule(tempModule)}>
+            {language.download}
+        </button>
+        <button type="button" class="module-editor-action" onclick={() => {
             const char = convertModuleToCharacter(tempModule)
             DBState.db.characters.push(char)
             checkCharOrder()
             notifySuccess(language.successfullyConverted)
-        }}>{language.convertToCharacter}</Button>
+        }}>{language.convertToCharacter}</button>
+      </div>
     {/if}
     </SettingPage>
 {/if}
@@ -329,9 +335,25 @@
 </ShDialog>
 
 <style>
+    .module-editor-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--settings-border, var(--color-darkborderc)); }
+    .module-editor-action {
+        min-height: 3rem;
+        padding: .72rem 1.15rem;
+        border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 48%, var(--risu-theme-darkborderc));
+        border-radius: .62rem;
+        background: color-mix(in srgb, var(--risu-theme-primary) 62%, var(--risu-theme-bgcolor));
+        color: var(--risu-theme-textcolor);
+        font-size: .96rem;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        transition: background-color 180ms ease, box-shadow 180ms ease;
+    }
+    .module-editor-action:hover { background: color-mix(in srgb, var(--risu-theme-primary) 72%, var(--risu-theme-bgcolor)); }
+    .module-editor-action:focus-visible { outline: 2px solid color-mix(in srgb, var(--risu-theme-textcolor) 74%, var(--risu-theme-primary)); outline-offset: -3px; }
     .module-item-header {
+        height: 100%;
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         align-items: center;
         gap: 0.5rem;
         min-width: 0;
@@ -350,9 +372,11 @@
 
     .module-item-actions {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: flex-end;
-        gap: 0.45rem;
+        gap: .25rem;
+        align-items: center;
+        flex-shrink: 0;
         min-width: 0;
         max-width: 100%;
         margin-left: auto;
@@ -367,16 +391,6 @@
         min-width: 0;
         align-items: center;
         gap: .5rem;
-    }
-
-    .module-action-column {
-        display: flex;
-        flex-direction: column;
-        gap: .35rem;
-    }
-
-    .module-action-column--end {
-        margin-left: .15rem;
     }
 
     .module-activation-icon {

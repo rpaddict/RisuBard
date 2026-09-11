@@ -34,6 +34,7 @@ import { forageStorage, readImage } from "../globalApi.svelte";
 import { chatGenKey, chatProcessStage, endGeneration, isChatGenerating, setGenerationStage, startGeneration } from "./generationState";
 import { clearPendingSend, registerPendingSend } from "./request/pendingSends";
 import {
+    buildBoundedNarrativeInquiryFallback,
     createStoredResponseMemoryAnalysis,
     projectConfirmedMemoryTurn,
     projectMemoryAnalysisEvidence,
@@ -84,12 +85,14 @@ import { shouldAutomaticallyConfirmNarrativeTurn } from '../risubard/automaticWi
 import {
     compileWikiPromptGuide,
     resolveWikiPromptPreset,
+    type CompiledWikiPromptGuide,
 } from '../risubard/wikiPromptPreset';
 import { resolveRisuBardChatSettings } from '../risubard/risuBardSettings';
 import {
     findHistoricalSourceMatches,
     resolveHistoricalSourceMatchesById,
 } from '../risubard/historicalSourceRecall';
+import { rerankWithBardChan } from '../risubard/bardChanReranker';
 import { normalizeArcPlotterRuntimeSettings } from '../risubard/arcPlotterSettings';
 import {
     canonicalTurnNeedsRetry,
@@ -134,7 +137,8 @@ function resolvedArcPlotterSettings() {
 function findRisuBardChat(chatId?: string): Chat | undefined {
     if (!chatId) return undefined
     return DBState.db.characters.flatMap((character) => character.chats)
-        .find((chat) => chat.id === chatId)
+        .find((chat) => chat.id === chatId
+            || chat.risuBardWikiReboot?.stagingChatId === chatId)
 }
 
 async function resolveNarrativeFirstMessageEvidence(
@@ -185,6 +189,9 @@ const storedResponseMemoryAnalysis = createStoredResponseMemoryAnalysis({
     createAuth: () => forageStorage.createAuth(),
     getModelMode: (chatId) =>
         resolvedRisuBardSettings(findRisuBardChat(chatId)).risuBardModelMode,
+    getInquiryTimeoutMs: (chatId) =>
+        resolvedRisuBardSettings(findRisuBardChat(chatId))
+            .risuBardInquiryTimeoutMs,
     onError(error) {
         const reason = boundedMemoryAnalysisError(error) || '알 수 없는 오류'
         console.warn(`[RisuBard memory analysis] ${reason}`)
@@ -199,6 +206,7 @@ async function confirmProjectedNarrativeTurn(input: {
     targetMessageId: string
     messages: readonly MemoryAnalysisMessage[]
     additionalAnalysis?: boolean
+    historicalReanalysis?: boolean
     excludeCanonicalDocumentIds?: readonly string[]
 }): Promise<boolean> {
     const key = JSON.stringify([
@@ -223,14 +231,17 @@ async function confirmProjectedNarrativeTurn(input: {
             DBState.db.risuBardChatWikiPromptPresetId
         )
         const compiledWikiPromptGuide = wikiPromptPreset
-            ? compileWikiPromptGuide(wikiPromptPreset, {
+            ? renderWikiPromptGuide(compileWikiPromptGuide(wikiPromptPreset, {
                 characterGuide: risuChatParser(character?.risuBardWikiGuide ?? '', {
                     chara: character,
                 }),
                 chatGuide: risuChatParser(chat?.risuBardWikiGuide ?? '', {
                     chara: character,
                 }),
-            })
+                analysisMode: input.historicalReanalysis
+                    ? 'historical'
+                    : 'normal',
+            }), character)
             : undefined
         const firstMessageEvidence = character && chat
             ? await resolveNarrativeFirstMessageEvidence(
@@ -239,6 +250,9 @@ async function confirmProjectedNarrativeTurn(input: {
                 input.chatId
             )
             : undefined
+        const confirmedMessages = settings.risuBardAnalysisExcludeUserMessages
+            ? input.messages.filter((message) => message.role !== 'user')
+            : [...input.messages]
         const contextMessages = chat
             ? projectRecentMemoryMessages(
                 chat.message,
@@ -246,14 +260,15 @@ async function confirmProjectedNarrativeTurn(input: {
                     settings.risuBardRecentMessageCount
                 ),
                 input.targetMessageId,
-                firstMessageEvidence
+                firstMessageEvidence,
+                !settings.risuBardAnalysisExcludeUserMessages
             )
-            : [...input.messages]
+            : confirmedMessages
         const receipt = await storedResponseMemoryAnalysis.confirm({
             characterId: input.characterId,
             chatId: input.chatId,
             messages: projectMemoryAnalysisEvidence(
-                input.messages,
+                confirmedMessages,
                 contextMessages,
                 firstMessageEvidence
             ),
@@ -277,6 +292,7 @@ async function confirmProjectedNarrativeTurn(input: {
                 },
             } : {}),
             ...(input.additionalAnalysis ? { additionalAnalysis: true } : {}),
+            ...(input.historicalReanalysis ? { historicalReanalysis: true } : {}),
             ...(input.excludeCanonicalDocumentIds ? {
                 excludeCanonicalDocumentIds:
                     input.excludeCanonicalDocumentIds,
@@ -344,6 +360,41 @@ export async function confirmCurrentNarrativeMessage(
     return confirmProjectedNarrativeTurn({
         characterId: character.chaId,
         chatId,
+        ...projected,
+    })
+}
+
+function renderWikiPromptGuide(
+    guide: CompiledWikiPromptGuide,
+    currentCharacter?: character,
+): CompiledWikiPromptGuide {
+    const render = (source: string) => risuChatParser(source, {
+        chara: currentCharacter,
+        globalChatVariables: DBState.db.globalChatVariables ?? {},
+    })
+    return {
+        analysis: render(guide.analysis),
+        canonicalRewrite: render(guide.canonicalRewrite),
+        response: render(guide.response),
+    }
+}
+
+export async function reanalyzeNarrativeMessage(
+    messageId: string
+): Promise<boolean> {
+    const character = DBState.db.characters[get(selectedCharID)]
+    const chat = character?.chats[character.chatPage]
+    if (!character || !chat) return false
+    const projected = projectConfirmedMemoryTurn(
+        chat.message,
+        messageId,
+        { includeConfirmed: true }
+    )
+    if (!projected) return false
+    return confirmProjectedNarrativeTurn({
+        characterId: character.chaId,
+        chatId: ensureNarrativeSessionChatId(chat, v4),
+        historicalReanalysis: true,
         ...projected,
     })
 }
@@ -575,7 +626,7 @@ async function runWikiReboot(
                 DBState.db.risuBardChatWikiPromptPresetId
             )
             const compiledWikiPromptGuide = wikiPromptPreset
-                ? compileWikiPromptGuide(wikiPromptPreset, {
+                ? renderWikiPromptGuide(compileWikiPromptGuide(wikiPromptPreset, {
                     characterGuide: risuChatParser(
                         character.risuBardWikiGuide ?? '',
                         { chara: character }
@@ -583,7 +634,7 @@ async function runWikiReboot(
                     chatGuide: risuChatParser(chat.risuBardWikiGuide ?? '', {
                         chara: character,
                     }),
-                })
+                }), character)
                 : undefined
             const firstMessageEvidence = await resolveNarrativeFirstMessageEvidence(
                 character,
@@ -596,14 +647,19 @@ async function runWikiReboot(
                     settings.risuBardRecentMessageCount
                 ),
                 batch.at(-1)?.assistantMessageId,
-                firstMessageEvidence
+                firstMessageEvidence,
+                !settings.risuBardAnalysisExcludeUserMessages
             )
             const receipt = await storedResponseMemoryAnalysis.confirm({
                 characterId: character.chaId,
                 chatId: job.stagingChatId,
                 modelSessionChatId: chatId,
                 messages: projectMemoryAnalysisEvidence(
-                    projected.messages,
+                    settings.risuBardAnalysisExcludeUserMessages
+                        ? projected.messages.filter((message) =>
+                            message.role !== 'user'
+                        )
+                        : projected.messages,
                     contextMessages,
                     firstMessageEvidence
                 ),
@@ -806,6 +862,7 @@ export async function executeCurrentNarrativeWikiCommand(
                 chat,
                 chatId
             ),
+            !settings.risuBardAnalysisExcludeUserMessages,
         )
         if (currentMessages.length === 0) {
             throw new Error('현재 메시지를 위키 명령 자료로 준비할 수 없습니다.')
@@ -1519,10 +1576,21 @@ export async function sendChat(chatProcessIndex = -1,arg:{
                 const inquiryStartedAt = performance.now()
                 try {
                     const inquirySettings = resolvedRisuBardSettings(currentChat)
-                    const inquiry = await loadNarrativeInquiry({
+                    const loadInquiry = (semanticMatches?: readonly {
+                        documentId: string
+                        score: number
+                    }[]) => loadNarrativeInquiry({
                         characterId: currentChar.chaId,
                         chatId: narrativeSessionChatId,
                         currentInput,
+                        fallbackInput: buildBoundedNarrativeInquiryFallback(
+                            projectRecentMemoryMessages(
+                                currentChat.message,
+                                normalizeNarrativeWorkingMessageLimit(
+                                    inquirySettings.risuBardResponseMessageCount
+                                )
+                            )
+                        ),
                         entityHints: lorepmt.bardWikiEntityHints,
                         tokenBudget: {
                             target: inquirySettings.risuBardInquiryTargetTokenBudget,
@@ -1553,7 +1621,31 @@ export async function sendChat(chatProcessIndex = -1,arg:{
                             }),
                         fetchImpl: fetch,
                         createAuth: () => forageStorage.createAuth(),
+                        timeoutMs: inquirySettings.risuBardInquiryTimeoutMs,
+                        ...(semanticMatches ? { semanticMatches } : {}),
                     })
+                    const initialInquiry = await loadInquiry()
+                    const semanticMatches = await rerankWithBardChan({
+                        enabled: inquirySettings.risuBardBardChanEnabled,
+                        modelMode: inquirySettings.risuBardBardChanModelMode,
+                        currentInput,
+                        candidates: initialInquiry.rerankCandidates,
+                        realChatId: narrativeSessionChatId,
+                        requestModel: (request, mode) =>
+                            requestChatData(request, mode),
+                    })
+                    const rerankedInquiry = semanticMatches.length > 0
+                        ? await loadInquiry(semanticMatches)
+                        : undefined
+                    const inquiry = rerankedInquiry
+                        ? {
+                            ...rerankedInquiry,
+                            metrics: {
+                                ...rerankedInquiry.metrics,
+                                auxiliaryModelCalls: 1,
+                            },
+                        }
+                        : initialInquiry
                     sources = inquiry.sources
                     narrativeContextObservation.promptMode = inquiry.mode
                     narrativeContextObservation.graphRevision =
@@ -1594,7 +1686,10 @@ export async function sendChat(chatProcessIndex = -1,arg:{
                 DBState.db.risuBardChatWikiPromptPresetId
             )
             const responseWikiPromptGuide = responseWikiPromptPreset
-                ? compileWikiPromptGuide(responseWikiPromptPreset).response
+                ? renderWikiPromptGuide(
+                    compileWikiPromptGuide(responseWikiPromptPreset),
+                    currentChar,
+                ).response
                 : ''
             const currentPrompt = narrativeContext.sourceChanged
                 ? null

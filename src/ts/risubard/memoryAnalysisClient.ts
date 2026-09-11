@@ -39,7 +39,10 @@ import {
 import { get_encoding, type Tiktoken } from '@dqbd/tiktoken'
 import { saveCanonicalWikiDocument } from './markdownWikiWriter'
 import type { WikiWritingLanguage } from './wikiWritingLanguage'
-import { RISUBARD_ANALYSIS_TOKEN_LIMIT_DEFAULT } from './risuBardSettings'
+import {
+    RISUBARD_ANALYSIS_TOKEN_LIMIT_DEFAULT,
+    RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT,
+} from './risuBardSettings'
 import {
     announceRisuBardMemoryUpdated,
 } from './memoryEvents'
@@ -91,6 +94,7 @@ interface MemoryAnalysisClientOptions {
     createAuth(): Promise<string>
     onError(error: unknown): void | Promise<void>
     getModelMode?(chatId?: string): 'memory' | 'model'
+    getInquiryTimeoutMs?(chatId?: string): number
     nativeV2Analysis?: boolean
 }
 
@@ -493,6 +497,7 @@ export function projectRecentMemoryMessages(
     limit = 12,
     throughMessageId?: string,
     firstMessage?: MemoryAnalysisMessage,
+    includeUserMessages = true,
 ): MemoryAnalysisMessage[] {
     const boundedLimit = Number.isSafeInteger(limit)
         ? Math.max(1, limit)
@@ -512,6 +517,7 @@ export function projectRecentMemoryMessages(
             && message.chatId.trim().length > 0
             && !message.isComment
             && !message.disabled
+            && (includeUserMessages || message.role !== 'user')
         )
     const projected: MemoryAnalysisMessage[] = eligible
         .slice(-boundedLimit)
@@ -523,6 +529,30 @@ export function projectRecentMemoryMessages(
     return firstMessage && eligible.length <= boundedLimit
         ? [firstMessage, ...projected]
         : projected
+}
+
+export function buildBoundedNarrativeInquiryFallback(
+    messages: readonly MemoryAnalysisMessage[],
+    maximumCharacters = 4_096,
+): string {
+    const maximum = Number.isSafeInteger(maximumCharacters)
+        ? Math.max(0, maximumCharacters)
+        : 4_096
+    const parts: string[] = []
+    let remaining = maximum
+    for (let index = messages.length - 1;
+        index >= 0 && remaining > 0;
+        index -= 1) {
+        const separatorLength = parts.length > 0 ? 1 : 0
+        if (remaining <= separatorLength) break
+        const content = messages[index].content.slice(
+            -(remaining - separatorLength)
+        )
+        if (content.length === 0) continue
+        parts.unshift(content)
+        remaining -= content.length + separatorLength
+    }
+    return parts.join('\n')
 }
 
 export function projectMemoryAnalysisEvidence(
@@ -688,7 +718,8 @@ export function createStoredResponseMemoryAnalysis(
         }) {
             return loadNarrativeInquiry({
                 ...input,
-                timeoutMs: 5_000,
+                timeoutMs: options.getInquiryTimeoutMs?.(input.chatId)
+                    ?? RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT,
                 fetchImpl: options.fetchImpl,
                 createAuth: options.createAuth,
             })

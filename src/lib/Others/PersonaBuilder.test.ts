@@ -39,6 +39,7 @@ describe('persona builder UI connections', () => {
     })
 
     test('provides reusable preset selection and mutation controls', () => {
+        const builder = source('src/lib/Others/PersonaBuilder.svelte')
         const editor = source('src/lib/Others/PersonaPromptPresetEditor.svelte')
 
         expect(editor).toContain('<ShAccordion')
@@ -51,6 +52,9 @@ describe('persona builder UI connections', () => {
         expect(editor).toContain('data-persona-prompt-preset-save')
         expect(editor).toContain('data-persona-prompt-preset-overwrite')
         expect(editor).toContain('data-persona-prompt-preset-delete')
+        expect(builder).toContain('DBState.db.personaBuilderStylePromptPresetId')
+        expect(builder).toContain('resolvePersonaBuilderPromptPreset')
+        expect(editor).toContain('DBState.db.personaBuilderStylePromptPresetId = id || undefined')
     })
 
     test('keeps the result editable and exposes send, reset, and copy actions', () => {
@@ -143,7 +147,7 @@ describe('persona builder UI connections', () => {
         expect(builder).toContain("import ManagerResizeHandles from 'src/lib/UI/GUI/ManagerResizeHandles.svelte'")
         expect(builder).toContain('let dialogElement = $state<HTMLElement | null>(null)')
         expect(builder).toContain('bind:contentElement={dialogElement}')
-        expect(builder).toContain('<ManagerResizeHandles target={dialogElement} centered />')
+        expect(builder).toContain('<ManagerResizeHandles target={dialogElement} centered')
         expect(builder).toContain('closeOnOutsideClick={true}')
         expect(builder).toContain('var(--manager-width, 56rem)')
         expect(builder).toContain('calc(100vw - 2rem)')
@@ -166,11 +170,17 @@ describe('persona builder UI connections', () => {
         expect(builder).toContain('data-persona-builder-original')
         expect(builder).toMatch(/data-persona-builder-original[\s\S]*?readonly/)
         expect(builder).toContain('data-persona-builder-draft')
-        expect(builder).toContain('overflow-y: auto')
+        expect(builder).toContain('overflow-y: scroll')
         expect(builder).toMatch(/@media \(max-width: 700px\)[\s\S]*?grid-template-columns: 1fr/)
 
         expect(splitter).toContain('use:resizeHandle')
         expect(splitter).toContain('data-draft-split-resize')
+        expect(builder).toContain('resizeStorageKey="persona-builder-dialog"')
+        expect(builder).toContain('resizeStorageKey="persona-builder-draft-split"')
+        expect(builder).toContain("use:persistElementHeight={'persona-builder-instruction'}")
+        expect(builder).toContain("use:persistElementHeight={'persona-builder-original'}")
+        expect(builder).toContain("use:persistElementHeight={'persona-builder-revision'}")
+        expect(builder).toMatch(/\.draft-pane \.builder-textarea \{[^}]*resize: vertical;[^}]*overflow-y: scroll;/)
     })
 
     test('starts with an empty revision while sending the original as the first draft context', () => {

@@ -49,6 +49,7 @@
     import RisuBardFindReplace from './RisuBardFindReplace.svelte'
     import RisuBardMemoryWikiHelp from './RisuBardMemoryWikiHelp.svelte'
     import RisuBardCurrentChatSettings from './RisuBardCurrentChatSettings.svelte'
+    import ManagerResizeHandles from 'src/lib/UI/GUI/ManagerResizeHandles.svelte'
     import SolarBoldIcon from 'src/lib/UI/Icons/SolarBoldIcon.svelte'
     import forceUpdateIdle from 'src/assets/risubard-memory/additional-analysis-idle.png'
     import forceUpdateHover from 'src/assets/risubard-memory/additional-analysis-hover.gif'
@@ -113,12 +114,14 @@
         null
     )
     let requestSequence = 0
+    let loadAbortController: AbortController | undefined
     let loadedScope = ''
     let dockElement = $state<HTMLElement | null>(null)
     let workspaceSplitElement = $state<HTMLElement | null>(null)
     let activeView = $state<'workspace' | 'story' | 'arc-plot' | 'log'>('workspace')
     let findReplaceOpen = $state(false)
     let settingsOpen = $state(false)
+    let settingsPopoverElement = $state<HTMLElement | null>(null)
     let layoutMode = $state<MemoryWikiLayout>('desktop')
     let layoutManuallySelected = false
     let dockRatio = $state(normalizeMemoryWikiDockRatio(
@@ -301,6 +304,9 @@
     }
 
     async function loadWiki() {
+        loadAbortController?.abort()
+        const controller = new AbortController()
+        loadAbortController = controller
         const sequence = ++requestSequence
         const scope = `${characterId}\u0000${wikiChatId}`
         const refreshingCurrentScope = loadedScope === scope
@@ -316,6 +322,7 @@
                 chatId: wikiChatId,
                 fetchImpl: fetch,
                 createAuth: () => forageStorage.createAuth(),
+                signal: controller.signal,
             })
             if (sequence === requestSequence) {
                 wiki = loaded
@@ -337,8 +344,18 @@
             }
         }
         finally {
+            if (loadAbortController === controller) {
+                loadAbortController = undefined
+            }
             if (sequence === requestSequence) loading = false
         }
+    }
+
+    function cancelWikiLoad() {
+        requestSequence += 1
+        loadAbortController?.abort()
+        loadAbortController = undefined
+        loading = false
     }
 
     async function forceWikiUpdate() {
@@ -602,13 +619,16 @@
     }
 
     $effect(() => {
-        void open
-        if (!characterId || !wikiChatId) return
+        if (!open || !characterId || !wikiChatId) {
+            cancelWikiLoad()
+            return
+        }
         void loadWiki()
+        return cancelWikiLoad
     })
 
     $effect(() => {
-        if (!characterId || !wikiChatId || !onExecuteWikiCommand) return
+        if (!open || !characterId || !wikiChatId || !onExecuteWikiCommand) return
         bardChatUpdatedIds = null
         bardChatUndoAvailable = false
         void refreshBardChatUndoStatus()
@@ -623,7 +643,7 @@
             const detail = (event as CustomEvent<
                 RisuBardMemoryUpdatedDetail
             >).detail
-            if (detail?.characterId !== characterId
+            if (!open || detail?.characterId !== characterId
                 || detail.chatId !== wikiChatId) return
             void loadWiki()
         }
@@ -643,6 +663,7 @@
     class="memory-wiki-dock"
     class:closed={!open}
     class:editor-focus={editorFocus}
+    class:settings-open={settingsOpen}
     class:mobile-layout={layoutMode === 'mobile'}
     class:desktop-layout={layoutMode === 'desktop'}
     data-memory-wiki-dock
@@ -849,8 +870,15 @@
                 data-memory-settings-popover
                 aria-label="BardWiki 현재 챗 설정"
                 hidden={!settingsOpen}
+                bind:this={settingsPopoverElement}
             >
                 <RisuBardCurrentChatSettings chat={currentChat} global={DBState.db} />
+                <ManagerResizeHandles
+                    target={settingsPopoverElement}
+                    rightAnchored
+                    shadowPreview
+                    resizeStorageKey="bardwiki-current-chat-settings"
+                />
             </section>
         {/if}
     </header>
@@ -1256,6 +1284,7 @@
         container-type: inline-size;
     }
     .memory-wiki-dock.closed { display: none; }
+    .memory-wiki-dock.settings-open { overflow: visible; }
     .memory-wiki-dock.editor-focus > .dock-header,
     .memory-wiki-dock.editor-focus .ledger-toolbar,
     .memory-wiki-dock.editor-focus .force-update-status,
@@ -1467,7 +1496,9 @@
         top: calc(100% + .22rem);
         right: .5rem;
         display: grid;
-        width: min(30rem, calc(100% - 1rem));
+        width: var(--manager-width, 58rem);
+        height: var(--manager-height, auto);
+        max-width: calc(100vw - 1rem);
         max-height: calc(100dvh - 7rem);
         overflow-y: auto;
         padding: .55rem;

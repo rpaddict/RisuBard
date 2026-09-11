@@ -9,7 +9,7 @@ import PromptBind from './PromptBind.svelte'
 vi.mock('src/ts/stores.svelte', async () => {
     const { writable } = await import('svelte/store')
     return {
-        DBState: { db: {} }, selectedCharID: writable(0),
+        DBState: { db: {} }, selectedCharID: writable(0), selIdState: { selId: 0 },
         openPersonaList: writable(false), openPersonaManager: writable(false), personaSelectCallback: writable(null),
         openPresetList: writable(false), presetSelectCallback: writable(null),
     }

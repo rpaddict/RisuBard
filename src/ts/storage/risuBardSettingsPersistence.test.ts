@@ -51,10 +51,11 @@ describe('RisuBard settings persistence', () => {
     })
 
     test.each([
-        { recent: 250, response: 300, expectedRecent: 250, expectedResponse: 300 },
-        { recent: 0, response: Infinity, expectedRecent: 12, expectedResponse: 12 },
+        { recent: 250, response: 300, timeout: 7_500, expectedRecent: 250, expectedResponse: 300, expectedTimeout: 7_500 },
+        { recent: 0, response: Infinity, timeout: 20_000, expectedRecent: 12, expectedResponse: 12, expectedTimeout: 10_000 },
     ])('normalizes persisted message counts without a fixed ceiling: $recent', ({
-        recent, response, expectedRecent, expectedResponse,
+        recent, response, timeout, expectedRecent, expectedResponse,
+        expectedTimeout,
     }) => {
         setDatabase({
             characters: [], formatingOrder: ['main'], loreBook: [],
@@ -66,6 +67,7 @@ describe('RisuBard settings persistence', () => {
             risuBardCanonicalTargetLimit: 99,
             risuBardInquiryTargetTokenBudget: 50_000,
             risuBardInquiryMaximumTokenBudget: 99_999,
+            risuBardInquiryTimeoutMs: timeout,
         } as any)
         const saved = JSON.parse(JSON.stringify(getDatabase()))
         setDatabase(saved)
@@ -77,6 +79,7 @@ describe('RisuBard settings persistence', () => {
             risuBardCanonicalTargetLimit: 99,
             risuBardInquiryTargetTokenBudget: 50_000,
             risuBardInquiryMaximumTokenBudget: 99_999,
+            risuBardInquiryTimeoutMs: expectedTimeout,
         })
     })
 })

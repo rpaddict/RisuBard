@@ -10,7 +10,7 @@ export function createChildSpecs(projectRoot) {
   return [
     {
       label: 'SERVER',
-      args: ['server/node/server.cjs'],
+      args: ['--watch-path=server/node', '--watch-preserve-output', 'server/node/server.cjs'],
     },
     {
       label: 'WEB',

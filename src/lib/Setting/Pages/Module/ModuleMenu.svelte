@@ -1,4 +1,5 @@
 <script lang="ts">
+    import SettingsSectionTabs from "src/lib/UI/GUI/SettingsSectionTabs.svelte";
     import { language } from "src/lang";
     import TextInput from "src/lib/UI/GUI/TextInput.svelte";
     import type { loreBook } from "src/ts/storage/database.svelte";
@@ -140,55 +141,36 @@
             currentModule.trigger = currentModule.trigger
         }
     }
+    function selectSubmenu(value: number) {
+        if (value === 1) currentModule.lorebook ??= []
+        if (value === 2) currentModule.regex ??= []
+        if (value === 3) currentModule.trigger ??= [
+            { comment: "", type: "manual", conditions: [], effect: [{ type: "v2Header", code: "", indent: 0 }] },
+            { comment: "New Event", type: "manual", conditions: [], effect: [] },
+        ]
+        if (value === 5) {
+            currentModule.assets ??= []
+            visibleAssetCount = moduleAssetPageSize
+        }
+        submenu = value
+    }
 </script>
 
-<div class="flex w-full rounded-md border border-darkborderc mb-4 overflow-x-auto h-16 min-h-16 overflow-y-clip">
-    <button onclick={() => {
-        submenu = 0
-    }} class="p-2 flex-1 border-r border-darkborderc" class:bg-darkbutton={submenu === 0}>
-        <span>{language.basicInfo}</span>
-    </button>
-    <button onclick={() => {
-        currentModule.lorebook ??= []
-        submenu = 1
-    }} class="p2 flex-1 border-r border-darkborderc" class:bg-darkbutton={submenu === 1}>
-        <span>{language.loreBook}</span>
-    </button>
-    <button onclick={() => {
-        currentModule.regex ??= []
-        submenu = 2
-    }} class="p-2 flex-1 border-r border-darkborderc" class:bg-darkbutton={submenu === 2}>
-        <span>{language.regexScript}</span>
-    </button>
-    <button onclick={() => {
-        currentModule.trigger ??= [{
-            comment: "",
-            type: "manual",
-            conditions: [],
-            effect: [{
-                type: "v2Header",
-                code: "",
-                indent: 0
-            }]
-        }, {
-            comment: "New Event",
-            type: 'manual',
-            conditions: [],
-            effect: []
-        }]
-        submenu = 3
-    }} class="p-2 flex-1 border-r border-darkborderc" class:bg-darkbutton={submenu === 3}>
-        <span>{language.triggerScript}</span>
-    </button>
-    <button onclick={() => {
-        currentModule.assets ??= []
-        visibleAssetCount = moduleAssetPageSize
-        submenu = 5
-    }} class="p-2 flex-1" class:bg-darkbutton={submenu === 5}>
-        <span>{language.additionalAssets}</span>
-    </button>
-</div>
+<SettingsSectionTabs
+    variant="prominent"
+    ariaLabel={language.editModule}
+    selected={submenu}
+    tabs={[
+        { value: 0, label: language.basicInfo },
+        { value: 1, label: language.loreBook },
+        { value: 2, label: language.regexScript },
+        { value: 3, label: language.triggerScript },
+        { value: 5, label: language.additionalAssets },
+    ]}
+    onSelect={selectSubmenu}
+/>
 
+<div class="module-editor-panel">
 {#if submenu === 0}
     <span>{language.name} <Help key="moduleName" /></span>
     <TextInput bind:value={currentModule.name} className="mt-2"/>
@@ -334,3 +316,9 @@
         <span> <Help key="lowLevelAccess" name={language.lowLevelAccess}/></span>
     </div>
 {/if}
+
+</div>
+
+<style>
+    .module-editor-panel { display: flex; flex-direction: column; min-width: 0; padding: 1.25rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, .75rem); background: var(--settings-surface, var(--color-bgcolor)); }
+</style>

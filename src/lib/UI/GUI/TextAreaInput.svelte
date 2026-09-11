@@ -49,6 +49,8 @@
             id={id}
             readonly={readonly}
             bind:value={value}
+            bind:this={nativeInputDom}
+            onscroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
             oninput={(e) => {
                 if(optimaizedInput){
                     if(inpa++ > 10){
@@ -170,6 +172,7 @@
             onchange()
         }}
         bind:this={inputDom}
+        onscroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
         translate="no"
     >{value ?? ''}</div>
 {/if}
@@ -230,6 +233,8 @@
         actionBar?: boolean;
         readonly?: boolean;
         resizable?: boolean;
+        scrollTop?: number;
+        onScrollTopChange?: (scrollTop: number) => void;
     }
 
     let {
@@ -250,7 +255,9 @@
         popupLanguage = 'markdown',
         actionBar = undefined,
         readonly = false,
-        resizable = false
+        resizable = false,
+        scrollTop = 0,
+        onScrollTopChange = () => {}
     }: Props = $props();
     // `actionBar` prop overrides per-field; otherwise follow the accessibility toggle.
     const showActionBar = $derived(actionBar ?? DBState.db.showInputActionBar ?? true)
@@ -267,6 +274,7 @@
     let autoCompleteDom: HTMLDivElement = $state()
     let autocompleteContents:string[] = $state([])
     let inputDom: HTMLDivElement = $state()
+    let nativeInputDom: HTMLTextAreaElement = $state()
 
     const autoComplete = () => {
         if(isMobile){
@@ -473,5 +481,11 @@
         if (hlTimer) clearTimeout(hlTimer)
         hlTimer = setTimeout(() => highlighter(highlightDom, highlightId), 200)
     });
+
+    $effect(() => {
+        const target = highlight && !$disableHighlight ? inputDom : nativeInputDom
+        const position = scrollTop
+        if (target && target.scrollTop !== position) target.scrollTop = position
+    })
 
 </script>

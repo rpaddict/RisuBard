@@ -46,7 +46,7 @@ export const memoryWriterDraftSchema = JSON.stringify({
                 required: ['subject', 'before', 'after'],
                 properties: {
                     subject: itemString,
-                    before: { oneOf: [itemString, { type: 'null' }] },
+                    before: { ...itemString, type: ['string', 'null'] },
                     after: itemString,
                 },
             },

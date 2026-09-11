@@ -107,7 +107,7 @@
             localLore: [] as any[],
             fmIndex: -1,
             id: v4(),
-            ...newChatModelDefaults(),
+            ...newChatModelDefaults(chara, activeChat),
         }
         chara.chats.unshift(newChat)
         chara.chats = chara.chats
@@ -544,7 +544,6 @@
             <ShButton className="w-full mt-2" onclick={() => {
                 const char = DBState.db.characters[$selectedCharID]
                 if (!char) return
-                char.chats[char.chatPage].modules ??= []
                 openModuleListStore.set(true)
             }}>
                 <PackageIcon size={16} class="shrink-0" />

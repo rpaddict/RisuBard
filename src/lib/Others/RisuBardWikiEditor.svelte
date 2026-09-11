@@ -1,6 +1,11 @@
 <script lang="ts">
     import markdownit from 'markdown-it'
-    import { resolveWikiLinkTarget, wikiLinkPlugin } from 'src/ts/risubard/wikiLink'
+    import {
+        describeWikiLinkTarget,
+        wikiLinkPlugin,
+        type WikiLinkRenderResolution,
+        type WikiLinkResolution,
+    } from 'src/ts/risubard/wikiLink'
     import {
         FileIcon,
         FileLock2Icon,
@@ -77,6 +82,7 @@
     let saving = $state(false)
     let error = $state('')
     let notice = $state('')
+    let wikiLinkDiagnostic = $state<{ status: 'missing' | 'ambiguous'; message: string } | null>(null)
     let loadedDocumentId = $state('')
     let loadedContentHash = $state('')
     let loadedType = $state<MarkdownWikiDocumentType>('character')
@@ -100,6 +106,31 @@
     function setMarkdownPreview(event: Event) {
         markdownPreview = (event.currentTarget as HTMLInputElement).checked
         DBState.db.risuBardWikiMarkdownPreview = markdownPreview
+        if (!markdownPreview) wikiLinkDiagnostic = null
+    }
+
+    function wikiLinkDescription(target: string, resolution: WikiLinkResolution): string {
+        if (resolution.status === 'missing') return `연결된 문서가 없습니다: ${target}`
+        if (resolution.status !== 'ambiguous') return ''
+        const titleCounts = new Map<string, number>()
+        for (const owner of resolution.owners) {
+            titleCounts.set(owner.title, (titleCounts.get(owner.title) ?? 0) + 1)
+        }
+        const owners = resolution.owners.map((owner) =>
+            (titleCounts.get(owner.title) ?? 0) > 1
+                ? `${owner.title} (${owner.relativePath})`
+                : owner.title
+        )
+        return `이름이 겹칩니다: ${owners.join(', ')}`
+    }
+
+    function wikiLinkPresentation(target: string): WikiLinkRenderResolution {
+        const resolution = describeWikiLinkTarget(target, documents)
+        if (resolution.status === 'resolved') return { status: 'resolved' }
+        return {
+            status: resolution.status,
+            description: wikiLinkDescription(target, resolution),
+        }
     }
 
     // Rebuilt when documents change so the plugin can flag links whose target
@@ -112,8 +143,7 @@
             typographer: true,
         })
         renderer.use(wikiLinkPlugin, {
-            resolves: (target: string) =>
-                resolveWikiLinkTarget(target, documents) !== null,
+            resolve: wikiLinkPresentation,
         })
         return renderer
     })
@@ -126,8 +156,18 @@
         if (!anchor) return
         event.preventDefault()
         const target = anchor.getAttribute('data-wikilink') ?? ''
-        const document = resolveWikiLinkTarget(target, documents)
-        if (document) selectDocument(document)
+        const resolution = describeWikiLinkTarget(target, documents)
+        if (resolution.status === 'resolved') {
+            wikiLinkDiagnostic = null
+            selectDocument(resolution.document)
+            return
+        }
+        error = ''
+        notice = ''
+        wikiLinkDiagnostic = {
+            status: resolution.status,
+            message: wikiLinkDescription(target, resolution),
+        }
     }
 
     function onWikiLinkKeydown(event: KeyboardEvent) {
@@ -174,6 +214,7 @@
         loadedMarkdown = document.content
         error = ''
         notice = ''
+        wikiLinkDiagnostic = null
         onSelected?.(document.id)
     }
 
@@ -795,6 +836,11 @@
         {/if}
         <div class="editor-status" aria-live="polite">
             {#if error}<span class="error">{error}</span>
+            {:else if wikiLinkDiagnostic}<span
+                class="wiki-link-diagnostic"
+                class:wiki-link-diagnostic--ambiguous={wikiLinkDiagnostic.status === 'ambiguous'}
+                data-wiki-link-diagnostic
+            >{wikiLinkDiagnostic.message}</span>
             {:else if notice}<span class="success">{notice}</span>
             {:else if selected?.status === 'retracted'}<span>철회되어 활성 컨텍스트와 자동 처리에서 제외된 감사 기록입니다.</span>
             {:else if readOnly}<span>현재 위키 작업이 끝난 뒤 수정할 수 있습니다.</span>
@@ -877,7 +923,8 @@
     .markdown-preview :global(.wikilink) { color: var(--risu-theme-primary); text-decoration: underline; text-underline-offset: .15em; cursor: pointer; }
     .markdown-preview :global(.wikilink:hover) { filter: brightness(1.2); }
     .markdown-preview :global(.wikilink:focus-visible) { outline: 2px solid var(--risu-theme-primary); outline-offset: 2px; border-radius: .12rem; }
-    .markdown-preview :global(.wikilink-unresolved) { color: var(--risu-theme-textcolor2); text-decoration-style: dashed; cursor: default; }
+    .markdown-preview :global(.wikilink-unresolved) { color: var(--risu-theme-textcolor2); text-decoration-style: dashed; cursor: help; }
+    .markdown-preview :global(.wikilink-ambiguous) { color: var(--risu-theme-warning); text-decoration-color: var(--risu-theme-warning); text-decoration-style: wavy; cursor: help; }
     .markdown-preview :global(h1), .markdown-preview :global(h2), .markdown-preview :global(h3), .markdown-preview :global(h4) { margin: 1.2em 0 .5em; color: var(--risu-theme-textcolor); line-height: 1.3; }
     .markdown-preview :global(h1:first-child), .markdown-preview :global(h2:first-child), .markdown-preview :global(h3:first-child) { margin-top: 0; }
     .markdown-preview :global(h1) { font-size: 1.35rem; }
@@ -894,6 +941,8 @@
     .markdown-preview :global(pre code) { padding: 0; background: transparent; }
     .markdown-preview :global(a) { color: var(--risu-theme-primary); text-decoration: underline; text-underline-offset: .15em; }
     .editor-status { min-height: 1.8rem; padding: .35rem .75rem; color: var(--risu-theme-textcolor2); font-size: .66rem; }
+    .wiki-link-diagnostic { color: var(--risu-theme-textcolor2); }
+    .wiki-link-diagnostic--ambiguous { color: var(--risu-theme-warning); }
     .error { color: var(--risu-theme-draculared); }
     .success { color: var(--risu-theme-success); }
     .file-context-menu {

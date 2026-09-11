@@ -36,6 +36,10 @@
         selectedId = id
         const preset = presets.find((item) => item.id === id)
         if (preset) value = preset.content
+        if (kind === 'style') {
+            DBState.db.loreBuilderStylePromptPresetId = id || undefined
+            void requestImmediateSave()
+        }
     }
 
     async function commit(presets: typeof DBState.db.loreBuilderPromptPresets) {
@@ -58,6 +62,10 @@
             })
             await commit(next)
             selectedId = id
+            if (kind === 'style') {
+                DBState.db.loreBuilderStylePromptPresetId = id
+                await requestImmediateSave()
+            }
             notifySuccess(copy.presetSaved)
         }
         catch (cause) {
@@ -83,6 +91,10 @@
         try {
             await commit(deleteLoreBuilderUserPreset(DBState.db.loreBuilderPromptPresets ?? [], selected.id))
             selectedId = ''
+            if (kind === 'style') {
+                DBState.db.loreBuilderStylePromptPresetId = undefined
+                await requestImmediateSave()
+            }
             notifySuccess(copy.presetDeleted)
         }
         catch (cause) {

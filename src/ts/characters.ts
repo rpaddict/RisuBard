@@ -1,6 +1,7 @@
 import { get, writable } from "svelte/store";
 import { saveImage, setDatabase, type character, type Chat, defaultSdDataFunc, type loreBook, getDatabase, getCharacterByIndex, setCharacterByIndex, getCurrentChat, loadTogglesFromChat, normalizeChat, newChatModelDefaults } from "./storage/database.svelte";
 import { ensureChatHydrated } from "./storage/chatStorage";
+import { loadingActivity } from './gui/loadingActivity';
 import { alertAddCharacter, alertConfirm, alertError, alertSelect, alertStore, alertWait, notifySuccess, notifyInfo } from "./alert";
 import { loadingOverlayStore, chatDeselected } from "./stores.svelte";
 import { language } from "../lang";
@@ -48,6 +49,7 @@ export async function getCharImage(loc:string, type:'plain'|'css'|'contain'|'lgc
         return null
     }
     const filesrc = await getFileSrc(loc)
+    loadingActivity.image(filesrc, loc.split(/[\\/]/).pop() || loc)
     if(type === 'plain'){
         return filesrc
     }

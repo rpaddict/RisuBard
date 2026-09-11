@@ -97,6 +97,16 @@ http://localhost:7777
 
 사용자 데이터는 Termux 내부 `$HOME/.local/share/risubard`에 저장됩니다. `RISUBARD_DATA_ROOT`로 다른 내부 절대 경로를 지정할 수 있지만 `/sdcard`와 `/storage/emulated`는 정본 루트로 거부됩니다. 공유 저장소에는 완성된 백업만 복사하세요. 자세한 내용은 [파일 정본 사용자 데이터](file-native-storage.md)를 참고하세요.
 
+### 0.9.26~0.9.27 V2 데이터를 V1으로 변환
+
+서버를 종료한 뒤 RisuBard 소스 폴더에서 다음 한 줄을 실행합니다.
+
+```bash
+bash scripts/termux/downgrade-and-start-v1.sh
+```
+
+원본 `$HOME/.local/share/risubard`는 그대로 보존하고, 검증된 `$HOME/.local/share/risubard-v1`을 만든 뒤 그 폴더로 서버를 시작합니다. 이후에도 같은 명령으로 실행하면 됩니다. 자세한 내용은 [V2 세이브를 V1 구조로 변환하기](v2-to-v1-conversion.md)를 참고하세요.
+
 
 ---
 

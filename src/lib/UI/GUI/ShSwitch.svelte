@@ -29,6 +29,7 @@
         name?: string;
         value?: string;
         required?: boolean;
+        ariaLabel?: string;
         className?: string;
         onCheckedChange?: (checked: boolean) => void;
     }
@@ -41,6 +42,7 @@
         name,
         value,
         required,
+        ariaLabel,
         className = '',
         onCheckedChange,
     }: Props = $props();
@@ -53,6 +55,7 @@
     {name}
     {value}
     {required}
+    aria-label={ariaLabel}
     {onCheckedChange}
     data-slot="switch"
     data-size={size}

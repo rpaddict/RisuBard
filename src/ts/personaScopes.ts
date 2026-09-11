@@ -43,9 +43,10 @@ export function resolvePersonaById(
         }
     }
 
-    const globalIndex = db.personas.findIndex((persona) => persona.id === id)
+    const personas = db.personas ?? []
+    const globalIndex = personas.findIndex((persona) => persona.id === id)
     if (globalIndex < 0) return null
-    return { persona: db.personas[globalIndex], scope: 'global', index: globalIndex }
+    return { persona: personas[globalIndex], scope: 'global', index: globalIndex }
 }
 
 export function getEffectivePersona(
@@ -56,9 +57,18 @@ export function getEffectivePersona(
     const bound = resolvePersonaById(db, character, chat?.bindedPersona)
     if (bound) return bound
 
-    const index = normalizeSelectedPersonaIndex(db.personas.length, db.selectedPersona)
-    const persona = db.personas[index]
+    const personas = db.personas ?? []
+    const index = normalizeSelectedPersonaIndex(personas.length, db.selectedPersona)
+    const persona = personas[index]
     return persona ? { persona, scope: 'global', index } : null
+}
+
+export function getNewChatPersonaBinding(
+    db: PersonaDatabaseView,
+    character?: character | null,
+    previousChat?: Pick<Chat, 'bindedPersona'> | null,
+): string {
+    return getEffectivePersona(db, character, previousChat)?.persona.id ?? ''
 }
 
 export function nextPersonaCopyNote(source: RisuPersona, target: RisuPersona[]): string | undefined {

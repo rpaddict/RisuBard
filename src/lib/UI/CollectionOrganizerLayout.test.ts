@@ -4,7 +4,8 @@ import CollectionOrganizerList from './CollectionOrganizerList.svelte'
 import { requestImmediateSave } from 'src/ts/globalApi.svelte'
 
 vi.mock('src/ts/globalApi.svelte', () => ({ requestImmediateSave: vi.fn() }))
-vi.mock('src/ts/storage/database.svelte', () => ({ getDatabase: () => ({ collectionOrganizers: undefined }) }))
+const db = vi.hoisted(() => ({ collectionOrganizers: undefined as any }))
+vi.mock('src/ts/storage/database.svelte', () => ({ getDatabase: () => db }))
 vi.mock('src/ts/alert', () => ({ alertConfirm: vi.fn(), alertInput: vi.fn() }))
 
 let mounted: ReturnType<typeof mount> | undefined
@@ -12,6 +13,7 @@ let resizeObserverCallback: ResizeObserverCallback
 const disconnect = vi.fn()
 beforeEach(() => {
     vi.clearAllMocks()
+    db.collectionOrganizers = undefined
     vi.stubGlobal('ResizeObserver', class {
         constructor(callback: ResizeObserverCallback) { resizeObserverCallback = callback }
         observe() {}
@@ -25,11 +27,12 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-async function organizer(width = 1000, height = 600) {
+async function organizer(width = 1000, height = 600, managerLayout = false) {
     mounted = mount(CollectionOrganizerList, {
         target: document.body,
         props: {
             kind: 'modules', collectionLabel: 'Modules', items: [{ id: 'one', title: 'One' }],
+            managerLayout,
             itemContent: createRawSnippet(() => ({ render: () => '<span>One</span>' })),
         },
     })
@@ -46,6 +49,44 @@ async function organizer(width = 1000, height = 600) {
 }
 
 describe('responsive collection pane resizing', () => {
+    test.each([false, true])('keeps collection drops local (manager layout: %s)', async (managerLayout) => {
+        db.collectionOrganizers = { modules: {
+            folders: [{ id: 'folder', name: 'Folder', createdAt: 1 }],
+            folderByItemId: {}, itemOrder: ['one'],
+        } }
+        const { root } = await organizer(1000, 600, managerLayout)
+        const appDragOver = vi.fn((event: DragEvent) => {
+            event.preventDefault()
+            event.dataTransfer!.dropEffect = 'none'
+        })
+        const appDrop = vi.fn()
+        root.addEventListener('dragover', appDragOver)
+        root.addEventListener('drop', appDrop)
+        const dataTransfer = new DataTransfer()
+        const dragEvent = (type: string) => {
+            const event = new Event(type, { bubbles: true, cancelable: true })
+            Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+            return event
+        }
+        root.querySelector(managerLayout ? '[data-collection-item-drag-handle]' : '[data-collection-drag-handle]')!.dispatchEvent(
+            dragEvent('dragstart'),
+        )
+        await tick()
+        const folder = root.querySelector('.collection-folder')!
+        const uncategorized = root.querySelectorAll('aside > div > button')[1]
+        for (const target of [folder, uncategorized, root.querySelector('.collection-item')!]) {
+            const over = dragEvent('dragover')
+            target.dispatchEvent(over)
+            expect(over.defaultPrevented).toBe(true)
+            expect(dataTransfer.dropEffect).toBe('move')
+        }
+        expect(appDragOver).not.toHaveBeenCalled()
+        folder.dispatchEvent(dragEvent('drop'))
+        expect(db.collectionOrganizers.modules.folderByItemId.one).toBe('folder')
+        expect(requestImmediateSave).toHaveBeenCalledOnce()
+        expect(appDrop).not.toHaveBeenCalled()
+    })
+
     test('resizes horizontal panes with keyboard controls without saving collection data', async () => {
         const { root, splitter } = await organizer()
         expect(splitter.getAttribute('aria-orientation')).toBe('vertical')

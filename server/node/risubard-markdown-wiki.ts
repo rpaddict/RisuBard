@@ -2036,6 +2036,7 @@ export function createMarkdownNarrativeWiki(
             characterId: string
             chatId: string
             currentInput: string
+            fallbackInput?: string
             semanticMatches?: readonly {
                 documentId: string
                 score: number
@@ -2061,6 +2062,9 @@ export function createMarkdownNarrativeWiki(
                     input.chatId
                 ),
                 currentInput: input.currentInput,
+                ...(input.fallbackInput
+                    ? { fallbackInput: input.fallbackInput }
+                    : {}),
                 ...(input.semanticMatches
                     ? { semanticMatches: input.semanticMatches }
                     : {}),

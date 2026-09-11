@@ -6,6 +6,19 @@ import {
 } from './canonicalTurnReceipt'
 
 describe('canonical turn retry receipt', () => {
+    test('retries a partial document save failure from an existing receipt', () => {
+        const warning = '정본 문서 저장 실패: 마을'
+        const receipt = {
+            sourceMessageIds: ['assistant-1'], eventIds: ['event-1'],
+            changes: [{ documentId: 'character-1', type: 'character' as const,
+                title: '인물', relativePath: 'characters/person.md',
+                action: 'update' as const, afterHash: 'saved-hash' }],
+            warnings: [warning], recordedAt: '2026-09-10T00:00:00.000Z',
+        }
+        expect(canonicalTurnNeedsRetry(receipt)).toBe(true)
+        expect(canonicalTurnRetryWarning(receipt)).toBe(warning)
+    })
+
     test('marks a provider timeout as retryable without exposing unbounded details', () => {
         const warning = formatCanonicalUpdateFailureWarning(
             new Error('Upstream request timed out after 300000ms')

@@ -1,7 +1,12 @@
 import type MarkdownIt from 'markdown-it'
 import type { NarrativeMemoryWikiMarkdown } from './memoryWiki'
 
-type WikiDocument = NarrativeMemoryWikiMarkdown['documents'][number]
+export type WikiDocument = NarrativeMemoryWikiMarkdown['documents'][number]
+
+export type WikiLinkResolution =
+    | { status: 'resolved'; document: WikiDocument }
+    | { status: 'ambiguous'; owners: readonly WikiDocument[] }
+    | { status: 'missing' }
 
 /** Longest `[[…]]` target or alias the parser will accept. */
 const MAX_WIKILINK_LENGTH = 160
@@ -10,27 +15,45 @@ export function normalizeWikiLinkKey(value: string): string {
     return value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase()
 }
 
+/** Describes a `[[target]]` without guessing when several documents own it. */
+export function describeWikiLinkTarget(
+    target: string,
+    documents: readonly WikiDocument[]
+): WikiLinkResolution {
+    const wanted = normalizeWikiLinkKey(target)
+    if (!wanted) return { status: 'missing' }
+    const owners: WikiDocument[] = []
+    const ownerIds = new Set<string>()
+    for (const document of documents) {
+        const ownsIdentifier = [document.title, ...(document.aliases ?? [])]
+            .some((value) => normalizeWikiLinkKey(value) === wanted)
+        if (!ownsIdentifier || ownerIds.has(document.id)) continue
+        ownerIds.add(document.id)
+        owners.push(document)
+    }
+    if (owners.length === 0) return { status: 'missing' }
+    if (owners.length > 1) return { status: 'ambiguous', owners }
+    return { status: 'resolved', document: owners[0] }
+}
+
 /** Resolves a `[[target]]` only when one loaded document owns the identifier. */
 export function resolveWikiLinkTarget(
     target: string,
     documents: readonly WikiDocument[]
 ): WikiDocument | null {
-    const wanted = normalizeWikiLinkKey(target)
-    if (!wanted) return null
-    let match: WikiDocument | null = null
-    for (const document of documents) {
-        const ownsIdentifier = [document.title, ...(document.aliases ?? [])]
-            .some((value) => normalizeWikiLinkKey(value) === wanted)
-        if (!ownsIdentifier) continue
-        if (match && match.id !== document.id) return null
-        match = document
-    }
-    return match
+    const resolution = describeWikiLinkTarget(target, documents)
+    return resolution.status === 'resolved' ? resolution.document : null
 }
+
+export type WikiLinkRenderResolution =
+    | { status: 'resolved' }
+    | { status: 'ambiguous' | 'missing'; description?: string }
 
 export interface WikiLinkPluginOptions {
     /** Reports whether a target resolves, so unresolved links can be styled. */
     resolves?: (target: string) => boolean
+    /** Reports the reason a target does not resolve and its accessible description. */
+    resolve?: (target: string) => WikiLinkRenderResolution
 }
 
 /**
@@ -75,17 +98,28 @@ export function wikiLinkPlugin(
             return true
         }
 
-        const unresolved = options.resolves?.(target) === false
+        const resolution = options.resolve?.(target)
+        const unresolved = resolution
+            ? resolution.status !== 'resolved'
+            : options.resolves?.(target) === false
+        const ambiguous = resolution?.status === 'ambiguous'
         const open = state.push('wikilink_open', 'a', 1)
         open.attrSet('data-wikilink', target)
-        open.attrSet('class', unresolved
-            ? 'wikilink wikilink-unresolved'
-            : 'wikilink')
+        open.attrSet('class', [
+            'wikilink',
+            ...(unresolved ? ['wikilink-unresolved'] : []),
+            ...(ambiguous ? ['wikilink-ambiguous'] : []),
+        ].join(' '))
+        if (resolution) open.attrSet('data-wikilink-status', resolution.status)
+        if (resolution && resolution.status !== 'resolved' && resolution.description) {
+            open.attrSet('title', resolution.description)
+            open.attrSet('aria-label', resolution.description)
+        }
         // An anchor without href is not focusable, so links would be
-        // unreachable by keyboard. Unresolved targets stay out of the tab
-        // order because activating them does nothing.
-        if (!unresolved) {
-            open.attrSet('role', 'link')
+        // unreachable by keyboard. Status-aware unresolved links expose a
+        // diagnostic on activation, so they remain keyboard reachable.
+        if (!unresolved || resolution) {
+            open.attrSet('role', unresolved ? 'button' : 'link')
             open.attrSet('tabindex', '0')
         }
         const text = state.push('text', '', 0)

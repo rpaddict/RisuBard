@@ -47,9 +47,9 @@ export async function loadData() {
             {
                 await forageStorage.Init()
 
-                LoadingStatusState.text = "Loading Local Save File..."
+                LoadingStatusState.text = language.startupLoading.localSave
                 let gotStorage: Uint8Array = await forageStorage.getItem('database/database.bin') as unknown as Uint8Array
-                LoadingStatusState.text = "Decoding Local Save File..."
+                LoadingStatusState.text = language.startupLoading.decodingLocalSave
                 if (checkNullish(gotStorage)) {
                     createdFreshDatabase = true
                     gotStorage = encodeRisuSaveLegacy({})
@@ -65,7 +65,7 @@ export async function loadData() {
                     let backupLoaded = false
                     for (const backup of backups) {
                         try {
-                            LoadingStatusState.text = `Reading Backup File ${backup}...`
+                            LoadingStatusState.text = language.startupLoading.readingBackup.replace('{0}', String(backup))
                             const backupData: Uint8Array = await forageStorage.getItem(`database/dbbackup-${backup}.bin`) as unknown as Uint8Array
                             const backupDecoded = await decodeRisuSave(backupData)
                             setPatchSyncBaseline(backupDecoded)
@@ -110,7 +110,7 @@ export async function loadData() {
                     changeLanguage(mappedLanguage)
                 }
             }
-            LoadingStatusState.text = "Loading Plugins..."
+            LoadingStatusState.text = language.startupLoading.plugins
             try {
                 await loadPlugins()
             } catch (error) { }
@@ -123,7 +123,7 @@ export async function loadData() {
             } catch (error) {
 
             }
-            LoadingStatusState.text = "Checking For Format Update..."
+            LoadingStatusState.text = language.startupLoading.checkingFormat
             await checkNewFormat()
 
             // Convert any ChatStubs (from server-stripped database.bin) to placeholder Chats
@@ -137,7 +137,7 @@ export async function loadData() {
 
             const db = getDatabase();
 
-            LoadingStatusState.text = "Updating States..."
+            LoadingStatusState.text = language.startupLoading.updatingState
             updateColorScheme()
             updateTextThemeAndCSS()
             updateAnimationSpeed()

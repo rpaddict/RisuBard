@@ -72,6 +72,18 @@ describe('BardWiki memory writer skill', () => {
         })
     })
 
+    test('uses an OpenAI-compatible nullable type for stateChanges.before', () => {
+        const schema = JSON.parse(memoryWriterDraftSchema)
+        const before = schema.properties.stateChanges.items.properties.before
+
+        expect(before).toEqual({
+            type: ['string', 'null'],
+            minLength: 1,
+            maxLength: 500,
+        })
+        expect(JSON.stringify(before)).not.toContain('oneOf')
+    })
+
     test('describes every required canonical candidate field without contradicting the schema', () => {
         const candidateContract = memoryWriterSystemPrompt
             .split('- canonicalUpdateCandidates:')[1]

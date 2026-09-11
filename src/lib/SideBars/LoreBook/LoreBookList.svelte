@@ -299,16 +299,19 @@
     onMount(createStb)
 
     let openedDetails = 0  // Count only lorebook details (for drag deactivation)
-    let openedRefs = $state(new Set()) // Track both folders + lorebooks (for UI state)
+    type OpenEntryKey = string | loreBook
+    let openedRefs = $state(new Set<OpenEntryKey>()) // Track both folders + lorebooks (for UI state)
+
+    const openEntryKey = (book: loreBook): OpenEntryKey => {
+        if (book.id) return `${book.mode === 'folder' ? 'folder' : 'entry'}:id:${book.id}`
+        if (book.mode === 'folder') return `folder:key:${book.key}`
+        return book
+    }
     
     // Derived state to calculate number of open folders
     let openFolders = $derived(() => {
         let count = 0
-        for (const ref of openedRefs) {
-            if (ref && typeof ref === 'object' && 'mode' in ref && ref.mode === 'folder') {
-                count++
-            }
-        }
+        for (const ref of openedRefs) if (typeof ref === 'string' && ref.startsWith('folder:')) count++
         return count
     })
     
@@ -323,7 +326,7 @@
             }
     }
         if (bookRef) {
-            openedRefs.add(bookRef)
+            openedRefs.add(openEntryKey(bookRef))
             openedRefs = new Set(openedRefs) // Trigger reactivity
         }
     }
@@ -336,7 +339,7 @@
             }
         }
         if (bookRef) {
-            openedRefs.delete(bookRef)
+            openedRefs.delete(openEntryKey(bookRef))
             openedRefs = new Set(openedRefs) // Trigger reactivity
         }
     }
@@ -367,7 +370,7 @@
                 {#each externalLoreBooks as book, i}
                     {#if (!showFolder && !book.folder) || (showFolder === book.folder)}
                         <LoreBookData idgroup={idgroup} bind:value={externalLoreBooks[i]} idx={i} 
-                        isOpen={openedRefs.has(book)}
+                        isOpen={openedRefs.has(openEntryKey(book))}
                         openFolders={openFolders()}
                         isLastInContainer={book === lastVisibleItem}
                         onRemove={() => {
@@ -376,7 +379,7 @@
                             // off book.folder — the parent folder key — leaked the
                             // counter for lore inside a folder and drove it negative
                             // for an open top-level folder.
-                            if (openedRefs.has(book)) {
+                            if (openedRefs.has(openEntryKey(book))) {
                                 onClose(book.mode !== 'folder', book)
                             }
                             
@@ -386,7 +389,7 @@
                             if (book.mode === 'folder') {
                                 // Close items belonging to the folder if they are open
                                 lore.forEach(item => {
-                                    if (item.folder === book.key && openedRefs.has(item)) {
+                                    if (item.folder === book.key && openedRefs.has(openEntryKey(item))) {
                                         onClose(true, item)
                                     }
                                 })
@@ -421,7 +424,7 @@
                 {#each DBState.db.characters[$selectedCharID].globalLore as book, i}
                     {#if (!showFolder && !book.folder) || (showFolder === book.folder)}
                         <LoreBookData idgroup={idgroup} bind:value={DBState.db.characters[$selectedCharID].globalLore[i]} idx={i} 
-                        isOpen={openedRefs.has(book)}
+                        isOpen={openedRefs.has(openEntryKey(book))}
                         openFolders={openFolders()}
                         isLastInContainer={book === lastVisibleItem}
                         onRemove={() => {
@@ -430,7 +433,7 @@
                             // off book.folder — the parent folder key — leaked the
                             // counter for lore inside a folder and drove it negative
                             // for an open top-level folder.
-                            if (openedRefs.has(book)) {
+                            if (openedRefs.has(openEntryKey(book))) {
                                 onClose(book.mode !== 'folder', book)
                             }
                             
@@ -440,7 +443,7 @@
                             if (book.mode === 'folder') {
                                 // Close items belonging to the folder if they are open
                                 lore.forEach(item => {
-                                    if (item.folder === book.key && openedRefs.has(item)) {
+                                    if (item.folder === book.key && openedRefs.has(openEntryKey(item))) {
                                         onClose(true, item)
                                     }
                                 })
@@ -474,7 +477,7 @@
                 {#each DBState.db.characters[$selectedCharID].chats[DBState.db.characters[$selectedCharID].chatPage].localLore as book, i}
                     {#if (!showFolder && !book.folder) || (showFolder === book.folder)}
                         <LoreBookData idgroup={idgroup} bind:value={DBState.db.characters[$selectedCharID].chats[DBState.db.characters[$selectedCharID].chatPage].localLore[i]} idx={i} 
-                        isOpen={openedRefs.has(book)}
+                        isOpen={openedRefs.has(openEntryKey(book))}
                         openFolders={openFolders()}
                         isLastInContainer={book === lastVisibleItem}
                         onRemove={() => {
@@ -483,7 +486,7 @@
                             // off book.folder — the parent folder key — leaked the
                             // counter for lore inside a folder and drove it negative
                             // for an open top-level folder.
-                            if (openedRefs.has(book)) {
+                            if (openedRefs.has(openEntryKey(book))) {
                                 onClose(book.mode !== 'folder', book)
                             }
                             
@@ -493,11 +496,11 @@
                             if (book.mode === 'folder') {
                                 // Close items belonging to the folder if they are open
                                 lore.forEach(item => {
-                                    if (item.folder === book.key && openedRefs.has(item)) {
+                                    if (item.folder === book.key && openedRefs.has(openEntryKey(item))) {
                                         onClose(true, item)
                                     }
                                 })
-                                
+
                                 // Filter out the folder and all items belonging to it
                                 lore = lore.filter(item => 
                                     item !== book && item.folder !== book.key

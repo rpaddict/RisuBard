@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 
 const state = vi.hoisted(() => ({
     events: [] as string[],
+    alerts: [] as Array<{ type: string; msg: string; submsg?: string }>,
     doneCalls: 0,
     completion: Promise.resolve(),
     db: {
@@ -15,9 +17,9 @@ vi.mock('./alert', () => ({
     alertConfirm: vi.fn(),
     alertError: vi.fn(() => state.events.push('error')),
     alertInput: vi.fn(),
-    alertStore: { set: vi.fn() },
+    alertStore: { set: vi.fn((value) => state.alerts.push(value)) },
     alertTOS: vi.fn(),
-    alertWait: vi.fn(),
+    alertWait: vi.fn((msg) => state.alerts.push({ type: 'wait', msg })),
     notifyError: vi.fn(),
     notifySuccess: vi.fn(),
 }))
@@ -39,7 +41,13 @@ vi.mock('./process/processzip', () => ({
         cardData: string | undefined
         moduleData: Uint8Array | undefined
 
+        constructor(private readonly progress?: (event: any) => void) {}
+
         async parse() {
+            this.progress?.({ phase: 'reading', completed: 5, total: 10 })
+            this.progress?.({ phase: 'extracting', completed: 2, total: 3 })
+            this.progress?.({ phase: 'preparing-assets', completed: 3, total: 5 })
+            this.progress?.({ phase: 'saving-assets', completed: 5, total: 5 })
             state.completion = new Promise<void>((resolve) => {
                 setTimeout(() => {
                     this.cardData = JSON.stringify({ spec: 'not-v3', data: {} })
@@ -86,6 +94,12 @@ vi.mock('src/lang', () => ({
     language: {
         errors: { noData: 'invalid-data' },
         importedCharacter: 'imported',
+        characterImportReadingBytes: (done: string, total: string) => `읽기 ${done}/${total}`,
+        characterImportExtracting: (done: number, total: number) => `압축 ${done}/${total}`,
+        characterImportPreparingAssets: (done: number, total: number) => `준비 ${done}/${total}`,
+        characterImportSavingAssets: (done: number, total: number) => `저장 ${done}/${total}`,
+        characterImportReadingMetadata: '메타데이터 읽기',
+        characterImportApplying: '캐릭터 적용',
     },
 }))
 
@@ -117,6 +131,7 @@ async function importFixture(card: ReturnType<typeof cardFixture>) {
 describe('CharX import completion', () => {
     beforeEach(() => {
         state.events = []
+        state.alerts = []
         state.doneCalls = 0
         state.completion = Promise.resolve()
         state.db.statics.imports = 0
@@ -131,6 +146,21 @@ describe('CharX import completion', () => {
 
         expect(state.doneCalls).toBe(1)
         expect(state.events).toEqual(['assets-5/5', 'error'])
+        expect(state.alerts.map((alert) => alert.msg)).toEqual(expect.arrayContaining([
+            '읽기 5 B/10 B',
+            '압축 2/3',
+            '준비 3/5',
+            '저장 5/5',
+            '메타데이터 읽기',
+        ]))
+    })
+})
+
+describe('character import localization', () => {
+    test('does not ship hard-coded English loading or import error messages', () => {
+        const source = readFileSync('src/ts/characterCards.ts', 'utf8')
+        expect(source).not.toMatch(/Loading\.\.\. \((Reading|Loading Emotions|Loading Assets|Assets)\)/)
+        expect(source).not.toContain('alertError("Error while importing")')
     })
 })
 

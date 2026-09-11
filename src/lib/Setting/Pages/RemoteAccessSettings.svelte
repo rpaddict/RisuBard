@@ -34,22 +34,30 @@
                 status = 'disabled';
             } else {
                 status = data.status;
+                const urlChanged = tunnelUrl !== data.url;
                 tunnelUrl = data.url;
                 tunnelError = data.error;
 
                 if (data.status === 'running' && data.url) {
-                    qrDataUrl = await QRCode.toDataURL(data.url, { width: 200, margin: 2 });
+                    if (urlChanged || !qrDataUrl) {
+                        qrDataUrl = await QRCode.toDataURL(data.url, { width: 200, margin: 2 });
+                    }
+                } else {
+                    qrDataUrl = null;
                 }
 
-                if ((data.status === 'starting' || data.status === 'downloading') && !pollTimer) {
+                const shouldPoll = data.status === 'starting' || data.status === 'downloading' || data.status === 'running';
+                if (shouldPoll && !pollTimer) {
                     pollTimer = setInterval(fetchStatus, 2000);
-                } else if (data.status !== 'starting' && data.status !== 'downloading' && pollTimer) {
+                } else if (!shouldPoll && pollTimer) {
                     clearInterval(pollTimer);
                     pollTimer = null;
                 }
             }
         } catch {
-            if (status === 'loading') status = 'error';
+            status = 'error';
+            tunnelUrl = null;
+            qrDataUrl = null;
             tunnelError = 'Failed to connect to server';
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
         }
@@ -175,6 +183,11 @@
             <ShAlert variant="info" className="w-full max-w-md">
                 {#snippet icon()}<InfoIcon />{/snippet}
                 {language.remoteAccessInfo}
+            </ShAlert>
+
+            <ShAlert variant="warning" className="w-full max-w-md">
+                {#snippet icon()}<TriangleAlertIcon />{/snippet}
+                {language.remoteAccessDnsHelp}
             </ShAlert>
 
             <ShButton variant="destructive" onclick={stopTunnel} className="mt-2">{language.remoteAccessClose}</ShButton>

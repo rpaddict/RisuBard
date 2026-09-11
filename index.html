@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="preload" as="image" href="/assets/risubard-startup.webp" fetchpriority="high" />
     <link rel="icon" type="image/png" sizes="16x16" href="/logo_16.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/logo_32.png" />
     <link rel="icon" type="image/png" sizes="256x256" href="/logo_256.png" />
@@ -27,15 +28,26 @@
     </div>
     <!-- Loading screen, will be removed when /src/main.ts is loaded -->
     <div id="preloading" class="w-full h-full flex justify-center items-center text-textcolor text-xl bg-gray-900 flex-col absolute top-0 left-0 z-50">
+      <img data-startup-logo="preloader" class="mb-2 w-[min(80vw,25rem)] rounded-xl border border-darkborderc object-cover shadow-lg" src="/assets/risubard-startup.webp" fetchpriority="high" decoding="sync" alt="RisuBard" width="500" height="300" />
+      <span data-startup-version class="mb-5 text-sm font-semibold tracking-[0.18em] text-textcolor2">v__RISUBARD_APP_VERSION__</span>
       <div class="flex flex-row items-center">
           <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-textcolor" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
           </svg>
-          <span>Loading...</span>
+          <span id="preloading-title">Loading...</span>
       </div>
-      <span class="text-sm mt-2 text-textcolor2">Loading RisuBard...</span>
+      <span id="preloading-status" class="text-sm mt-2 text-textcolor2">Loading RisuBard...</span>
     </div>
+    <script>
+      try {
+        if (localStorage.getItem('risu-lang') === 'ko') {
+          document.documentElement.lang = 'ko'
+          document.getElementById('preloading-title').textContent = '불러오는 중...'
+          document.getElementById('preloading-status').textContent = 'RisuBard를 시작하는 중...'
+        }
+      } catch {}
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

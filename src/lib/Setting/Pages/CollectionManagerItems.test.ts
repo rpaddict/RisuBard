@@ -17,8 +17,8 @@ describe('collection manager item layout', () => {
     test('opts only the module list into the resizable settings page', () => {
         expect(modules).toMatch(/\{#if mode === 0\}\s*<SettingPage resizable title=\{language\.modules\} description=\{language\.collectionOrganizer\.description\}>/)
         expect(modules.match(/<SettingPage resizable\b/g)).toHaveLength(1)
-        expect(modules).toContain('<SettingPage title={language.createModule}>')
-        expect(modules).toContain('<SettingPage title={language.editModule}>')
+        expect(modules).toContain('<SettingPage title={language.createModule} leading={backButton}>')
+        expect(modules).toContain('<SettingPage title={language.editModule} leading={backButton}>')
     })
 
     test('opts the plugin list into the resizable settings page', () => {
@@ -67,7 +67,7 @@ describe('collection manager item layout', () => {
     })
 
     test('lets the extension manager resize from every edge within the settings viewport', () => {
-        expect(settingPage).toContain('<ManagerResizeHandles target={pageElement} centered />')
+        expect(settingPage).toContain('<ManagerResizeHandles target={pageElement} centered {unboundedHeight} {resizeStorageKey} />')
         expect(settingPage).toMatch(/\.settings-standard-page--resizable\s*\{[^}]*left:\s*50%[^}]*align-self:\s*center[^}]*transform:\s*translateX\(-50%\)[^}]*max-width:\s*calc\(100vw - 1rem\)/s)
         expect(resizeHandles).toContain("closest<HTMLElement>('.settings-content')")
         expect(resizeHandles).toContain("['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw']")
@@ -102,9 +102,10 @@ describe('collection manager item layout', () => {
         expect(modules).not.toContain('class="module-item-meta')
     })
 
-    test('uses two bordered vertical action columns for module rows', () => {
-        expect(modules).toContain('class="module-action-column"')
-        expect(modules).toContain('class="module-action-column module-action-column--end"')
+    test('uses a centered single action row for modules', () => {
+        expect(modules).not.toContain('module-action-column')
+        expect(styleRule(modules, '.module-item-actions')).toContain('align-items: center')
+        expect(styleRule(modules, '.module-item-header')).toContain('height: 100%')
         expect(modules).toContain('variant="outline"')
         expect(modules).toContain('module-activation-icon--active')
         expect(modules).not.toContain('personaAssignmentCount(')
@@ -119,16 +120,41 @@ describe('collection manager item layout', () => {
         expect(styleRule(modules, '.module-item-title')).toContain('flex-direction: column')
     })
 
-    test('uses the same larger action button size in module and plugin rows', () => {
+    test('matches module action sizes to folder buttons', () => {
         const moduleActions = modules.match(/<div class="module-item-actions">([\s\S]*?)<\/div>\s*<\/div>\s*\{\/if\}/)?.[1] ?? ''
         const pluginActions = plugins.match(/<div class="plugin-item-actions">([\s\S]*?)<\/div>\s*<\/div>\s*\{#if plugin\.version/)?.[1] ?? ''
-        expect(moduleActions).toContain('size="icon"')
+        expect(moduleActions).toContain('size="icon-xs"')
+        expect(moduleActions).not.toContain('size="icon"')
+        expect(organizer).toContain('size="icon-xs"')
         expect(pluginActions).toContain('size="icon"')
         expect(styleRule(organizer, '.collection-item--manager .collection-item-content')).toContain('padding: .45rem .7rem')
     })
 
     test('moves module download into the edit page', () => {
         expect(modules).toMatch(/\{:else if mode === 2\}[\s\S]*?exportModule\(tempModule\)/)
+    })
+
+    test('uses an icon-only 18px back button in the module editor title', () => {
+        const backButton = modules.match(/\{#snippet backButton\(\)\}([\s\S]*?)\{\/snippet\}/)?.[1] ?? ''
+        expect(backButton).toContain('size="icon-sm"')
+        expect(backButton).toContain('aria-label={language.moduleBackToList}')
+        expect(backButton).toContain('title={language.moduleBackToList}')
+        expect(backButton).toContain('<ArrowLeftIcon size={18}/>')
+        expect(backButton).not.toContain('>{language.moduleBackToList}<')
+    })
+
+    test('centers only the two accent-sized secondary actions below module editing', () => {
+        const editPage = modules.match(/\{:else if mode === 2\}([\s\S]*?)\{\/if\}\s*<ShDialog/)?.[1] ?? ''
+        expect(editPage).not.toContain('DBState.db.modules[editModuleIndex] = tempModule')
+        expect(editPage).not.toContain('notifySuccess(language.moduleUpdated)')
+        expect(editPage).toContain('{language.download}')
+        expect(editPage).toContain('{language.convertToCharacter}')
+        expect(editPage.match(/class="module-editor-action"/g)).toHaveLength(2)
+        expect(styleRule(modules, '.module-editor-actions')).toContain('justify-content: center')
+        const action = styleRule(modules, '.module-editor-action')
+        expect(action).toContain('min-height: 3rem')
+        expect(action).toContain('padding: .72rem 1.15rem')
+        expect(action).toContain('background: color-mix(in srgb, var(--risu-theme-primary) 62%, var(--risu-theme-bgcolor))')
     })
 
     test('syncs plugin actions to the same bordered column layout', () => {
@@ -149,13 +175,13 @@ describe('collection manager item layout', () => {
     test.each([
         ['module', modules],
         ['plugin', plugins],
-    ])('lets the %s header and actions wrap within their available pane', (kind, source) => {
+    ])('keeps the %s header and actions within their available pane', (kind, source) => {
         for (const part of ['header', 'actions']) {
             const className = `${kind}-item-${part}`
             expect(source).toMatch(new RegExp(`class="${className}(?: |")`))
             const rule = styleRule(source, `.${className}`)
             expect(rule).toMatch(/display:\s*flex/)
-            expect(rule).toMatch(/flex-wrap:\s*wrap/)
+            expect(rule).toMatch(kind === 'module' ? /flex-wrap:\s*nowrap/ : /flex-wrap:\s*wrap/)
             expect(rule).toMatch(/min-width:\s*0/)
         }
         expect(styleRule(source, `.${kind}-item-actions`)).toMatch(/max-width:\s*100%/)

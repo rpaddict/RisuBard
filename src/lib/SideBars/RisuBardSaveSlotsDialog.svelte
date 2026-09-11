@@ -132,11 +132,14 @@
     async function load(saveId: string): Promise<void> {
         if (loadingId) return
         const sequence = requestSequence
-        loadingId = saveId
         error = ''
         try {
-            if (!loadAsNewChat && shouldConfirmMemorySaveLoad(currentLatestMessageId, slots) && !await alertConfirm('저장하지 않은 채팅은 사라집니다. 불러올까요?')) return
+            if (!loadAsNewChat && shouldConfirmMemorySaveLoad(currentLatestMessageId, slots) && !await alertConfirm(
+                '저장하지 않은 채팅은 사라집니다. 불러올까요?',
+                { tier: 'top' },
+            )) return
             if (sequence !== requestSequence || !open) return
+            loadingId = saveId
             await onLoad(saveId, loadAsNewChat)
         } catch (cause) {
             error = cause instanceof Error ? cause.message : String(cause)

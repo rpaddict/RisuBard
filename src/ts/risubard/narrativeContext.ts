@@ -5,7 +5,10 @@ import type {
     ContextSource,
 } from '../../../packages/risubard-core/src/contextCompiler'
 import { invokeBrowserFetch } from './browserFetch'
-import { normalizeRisuBardInquiryTokenBudget } from './risuBardSettings'
+import {
+    normalizeRisuBardInquiryTokenBudget,
+    RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT,
+} from './risuBardSettings'
 import type { HistoricalSourceMatch } from './historicalSourceRecall'
 
 export const NARRATIVE_CONTEXT_OPT_IN_KEY =
@@ -40,6 +43,7 @@ export interface NarrativeInquiryResponse {
     cacheStatus: 'current' | 'missing-or-stale'
     sources: ContextSource[]
     evidenceRequests: Array<{ messageId: string, eventTitle: string }>
+    rerankCandidates: NarrativeRerankCandidate[]
     entityCandidates: Array<{ id: string, title: string }>
     metrics: {
         candidateCount: number
@@ -50,8 +54,17 @@ export interface NarrativeInquiryResponse {
         selectedEventTokens: number
         semanticCandidateCount?: number
         hopCount: number
-        auxiliaryModelCalls: 0
+        auxiliaryModelCalls: number
     }
+}
+
+export interface NarrativeRerankCandidate {
+    documentId: string
+    type: 'character' | 'location' | 'faction' | 'creature' | 'item'
+        | 'concept' | 'event' | 'scene' | 'other'
+    title: string
+    excerpt: string
+    score: number
 }
 
 const NARRATIVE_EVIDENCE_RULES = [
@@ -73,6 +86,17 @@ function hasExactKeys(
         && actual.every((key) => keys.includes(key))
 }
 
+function hasRequiredAndOnlyKeys(
+    value: Record<string, unknown>,
+    required: readonly string[],
+    optional: readonly string[],
+): boolean {
+    const actual = Object.keys(value)
+    return required.every((key) => actual.includes(key))
+        && actual.every((key) => required.includes(key)
+            || optional.includes(key))
+}
+
 function boundedMetric(value: unknown, maximum = Number.MAX_SAFE_INTEGER) {
     if (!Number.isSafeInteger(value)
         || (value as number) < 0
@@ -88,6 +112,7 @@ export async function loadNarrativeInquiry(input: {
     characterId: string
     chatId: string
     currentInput: string
+    fallbackInput?: string
     tokenBudget?: {
         target: number
         events?: number
@@ -111,7 +136,7 @@ export async function loadNarrativeInquiry(input: {
     createAuth(): Promise<string>
     timeoutMs?: number
 }): Promise<NarrativeInquiryResponse> {
-    const timeoutMs = input.timeoutMs ?? 5_000
+    const timeoutMs = input.timeoutMs ?? RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1
         || timeoutMs > 10_000) {
         throw new Error('Invalid RisuBard narrative inquiry timeout')
@@ -139,6 +164,10 @@ export async function loadNarrativeInquiry(input: {
                             characterId: input.characterId,
                             chatId: input.chatId,
                             currentInput: input.currentInput.slice(0, 4_096),
+                            ...(input.fallbackInput === undefined
+                                ? {}
+                                : { fallbackInput:
+                                    input.fallbackInput.slice(-4_096) }),
                             ...(input.tokenBudget === undefined
                                 ? {}
                                 : { tokenBudget:
@@ -196,39 +225,18 @@ export async function loadNarrativeInquiry(input: {
         if (timeout !== undefined) clearTimeout(timeout)
     }
     if (!isRecord(value)
-        || !(hasExactKeys(value, [
+        || !hasRequiredAndOnlyKeys(value, [
             'mode',
             'graphRevision',
             'indexRevision',
             'cacheStatus',
             'sources',
             'metrics',
-        ]) || hasExactKeys(value, [
-            'mode',
-            'graphRevision',
-            'indexRevision',
-            'cacheStatus',
-            'sources',
-            'entityCandidates',
-            'metrics',
-        ]) || hasExactKeys(value, [
-            'mode',
-            'graphRevision',
-            'indexRevision',
-            'cacheStatus',
-            'sources',
-            'evidenceRequests',
-            'metrics',
-        ]) || hasExactKeys(value, [
-            'mode',
-            'graphRevision',
-            'indexRevision',
-            'cacheStatus',
-            'sources',
+        ], [
             'evidenceRequests',
             'entityCandidates',
-            'metrics',
-        ]))
+            'rerankCandidates',
+        ])
         || !['v2-current', 'bounded-v1-fallback'].includes(
             String(value.mode)
         )
@@ -366,6 +374,40 @@ export async function loadNarrativeInquiry(input: {
             : (() => {
                 throw new Error('Invalid RisuBard evidence requests')
             })()
+    const rerankCandidates = value.rerankCandidates === undefined
+        ? []
+        : Array.isArray(value.rerankCandidates)
+            ? value.rerankCandidates.slice(0, 12).map((candidate) => {
+                if (!isRecord(candidate)
+                    || !hasExactKeys(candidate, [
+                        'documentId', 'type', 'title', 'excerpt', 'score',
+                    ])
+                    || typeof candidate.documentId !== 'string'
+                    || candidate.documentId.trim().length === 0
+                    || candidate.documentId.length > 256
+                    || !['character', 'location', 'faction', 'creature',
+                        'item', 'concept', 'event', 'scene', 'other']
+                        .includes(String(candidate.type))
+                    || typeof candidate.title !== 'string'
+                    || candidate.title.trim().length === 0
+                    || candidate.title.length > 160
+                    || typeof candidate.excerpt !== 'string'
+                    || candidate.excerpt.length > 320
+                    || typeof candidate.score !== 'number'
+                    || !Number.isFinite(candidate.score)) {
+                    throw new Error('Invalid Bard-chan rerank candidate')
+                }
+                return {
+                    documentId: candidate.documentId,
+                    type: candidate.type as NarrativeRerankCandidate['type'],
+                    title: candidate.title,
+                    excerpt: candidate.excerpt,
+                    score: candidate.score,
+                }
+            })
+            : (() => {
+                throw new Error('Invalid Bard-chan rerank candidates')
+            })()
     const entityCandidates = value.entityCandidates === undefined
         ? []
         : Array.isArray(value.entityCandidates)
@@ -419,6 +461,7 @@ export async function loadNarrativeInquiry(input: {
         cacheStatus: value.cacheStatus as NarrativeInquiryResponse['cacheStatus'],
         sources,
         evidenceRequests,
+        rerankCandidates,
         entityCandidates,
         metrics: {
             candidateCount: boundedMetric(value.metrics.candidateCount, 64),
@@ -447,7 +490,10 @@ export async function loadNarrativeInquiry(input: {
                     32
                 ) }),
             hopCount: boundedMetric(value.metrics.hopCount, 2),
-            auxiliaryModelCalls: 0,
+            auxiliaryModelCalls: boundedMetric(
+                value.metrics.auxiliaryModelCalls,
+                1,
+            ),
         },
     }
 }

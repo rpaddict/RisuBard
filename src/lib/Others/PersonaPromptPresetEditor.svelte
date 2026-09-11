@@ -36,6 +36,10 @@
         selectedId = id
         const preset = presets.find((item) => item.id === id)
         if (preset) value = preset.content
+        if (kind === 'style') {
+            DBState.db.personaBuilderStylePromptPresetId = id || undefined
+            void requestImmediateSave()
+        }
     }
 
     async function commit(presets: typeof DBState.db.personaBuilderPromptPresets) {
@@ -64,6 +68,10 @@
             })
             await commit(next)
             selectedId = id
+            if (kind === 'style') {
+                DBState.db.personaBuilderStylePromptPresetId = id
+                await requestImmediateSave()
+            }
             notifySuccess(copy.presetSaved)
         }
         catch (cause) {
@@ -96,6 +104,10 @@
                 selected.id,
             ))
             selectedId = ''
+            if (kind === 'style') {
+                DBState.db.personaBuilderStylePromptPresetId = undefined
+                await requestImmediateSave()
+            }
             notifySuccess(copy.presetDeleted)
         }
         catch (cause) {

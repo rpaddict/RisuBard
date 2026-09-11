@@ -303,6 +303,7 @@ export async function loadNarrativeMemoryWiki(input: {
     chatId: string
     fetchImpl: typeof fetch
     createAuth(): Promise<string>
+    signal?: AbortSignal
 }): Promise<NarrativeMemoryWiki> {
     const auth = await input.createAuth()
     const fetchImpl = input.fetchImpl
@@ -312,6 +313,7 @@ export async function loadNarrativeMemoryWiki(input: {
         {
             method: 'POST',
             credentials: 'same-origin',
+            signal: input.signal,
             headers: {
                 'content-type': 'application/json',
                 'risu-auth': auth,

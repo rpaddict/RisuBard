@@ -856,4 +856,40 @@ describe('progressive Markdown inquiry', () => {
         expect(result.metrics.selectedTokens).toBeGreaterThan(256)
         expect(result.metrics.selectedTokens).toBeLessThanOrEqual(512)
     })
+
+    test('falls back to recent conversation terms when the current input has no candidates', () => {
+        const result = inquireMarkdownDocuments({
+            currentInput: '*says nothing*',
+            fallbackInput: '하니아는 침수된 도서관에서 은빛 열쇠를 들었다.',
+            documents: [document({
+                id: 'flooded-library',
+                type: 'location',
+                title: '침수된 도서관',
+                relativePath: 'locations/flooded-library.md',
+                content: '# 침수된 도서관\n\n하니아가 은빛 열쇠를 발견한 장소다.',
+            })],
+        })
+
+        expect(result.sources.map((source) => source.id)).toContain(
+            'narrative-memory:wiki:locations/flooded-library.md'
+        )
+        expect(result.metrics.candidateCount).toBe(1)
+    })
+
+    test('does not use recent conversation fallback for a long unmatched query', () => {
+        const result = inquireMarkdownDocuments({
+            currentInput: 'unmatched deliberate request '.repeat(8),
+            fallbackInput: '침수된 도서관',
+            documents: [document({
+                id: 'flooded-library',
+                type: 'location',
+                title: '침수된 도서관',
+                relativePath: 'locations/flooded-library.md',
+                content: '# 침수된 도서관',
+            })],
+        })
+
+        expect(result.sources).toEqual([])
+        expect(result.metrics.candidateCount).toBe(0)
+    })
 })

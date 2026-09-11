@@ -7,7 +7,10 @@ import {
     collectLoreBuilderSources,
     createLoreBuilderUserPreset,
     deleteLoreBuilderUserPreset,
+    loadLoreBuilderSelections,
     overwriteLoreBuilderUserPreset,
+    resolveLoreBuilderPromptPreset,
+    saveLoreBuilderSelections,
 } from './loreBuilder'
 
 const lore = (id: string, content: string): loreBook => ({
@@ -23,6 +26,16 @@ const lore = (id: string, content: string): loreBook => ({
 })
 
 describe('lore builder prompt contract', () => {
+    it('resolves a persisted style preset from built-ins or user presets', () => {
+        const userPreset = { id: 'saved-style', kind: 'style' as const, name: 'Saved style', content: 'Keep lore style' }
+
+        expect(resolveLoreBuilderPromptPreset([], 'style', 'builtin:lore-style-en')?.content)
+            .toContain('English lorebook writing rules')
+        expect(resolveLoreBuilderPromptPreset([userPreset], 'style', 'saved-style')).toEqual(userPreset)
+        expect(resolveLoreBuilderPromptPreset([userPreset], 'style', 'missing')).toBeUndefined()
+        expect(resolveLoreBuilderPromptPreset([userPreset], 'task', 'saved-style')).toBeUndefined()
+    })
+
     it('ships a structured, factual, output-only lorebook prompt', () => {
         expect(DEFAULT_LORE_BUILDER_TASK_PROMPT).toContain('롤플레잉')
         expect(DEFAULT_LORE_BUILDER_TASK_PROMPT).toContain('Markdown')
@@ -142,5 +155,21 @@ describe('lore builder prompt contract', () => {
         expect(deleteLoreBuilderUserPreset(created, 'user-1')).toEqual([])
         expect(() => overwriteLoreBuilderUserPreset(created, 'builtin:lore-style-ko', 'x'))
             .toThrow('lore-builder-preset-readonly')
+    })
+
+    it('round-trips context switch preferences and ignores malformed storage', () => {
+        const storage = localStorage
+        storage.clear()
+        const selections = {
+            systemPrompt: true,
+            characterDescription: false,
+            characterLorebook: false,
+            moduleLorebook: true,
+        }
+
+        saveLoreBuilderSelections(selections, storage)
+        expect(loadLoreBuilderSelections(storage)).toEqual(selections)
+        storage.setItem('risubard:lore-builder-selections:v1', '{broken')
+        expect(loadLoreBuilderSelections(storage)).toBeNull()
     })
 })

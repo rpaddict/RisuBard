@@ -12,6 +12,7 @@ export const RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT = 2_000
 export const RISUBARD_INQUIRY_EVENT_TOKEN_BUDGET_DEFAULT = 2_000
 export const RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT = 2_000
 export const RISUBARD_INQUIRY_MAXIMUM_TOKEN_BUDGET_DEFAULT = 6_000
+export const RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT = 10_000
 export const RISUBARD_HISTORICAL_SOURCE_MATCH_LIMIT_DEFAULT = 8
 export const RISUBARD_CANONICAL_WRITING_STYLE_DEFAULT = 'concise' as const
 export const RISUBARD_CANONICAL_CUSTOM_STYLE_MAX_LENGTH = 1_000
@@ -24,11 +25,14 @@ export type RisuBardCanonicalWritingStyle =
 
 export interface RisuBardChatSettings {
     risuBardModelMode?: 'memory' | 'model'
+    risuBardBardChanEnabled?: boolean
+    risuBardBardChanModelMode?: 'memory' | 'model'
     showRequestStatus?: boolean
     risuBardInquiryTargetTokenBudget?: number
     risuBardInquiryEventTokenBudget?: number
     risuBardInquirySourceTokenBudget?: number
     risuBardInquiryMaximumTokenBudget?: number
+    risuBardInquiryTimeoutMs?: number
     risuBardHistoricalSourceMatchLimit?: number
     risuBardAnalysisTokenLimit?: number
     risuBardAdditionalSearchLimit?: number
@@ -36,6 +40,7 @@ export interface RisuBardChatSettings {
     risuBardRecentMessageCount?: number
     risuBardResponseMessageCount?: number
     risuBardResponseExcludeUserMessages?: boolean
+    risuBardAnalysisExcludeUserMessages?: boolean
     risuBardCanonicalWritingStyle?: RisuBardCanonicalWritingStyle
     risuBardCanonicalCustomStyle?: string
     risuBardWikiWritingLanguage?: WikiWritingLanguage
@@ -50,11 +55,14 @@ export interface RisuBardChatSettings {
 
 export interface ResolvedRisuBardChatSettings {
     risuBardModelMode: 'memory' | 'model'
+    risuBardBardChanEnabled: boolean
+    risuBardBardChanModelMode: 'memory' | 'model'
     showRequestStatus: boolean
     risuBardInquiryTargetTokenBudget: number
     risuBardInquiryEventTokenBudget: number
     risuBardInquirySourceTokenBudget: number
     risuBardInquiryMaximumTokenBudget: number
+    risuBardInquiryTimeoutMs: number
     risuBardHistoricalSourceMatchLimit: number
     risuBardAnalysisTokenLimit: number
     risuBardAdditionalSearchLimit: number
@@ -62,6 +70,7 @@ export interface ResolvedRisuBardChatSettings {
     risuBardRecentMessageCount: number
     risuBardResponseMessageCount: number
     risuBardResponseExcludeUserMessages: boolean
+    risuBardAnalysisExcludeUserMessages: boolean
     risuBardCanonicalWritingStyle: RisuBardCanonicalWritingStyle
     risuBardCanonicalCustomStyle: string
     risuBardWikiWritingLanguage: WikiWritingLanguage
@@ -100,11 +109,17 @@ export function resolveRisuBardChatSettings(
     )
     return {
         risuBardModelMode: value('risuBardModelMode') === 'model' ? 'model' : 'memory',
+        risuBardBardChanEnabled: value('risuBardBardChanEnabled') === true,
+        risuBardBardChanModelMode:
+            value('risuBardBardChanModelMode') === 'model' ? 'model' : 'memory',
         showRequestStatus: value('showRequestStatus') !== false,
         risuBardInquiryTargetTokenBudget: inquiry.target,
         risuBardInquiryEventTokenBudget: inquiry.events,
         risuBardInquirySourceTokenBudget: inquiry.perSource,
         risuBardInquiryMaximumTokenBudget: inquiry.maximum,
+        risuBardInquiryTimeoutMs: normalizeRisuBardInquiryTimeoutMs(
+            value('risuBardInquiryTimeoutMs')
+        ),
         risuBardHistoricalSourceMatchLimit:
             normalizeRisuBardHistoricalSourceMatchLimit(
                 value('risuBardHistoricalSourceMatchLimit')
@@ -126,6 +141,8 @@ export function resolveRisuBardChatSettings(
         ),
         risuBardResponseExcludeUserMessages:
             value('risuBardResponseExcludeUserMessages') === true,
+        risuBardAnalysisExcludeUserMessages:
+            value('risuBardAnalysisExcludeUserMessages') === true,
         risuBardCanonicalWritingStyle: normalizeRisuBardCanonicalWritingStyle(
             value('risuBardCanonicalWritingStyle')
         ),
@@ -246,6 +263,15 @@ function resolveRisuBardWritingStyleInstruction(
             : normalizedStyle === 'custom' && normalizedCustom.length > 0
                 ? `User style preference: ${normalizedCustom}`
                 : 'Remove decorative prose and repeated facts. Use one sentence per fact. Preserve subjects, objects, negation, time and character knowledge boundaries. Do not invent abbreviations.'
+}
+
+export function normalizeRisuBardInquiryTimeoutMs(value: unknown): number {
+    return boundedInteger(
+        value,
+        RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT,
+        1,
+        10_000,
+    )
 }
 
 export function buildRisuBardEventWritingPolicy(

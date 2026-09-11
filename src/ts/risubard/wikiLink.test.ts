@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import markdownit from 'markdown-it'
 import {
+    describeWikiLinkTarget,
     normalizeWikiLinkKey,
     resolveWikiLinkTarget,
     wikiLinkPlugin,
@@ -58,6 +59,19 @@ describe('resolveWikiLinkTarget', () => {
         expect(resolveWikiLinkTarget('없는문서', documents)).toBeNull()
         expect(resolveWikiLinkTarget('   ', documents)).toBeNull()
     })
+
+    test('describes missing and ambiguous identifiers without guessing a winner', () => {
+        const shadowed = [document('별칭 주인', ['공통']), document('공통')]
+
+        expect(describeWikiLinkTarget('없는문서', shadowed)).toEqual({ status: 'missing' })
+        expect(describeWikiLinkTarget('공통', shadowed)).toEqual({
+            status: 'ambiguous',
+            owners: shadowed,
+        })
+        expect(describeWikiLinkTarget('공통', [document('공통', ['공통'])])).toMatchObject({
+            status: 'resolved', document: { title: '공통' },
+        })
+    })
 })
 
 describe('wikiLinkPlugin', () => {
@@ -83,6 +97,24 @@ describe('wikiLinkPlugin', () => {
         const resolved = render('[[있음]]', () => true)
         expect(resolved).not.toContain('wikilink-unresolved')
         expect(resolved).toContain('tabindex="0"')
+    })
+
+    test('renders missing and ambiguous status with accessible diagnostics', () => {
+        const md = markdownit({ html: false, breaks: false, linkify: false })
+        md.use(wikiLinkPlugin, {
+            resolve: (target) => target === '충돌'
+                ? { status: 'ambiguous', description: '이름이 겹칩니다: 문서 A, 문서 B' }
+                : { status: 'missing', description: `연결된 문서가 없습니다: ${target}` },
+        })
+        const html = md.render('[[없음]] [[충돌]]')
+
+        expect(html).toContain('class="wikilink wikilink-unresolved"')
+        expect(html).toContain('data-wikilink-status="missing"')
+        expect(html).toContain('title="연결된 문서가 없습니다: 없음"')
+        expect(html).toContain('class="wikilink wikilink-unresolved wikilink-ambiguous"')
+        expect(html).toContain('data-wikilink-status="ambiguous"')
+        expect(html).toContain('title="이름이 겹칩니다: 문서 A, 문서 B"')
+        expect(html.match(/role="button" tabindex="0"/g)).toHaveLength(2)
     })
 
     test('leaves code spans and fenced blocks untouched', () => {

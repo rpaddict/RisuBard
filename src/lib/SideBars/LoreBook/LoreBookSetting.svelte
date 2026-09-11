@@ -584,14 +584,14 @@
                         <NumberInput fullwidth min={0} bind:value={DBState.db.characters[$selectedCharID].loreSettings.maxRecursionSteps} />
                     </label>
                 {/if}
-                <label data-lorebook-setting-field class="lore-setting-field">
+                <div data-lorebook-setting-field class="lore-setting-field">
                     <span class="lore-setting-row-label">{language.lorebookMatchingMode} <Help key="lorebookMatchingMode"/></span>
                     <ShSelect className="w-full" bind:value={DBState.db.characters[$selectedCharID].loreSettings.matchingMode}>
                         <OptionInput value="partial">{language.partialMatching}</OptionInput>
                         <OptionInput value="whitespace">{language.fullWordMatching}</OptionInput>
                         <OptionInput value="word-boundary">{language.wordBoundaryMatching}</OptionInput>
                     </ShSelect>
-                </label>
+                </div>
                 <label data-lorebook-setting-field class="lore-setting-field">
                     <span class="lore-setting-row-label">{language.loreBookDepth} <Help key="loreBookDepth"/></span>
                     <NumberInput fullwidth min={0} bind:value={DBState.db.characters[$selectedCharID].loreSettings.scanDepth} />

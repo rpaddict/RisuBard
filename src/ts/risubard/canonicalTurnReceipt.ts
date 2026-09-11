@@ -70,6 +70,7 @@ export function canonicalTurnRetryWarning(
 ): string | undefined {
     return receipt.warnings.find((warning) =>
         warning.startsWith(CANONICAL_UPDATE_RETRY_PREFIX)
+        || warning.startsWith('정본 문서 저장 실패:')
     )
 }
 

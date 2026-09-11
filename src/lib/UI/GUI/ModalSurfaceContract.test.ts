@@ -57,7 +57,6 @@ describe('modal surface contract', () => {
             'src/lib/Setting/modelpreset.svelte',
             'src/lib/Setting/modelProfileBrowser.svelte',
             'src/lib/Setting/themepreset.svelte',
-            'src/lib/Setting/Pages/Module/ModuleChatMenu.svelte',
             'src/lib/SideBars/Scripts/TriggerV2List.svelte',
             'src/lib/UI/ModelList.svelte',
             'src/lib/UI/ModelPresetList.svelte',

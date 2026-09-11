@@ -8,6 +8,7 @@ import {
     RISUBARD_INQUIRY_EVENT_TOKEN_BUDGET_DEFAULT,
     RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT,
     RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT,
+    RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT,
     RISUBARD_HISTORICAL_SOURCE_MATCH_LIMIT_DEFAULT,
     buildRisuBardCanonicalWritingPolicy,
     buildRisuBardEventWritingPolicy,
@@ -17,6 +18,7 @@ import {
     normalizeRisuBardCanonicalTargetLimit,
     normalizeRisuBardCanonicalWritingStyle,
     normalizeRisuBardInquiryTokenBudget,
+    normalizeRisuBardInquiryTimeoutMs,
     normalizeRisuBardHistoricalSourceMatchLimit,
     resolveRisuBardChatSettings,
 } from './risuBardSettings'
@@ -85,6 +87,17 @@ describe('RisuBard analysis settings', () => {
             .toBe(RISUBARD_HISTORICAL_SOURCE_MATCH_LIMIT_DEFAULT)
         expect(normalizeRisuBardHistoricalSourceMatchLimit(-1)).toBe(0)
         expect(normalizeRisuBardHistoricalSourceMatchLimit(99)).toBe(32)
+    })
+
+    test('normalizes the configurable inquiry timeout to the supported range', () => {
+        expect(normalizeRisuBardInquiryTimeoutMs(undefined))
+            .toBe(RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT)
+        expect(normalizeRisuBardInquiryTimeoutMs(0)).toBe(1)
+        expect(normalizeRisuBardInquiryTimeoutMs(8_000)).toBe(8_000)
+        expect(normalizeRisuBardInquiryTimeoutMs(20_000)).toBe(10_000)
+        expect(resolveRisuBardChatSettings({}, {
+            risuBardInquiryTimeoutMs: 7_500,
+        }).risuBardInquiryTimeoutMs).toBe(7_500)
     })
 
     test('keeps configured message windows above one hundred', () => {

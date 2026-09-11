@@ -122,6 +122,16 @@ export const PERSONA_BUILDER_BUILTIN_PRESETS: readonly PersonaBuilderPromptPrese
     },
 ]
 
+export function resolvePersonaBuilderPromptPreset(
+    presets: PersonaBuilderPromptPreset[],
+    kind: PersonaBuilderPromptKind,
+    id: string | undefined,
+): PersonaBuilderPromptPreset | undefined {
+    if (!id) return undefined
+    return [...PERSONA_BUILDER_BUILTIN_PRESETS, ...presets]
+        .find((preset) => preset.kind === kind && preset.id === id)
+}
+
 export interface PersonaBuilderSelections {
     systemPrompt: boolean
     characterDescription: boolean

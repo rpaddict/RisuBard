@@ -1708,6 +1708,13 @@ export async function summarize(oaiMessages: OpenAIChat[], isResummarize: boolea
             },
         ];
 
+    if (formated.at(-1)?.role === 'assistant') {
+        formated.push({
+            role: 'user',
+            content: 'Summarize the conversation above.',
+        });
+    }
+
     // API
     if (settings.summarizationModel === "subModel") {
         console.log(logPrefix, `Using ax model ${db.subModel} for summarization.`);

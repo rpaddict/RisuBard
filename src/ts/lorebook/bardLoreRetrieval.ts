@@ -30,6 +30,7 @@ export interface BardLoreExclusion {
 export interface BardLoreSelectionInput {
     query: string
     priorityQuery?: string
+    routingEvidence?: string
     entries: BardLoreEntry[]
     tokenCounts: Record<string, number>
     settings: BardLoreSettings
@@ -68,12 +69,12 @@ function aliases(entry: BardLoreEntry): string[] {
 }
 
 function directMatch(query: string, entry: BardLoreEntry): { reason: 'key' | 'alias'; value: string } | undefined {
-    const normalized = query.toLocaleLowerCase()
+    const normalized = query.normalize('NFKC').toLocaleLowerCase()
     const keys = [...entry.key.split(/[,\n]/u), ...entry.secondkey.split(/[,\n]/u)].map((value) => value.trim()).filter(Boolean)
-    const key = keys.find((value) => normalized.includes(value.toLocaleLowerCase()))
+    const key = keys.find((value) => normalized.includes(value.normalize('NFKC').toLocaleLowerCase()))
     if (key) return { reason: 'key', value: key }
     const alias = entry.bard.aliases.find((value) => {
-        const candidate = value.trim().toLocaleLowerCase()
+        const candidate = value.normalize('NFKC').trim().toLocaleLowerCase()
         return candidate.length > 0 && normalized.includes(candidate)
     })
     return alias ? { reason: 'alias', value: alias } : undefined
@@ -129,18 +130,28 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
         throw new BardLoreBudgetError('Required Grimoire entries exceed the configured hard limit.')
     }
 
-    const plan = planBardLoreQuery(input.query, compileBardLoreIndex(eligible), settings, input.scopeAliases)
+    const currentQuery = input.priorityQuery?.trim() || input.query
+    const query = input.query.includes(currentQuery) ? input.query : `${input.query}\n${currentQuery}`
+    // History supplies retrieval evidence, not instructions for the current turn.
+    const plan = planBardLoreQuery(
+        currentQuery,
+        compileBardLoreIndex(eligible),
+        settings,
+        input.scopeAliases,
+        input.routingEvidence,
+    )
+    const latestDirectIds = new Set(plan.anchors.map((anchor) => anchor.entryId))
+    const explicitSelection = plan.requestedCount !== undefined || plan.arbitrary || plan.intent === 'list'
 
     const direct: BardLoreSelection[] = []
     const directCandidateIds = new Set<string>()
     const directSeedIds = new Set<string>()
     for (const entry of eligible) {
         if (selectedIds.has(entry.id) || entry.bard.activation === 'required') continue
-        const match = directMatch(input.query, entry)
+        const match = directMatch(query, entry)
         if (!match) continue
-        const latestInputMatch = input.priorityQuery
-            ? directMatch(input.priorityQuery, entry)
-            : undefined
+        const latestInputMatch = directMatch(currentQuery, entry)
+        if (latestInputMatch) latestDirectIds.add(entry.id)
         direct.push({
             entry,
             reason: match.reason,
@@ -152,7 +163,7 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
     }
     for (const anchor of plan.anchors) directSeedIds.add(anchor.entryId)
 
-    const queryTerms = terms(input.query, settings.minimumTermLength)
+    const queryTerms = terms(query, settings.minimumTermLength)
     const searchable = new Map(eligible.map((entry) => [
         entry.id,
         searchableFields(entry, settings.minimumTermLength),
@@ -222,8 +233,12 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
             path: candidate.path,
         }]
     })
+    const priority = (candidate: BardLoreSelection) => latestDirectIds.has(candidate.entry.id)
+        ? 2
+        : directCandidateIds.has(candidate.entry.id) || candidate.reason === 'entity' ? 1 : 0
     const candidates = [...direct, ...links, ...planned, ...sparse].sort((left, right) =>
-        right.score - left.score
+        priority(right) - priority(left)
+        || right.score - left.score
         || (order.get(left.entry.id) ?? 0) - (order.get(right.entry.id) ?? 0),
     )
     const candidateIds = new Set(candidates.map((candidate) => candidate.entry.id))
@@ -238,7 +253,8 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
         const kindMismatch = plan.targetKinds.length > 0 && !plan.targetKinds.includes(candidate.entry.bard.kind)
         const isSceneAnchor = plan.intent === 'scene'
             && plan.anchors.some((anchor) => anchor.entryId === candidate.entry.id)
-        if (kindMismatch && !isSceneAnchor) {
+        const preserveDirectMatch = !explicitSelection && latestDirectIds.has(candidate.entry.id)
+        if (kindMismatch && !isSceneAnchor && !preserveDirectMatch) {
             exclusionReasons.set(candidate.entry.id, 'kind-mismatch')
             continue
         }
@@ -246,7 +262,7 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
             targetKinds: [],
             constraints: plan.constraints,
         }, settings)
-        if (constraintMismatch && !isSceneAnchor) {
+        if (constraintMismatch && !isSceneAnchor && !preserveDirectMatch) {
             exclusionReasons.set(candidate.entry.id, 'constraint-mismatch')
             continue
         }
@@ -289,6 +305,8 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
                 ? 'routing-only'
                 : !eligibleIds.has(entry.id)
                 ? 'ineligible'
+                : exclusionReasons.has(entry.id)
+                ? exclusionReasons.get(entry.id)!
                 : plan.targetKinds.length > 0 && !plan.targetKinds.includes(entry.bard.kind)
                 ? 'kind-mismatch'
                 : !bardLoreEntrySatisfiesPlan(entry, { targetKinds: [], constraints: plan.constraints }, settings)

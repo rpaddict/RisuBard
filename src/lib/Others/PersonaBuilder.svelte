@@ -6,6 +6,7 @@
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte'
     import ManagerResizeHandles from 'src/lib/UI/GUI/ManagerResizeHandles.svelte'
     import DraftSplitHandle from 'src/lib/UI/GUI/DraftSplitHandle.svelte'
+    import { persistElementHeight } from 'src/ts/gui/resizableSize'
     import { getModuleLorebooksWithSources } from 'src/ts/process/modules'
     import { requestChatData } from 'src/ts/process/request/request'
     import {
@@ -13,6 +14,7 @@
         buildPersonaBuilderMessages,
         collectPersonaBuilderSources,
         matchPersonaBuilderCharacterLorebook,
+        resolvePersonaBuilderPromptPreset,
         type PersonaBuilderSelections,
         type PersonaBuilderSourceSnapshot,
     } from 'src/ts/personaBuilder'
@@ -86,10 +88,15 @@
             characterLorebook: !!sources.characterLorebook,
             moduleLorebook: !!sources.moduleLorebook,
         }
+        const selectedStylePreset = resolvePersonaBuilderPromptPreset(
+            DBState.db.personaBuilderPromptPresets ?? [],
+            'style',
+            DBState.db.personaBuilderStylePromptPresetId,
+        )
         taskInstruction = DEFAULT_PERSONA_BUILDER_TASK_PROMPT
-        styleInstruction = ''
+        styleInstruction = selectedStylePreset?.content ?? ''
         taskPresetId = 'builtin:task-default'
-        stylePresetId = ''
+        stylePresetId = selectedStylePreset?.id ?? ''
         userInstruction = ''
         originalDraft = currentDescription
         draft = initialDraft
@@ -265,6 +272,7 @@
                     id="persona-builder-instruction"
                     data-persona-builder-instruction
                     class="builder-textarea instruction"
+                    use:persistElementHeight={'persona-builder-instruction'}
                     bind:value={userInstruction}
                     placeholder={copy.instructionPlaceholder}
                     disabled={generating}
@@ -307,12 +315,14 @@
                         id="persona-builder-original"
                         data-persona-builder-original
                         class="builder-textarea draft"
+                        use:persistElementHeight={'persona-builder-original'}
                         value={originalDraft}
                         readonly
                         aria-label={copy.originalDraft}
                     ></textarea>
                 </div>
-                <DraftSplitHandle target={draftComparisonElement} ariaLabel={`${copy.originalDraft} / ${copy.revisedDraft}`} />
+                <DraftSplitHandle target={draftComparisonElement} ariaLabel={`${copy.originalDraft} / ${copy.revisedDraft}`}
+                    resizeStorageKey="persona-builder-draft-split" />
                 <div class="draft-pane" data-draft-pane="revision">
                     <div class="draft-heading flex items-center justify-between gap-2">
                         <label for="persona-builder-draft">{copy.revisedDraft}</label>
@@ -331,6 +341,7 @@
                         id="persona-builder-draft"
                         data-persona-builder-draft
                         class="builder-textarea draft"
+                        use:persistElementHeight={'persona-builder-revision'}
                         bind:value={draft}
                         placeholder={copy.draftPlaceholder}
                         disabled={generating}
@@ -348,7 +359,7 @@
                 {copy.copyDraft}
             </ShButton>
         </div>
-        <ManagerResizeHandles target={dialogElement} centered />
+        <ManagerResizeHandles target={dialogElement} centered resizeStorageKey="persona-builder-dialog" />
     </div>
 </ShDialog>
 
@@ -422,7 +433,7 @@
     .draft-pane:first-child { padding-right: .375rem; }
     .draft-pane:last-child { padding-left: .375rem; }
     .draft-heading { display: flex; min-width: 0; height: 2rem; align-items: center; }
-    .draft-pane .builder-textarea { box-sizing: border-box; min-height: 0; height: 100%; resize: none; overflow-y: auto; scrollbar-gutter: stable; }
+    .draft-pane .builder-textarea { box-sizing: border-box; min-height: 0; height: 100%; resize: vertical; overflow-y: scroll; scrollbar-gutter: stable; }
     .error-message {
         margin: 0;
         border: 1px solid color-mix(in srgb, var(--color-draculared) 55%, var(--color-darkborderc));

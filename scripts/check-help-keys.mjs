@@ -90,8 +90,9 @@ const REFERENCE_PATTERNS = [
     /<Help[^>]*\bkey\s*=\s*\{\s*['"]([^'"]+)['"]\s*\}/g,
     // helpKey: 'foo' or helpKey: "foo" — SettingItem property
     /\bhelpKey\s*:\s*['"]([^'"]+)['"]/g,
-    // help="foo" — Accordion `help` attribute (used in OpenrouterSettings)
-    /\bhelp\s*=\s*['"]([^'"]+)['"]/g,
+    // help="foo" — Accordion `help` attribute (used in OpenrouterSettings).
+    // Require attribute whitespace so data-*-help attributes are not mistaken for help keys.
+    /(?:^|\s)help\s*=\s*['"]([^'"]+)['"]/g,
 ]
 
 async function* walkSource(dir) {

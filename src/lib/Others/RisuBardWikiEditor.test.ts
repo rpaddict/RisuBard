@@ -285,6 +285,46 @@ describe('RisuBardWikiEditor', () => {
         )?.value).toBe(previewDocuments[0].content)
     })
 
+    it('distinguishes missing links from name collisions and explains both on activation', async () => {
+        mocks.db.risuBardWikiMarkdownPreview = true
+        const collisionDocuments = [{
+            ...documents[0],
+            content: '# 라비안\n\n[[없는 도시]]와 [[공통 이름]]',
+        }, {
+            ...documents[1],
+            title: '공통 이름',
+        }, {
+            ...documents[1],
+            id: 'location.second',
+            title: '두 번째 문서',
+            aliases: ['공통 이름'],
+            relativePath: 'locations/second.md',
+        }]
+        mounted = mount(RisuBardWikiEditor, {
+            target: document.body,
+            props: { characterId: 'character', chatId: 'chat', documents: collisionDocuments },
+        })
+        await tick()
+
+        const missing = document.querySelector<HTMLElement>('[data-wikilink-status="missing"]')!
+        const ambiguous = document.querySelector<HTMLElement>('[data-wikilink-status="ambiguous"]')!
+        expect(missing.classList.contains('wikilink-ambiguous')).toBe(false)
+        expect(missing.title).toBe('연결된 문서가 없습니다: 없는 도시')
+        expect(ambiguous.classList.contains('wikilink-ambiguous')).toBe(true)
+        expect(ambiguous.title).toBe('이름이 겹칩니다: 공통 이름, 두 번째 문서')
+        expect(ambiguous.getAttribute('tabindex')).toBe('0')
+
+        ambiguous.click()
+        await tick()
+        expect(document.querySelector('[data-wiki-link-diagnostic]')?.textContent)
+            .toBe('이름이 겹칩니다: 공통 이름, 두 번째 문서')
+
+        missing.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        await tick()
+        expect(document.querySelector('[data-wiki-link-diagnostic]')?.textContent)
+            .toBe('연결된 문서가 없습니다: 없는 도시')
+    })
+
     it('opens the responsive document sidebar on demand and closes it from the scrim', async () => {
         const onFocusModeChange = vi.fn()
         const target = document.body.appendChild(document.createElement('div'))

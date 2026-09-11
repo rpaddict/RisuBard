@@ -285,7 +285,7 @@ function createUserDataRepository(options = {}) {
         const sidebarCharacters = mode === 'merge' ? mergeById(previousIndex.characters, characters) : characters;
         const sidebar = { schemaVersion: 1, updatedAt: Date.now(), characters: sidebarCharacters, collections };
         operations.push({ path: 'index/sidebar.json', data: jsonBytes(sidebar) });
-        commitTransaction(dataRoot, operations);
+        const transaction = commitTransaction(dataRoot, operations);
 
         if (mode !== 'merge') {
             for (const [legacyName, directory] of COLLECTIONS) {
@@ -310,7 +310,7 @@ function createUserDataRepository(options = {}) {
                 }
             }
         }
-        return { mode, characters: characters.length, files: operations.length };
+        return { mode, characters: characters.length, files: operations.length, transaction };
     }
 
     function loadCollection(directory, ids, options = {}) {

@@ -14,6 +14,7 @@ import {
     createPersonaBuilderUserPreset,
     deletePersonaBuilderUserPreset,
     overwritePersonaBuilderUserPreset,
+    resolvePersonaBuilderPromptPreset,
 } from './personaBuilder'
 
 const lore = (overrides: Partial<loreBook> = {}): loreBook => ({
@@ -331,6 +332,21 @@ describe('persona builder request compiler', () => {
 })
 
 describe('persona builder prompt presets', () => {
+    test('resolves a persisted style preset from built-ins or user presets', () => {
+        const userPreset: PersonaBuilderPromptPreset = {
+            id: 'saved-style',
+            kind: 'style',
+            name: 'Saved style',
+            content: 'Keep this style',
+        }
+
+        expect(resolvePersonaBuilderPromptPreset([], 'style', 'builtin:style-en')?.content)
+            .toContain('provide the revised profile in English.')
+        expect(resolvePersonaBuilderPromptPreset([userPreset], 'style', 'saved-style')).toEqual(userPreset)
+        expect(resolvePersonaBuilderPromptPreset([userPreset], 'style', 'missing')).toBeUndefined()
+        expect(resolvePersonaBuilderPromptPreset([userPreset], 'task', 'saved-style')).toBeUndefined()
+    })
+
     test('ships the requested Korean and English style presets without usage tips', () => {
         const korean = PERSONA_BUILDER_BUILTIN_PRESETS.find((preset) => preset.id === 'builtin:style-ko')
         const english = PERSONA_BUILDER_BUILTIN_PRESETS.find((preset) => preset.id === 'builtin:style-en')

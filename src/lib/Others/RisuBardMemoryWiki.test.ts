@@ -131,6 +131,75 @@ afterEach(async () => {
 })
 
 describe('RisuBardMemoryWiki', () => {
+    test('loads only the new character after a closed dock survives deletion and switching', async () => {
+        const onExecuteWikiCommand = vi.fn(async () => ({
+            applied: [],
+            failed: [],
+        }))
+
+        mounted = mount(RisuBardMemoryWiki, {
+            target: document.body,
+            props: {
+                open: false,
+                characterId: 'character-a',
+                chatId: 'chat-a',
+                onExecuteWikiCommand,
+            },
+        })
+        await tick()
+        expect(mocks.loadNarrativeMemoryWiki).not.toHaveBeenCalled()
+        expect(mocks.getBardChatUndoStatus).not.toHaveBeenCalled()
+        window.dispatchEvent(new CustomEvent('risubard-memory-updated', {
+            detail: { characterId: 'character-a', chatId: 'chat-a' },
+        }))
+        await tick()
+        expect(mocks.loadNarrativeMemoryWiki).not.toHaveBeenCalled()
+
+        await unmount(mounted)
+        mounted = undefined
+        mounted = mount(RisuBardMemoryWiki, {
+            target: document.body,
+            props: {
+                open: false,
+                characterId: 'character-b',
+                chatId: 'chat-b',
+                onExecuteWikiCommand,
+            },
+        })
+        await tick()
+        expect(mocks.loadNarrativeMemoryWiki).not.toHaveBeenCalled()
+        expect(mocks.getBardChatUndoStatus).not.toHaveBeenCalled()
+
+        await unmount(mounted)
+        mounted = undefined
+        mounted = mount(RisuBardMemoryWiki, {
+            target: document.body,
+            props: {
+                open: true,
+                characterId: 'character-b',
+                chatId: 'chat-b',
+                onExecuteWikiCommand,
+            },
+        })
+
+        await vi.waitFor(() => {
+            expect(mocks.loadNarrativeMemoryWiki).toHaveBeenCalledOnce()
+            expect(mocks.getBardChatUndoStatus).toHaveBeenCalledOnce()
+        })
+        expect(mocks.loadNarrativeMemoryWiki).toHaveBeenCalledWith(
+            expect.objectContaining({
+                characterId: 'character-b',
+                chatId: 'chat-b',
+            })
+        )
+        expect(mocks.getBardChatUndoStatus).toHaveBeenCalledWith(
+            expect.objectContaining({
+                characterId: 'character-b',
+                chatId: 'chat-b',
+            })
+        )
+    })
+
     test('keeps the BardWiki dock open while navigating to a source message', () => {
         const chatSource = readFileSync(resolve(
             process.cwd(), 'src/lib/ChatScreens/DefaultChatScreen.svelte'

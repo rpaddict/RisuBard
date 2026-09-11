@@ -222,10 +222,6 @@
         </select>
     </div>
 {:else}
-    <select bind:this={selectEl} bind:value {onchange} class="sr-only" tabindex={-1}>
-        {@render children?.()}
-    </select>
-
     <!-- Desktop: custom trigger + dropdown -->
     <!-- svelte-ignore a11y_interactive_supports_focus -->
     <div
@@ -235,7 +231,7 @@
         aria-expanded={open ? 'true' : 'false'}
         aria-haspopup="listbox"
         aria-activedescendant={activeDescendant}
-        class="flex {heightClasses[size]} items-center justify-between gap-2 rounded-md border border-darkborderc
+        class="relative flex {heightClasses[size]} items-center justify-between gap-2 rounded-md border border-darkborderc
                bg-transparent {sizeClasses[size]} text-textcolor select-none
                transition-colors cursor-pointer
                hover:bg-selected/30
@@ -245,6 +241,10 @@
         onclick={() => open ? closeDropdown() : openDropdown()}
         onkeydown={handleKeydown}
     >
+        <!-- Keep the absolute sr-only control inside its trigger's scroll boundary. -->
+        <select bind:this={selectEl} bind:value {onchange} class="sr-only" tabindex={-1}>
+            {@render children?.()}
+        </select>
         <span class="flex flex-1 text-left truncate">{selectedLabel || ' '}</span>
         <ChevronDownIcon class="size-4 shrink-0 text-textcolor2" />
     </div>

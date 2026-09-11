@@ -1,4 +1,12 @@
-import { vi } from 'vitest'
+import { afterAll, vi } from 'vitest'
+
+const nativeSetTimeout = globalThis.setTimeout
+
+afterAll(async () => {
+    // bits-ui restores body scroll styles on a 24 ms timer after a dialog unmounts.
+    // Keep the DOM environment alive until that shared cleanup has completed.
+    await new Promise<void>((resolve) => nativeSetTimeout(resolve, 30))
+})
 
 // Suppress warning
 vi.mock(import('katex'), () => ({}))

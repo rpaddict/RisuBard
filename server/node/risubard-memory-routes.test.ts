@@ -601,6 +601,7 @@ describe('RisuBard memory routes', () => {
                     characterId: 'character',
                     chatId: 'chat',
                     currentInput: 'bridge',
+                    fallbackInput: 'recent bridge context',
                     sourceLimit: 8,
                     sourceMatches: Array.from({ length: 32 }, (_, index) => ({
                         messageId: `bounded-${index}`,
@@ -616,14 +617,21 @@ describe('RisuBard memory routes', () => {
         )
         expect(harness.response.statusCode).toBe(200)
         expect(service.inquireNarrative).toHaveBeenCalledTimes(2)
+        expect(service.inquireNarrative).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                fallbackInput: 'recent bridge context',
+            })
+        )
 
         await harness.routes.get('/api/risubard/memory/inquiry')!(
             {
                 body: {
                     characterId: 'character',
                     chatId: 'chat',
-            currentInput: 'bridge',
-            sourceLimit: 8,
+                    currentInput: 'bridge',
+                    fallbackInput: 'recent bridge context',
+                    sourceLimit: 8,
                     semanticMatches: Array.from({ length: 33 }, (_, index) => ({
                         documentId: `event-${index}`,
                         score: 0.9,

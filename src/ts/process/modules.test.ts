@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     decodeRPack: vi.fn<(data: Uint8Array) => Promise<Uint8Array>>(async (data) => Buffer.from(data)),
     hasher: vi.fn(async (data: Uint8Array) => `hash-${data[0]}`),
     saveAsset: vi.fn<(data: Uint8Array) => Promise<string>>(async () => 'single-write'),
+    readImage: vi.fn(),
     setItems: vi.fn<(entries: Array<{ key: string; value: Uint8Array }>) => Promise<void>>(async () => undefined),
     database: {
         current: {
@@ -19,7 +20,13 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('src/lang', () => ({
-    language: { errors: { noData: 'no data' } },
+    language: {
+        errors: { noData: 'no data' },
+        fileDropImport: {
+            moduleAssets: (completed: number, total: number) =>
+                `module assets ${completed} / ${total}`,
+        },
+    },
 }))
 vi.mock('../alert', () => ({
     alertClear: vi.fn(),
@@ -39,11 +46,15 @@ vi.mock('../storage/database.svelte', () => ({
     setDatabase: vi.fn(),
 }))
 vi.mock('../globalApi.svelte', () => ({
-    AppendableBuffer: class {},
+    AppendableBuffer: class {
+        parts: Uint8Array[] = []
+        append(data: Uint8Array) { this.parts.push(data) }
+        get buffer() { return Buffer.concat(this.parts) }
+    },
     downloadFile: vi.fn(),
     forageStorage: { setItems: mocks.setItems },
     LocalWriter: class {},
-    readImage: vi.fn(),
+    readImage: mocks.readImage,
     saveAsset: mocks.saveAsset,
     VirtualWriter: class {},
 }))
@@ -54,11 +65,11 @@ vi.mock('../util', () => ({
 }))
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'new-module-id') }))
 vi.mock('./lorebook.svelte', () => ({ convertExternalLorebook: vi.fn() }))
-vi.mock('../media', () => ({ compressImage: vi.fn() }))
+vi.mock('../media', () => ({ compressImage: vi.fn(async data => data) }))
 vi.mock('../rpack/rpack_js', () => ({
     decodeRPackBatch: mocks.decodeRPackBatch,
     decodeRPack: mocks.decodeRPack,
-    encodeRPack: vi.fn(),
+    encodeRPack: vi.fn(async data => data),
 }))
 vi.mock('../stores.svelte', () => ({
     HideIconStore: { set: vi.fn() },
@@ -76,7 +87,7 @@ vi.mock('../characterCards', () => ({
 }))
 vi.mock('../parser/parser.svelte', () => ({ hasher: mocks.hasher }))
 
-import { getModules, readModule, refreshModules, resolveModuleIds } from './modules'
+import { exportModuleLegacy, getModules, readModule, refreshModules, resolveModuleIds } from './modules'
 
 function uint32le(value: number) {
     const bytes = Buffer.alloc(4)
@@ -147,6 +158,27 @@ describe('readModule asset persistence', () => {
         expect(mocks.setItems).not.toHaveBeenCalled()
         expect(mocks.saveAsset).not.toHaveBeenCalled()
     })
+
+    it('rejects a module whose metadata declares an asset but whose payload ends before that asset', async () => {
+        const complete = risumWithAssets(1)
+        const metadataEnd = 6 + complete.readUInt32LE(2)
+        const incomplete = Buffer.concat([complete.subarray(0, metadataEnd), Buffer.from([0])])
+        await expect(readModule(incomplete)).rejects.toThrow(/asset.*count/i)
+        expect(mocks.setItems).not.toHaveBeenCalled()
+    })
+
+    it('rejects a truncated payload before attempting to decode or save assets', async () => {
+        const complete = risumWithAssets(1)
+        await expect(readModule(complete.subarray(0, complete.length - 2))).rejects.toThrow(/truncated/i)
+        expect(mocks.setItems).not.toHaveBeenCalled()
+    })
+})
+
+it.each([null, new Uint8Array(0)])('rejects missing or empty module images during export', async value => {
+    mocks.readImage.mockResolvedValue(value)
+    const module = { id: 'module', name: 'Module', description: '', assets: [['image', 'assets/missing.png', 'png']] as [string, string, string][] }
+    await expect(exportModuleLegacy(module, { saveData: false, alertEnd: false })).rejects.toThrow(/missing.*asset/i)
+    expect(module.assets[0][1]).toBe('assets/missing.png')
 })
 
 describe('resolveModuleIds', () => {

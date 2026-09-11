@@ -5,6 +5,7 @@ import {
     ensureCharacterPersonas,
     getCharacterPersonas,
     getEffectivePersona,
+    getNewChatPersonaBinding,
     nextPersonaCopyNote,
     normalizeSelectedPersonaIndex,
     resolvePersonaById,
@@ -57,6 +58,26 @@ describe('persona scopes', () => {
             owner(),
             chat,
         )).toEqual({ persona: selected, scope: 'global', index: 1 })
+    })
+
+    test('inherits the effective persona for a new chat on the same character', () => {
+        const global = persona('Global', 'global-id')
+        const local = persona('Character', 'character-id')
+
+        expect(getNewChatPersonaBinding(
+            { personas: [global], selectedPersona: 0 },
+            owner([local]),
+            { bindedPersona: 'character-id' },
+        )).toBe('character-id')
+    })
+
+    test('uses the last selected global persona when there is no previous chat', () => {
+        const first = persona('First', 'first-id')
+        const selected = persona('Selected', 'selected-id')
+
+        expect(getNewChatPersonaBinding(
+            { personas: [first, selected], selectedPersona: 1 },
+        )).toBe('selected-id')
     })
 
     test('reads an absent character repository without mutating reactive state', () => {

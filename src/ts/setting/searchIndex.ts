@@ -122,8 +122,8 @@ const declarativeSources: DeclarativeSource[] = [
     { items: moduleModelBindingItems, route: SettingsRoute.ModelPreset, subTab: 3, tabLabel: () => language.modelPresetTabModules },
     { items: promptPresetBasicInfoItems, route: SettingsRoute.PromptPreset, subTab: 0, tabLabel: () => language.basicInfo },
     { items: promptPresetPromptItems, route: SettingsRoute.PromptPreset, subTab: 1, tabLabel: () => language.prompt },
-    { items: promptPresetParameterItems, route: SettingsRoute.PromptPreset, subTab: 2, tabLabel: () => language.parameters },
-    { items: promptPresetAdvancedItems, route: SettingsRoute.PromptPreset, subTab: 3, tabLabel: () => language.advancedSettings },
+    { items: promptPresetParameterItems, route: SettingsRoute.PromptPreset, subTab: 3, tabLabel: () => language.parameters },
+    { items: promptPresetAdvancedItems, route: SettingsRoute.PromptPreset, subTab: 4, tabLabel: () => language.advancedSettings },
 ];
 
 /** Page title per route, for the result breadcrumb. */
@@ -149,6 +149,7 @@ function routeLabel(route: SettingsRouteValue): string {
         case SettingsRoute.RisuBardCommon: return language.risuBardSettings.common.title;
         case SettingsRoute.RisuBardChat: return language.risuBardSettings.common.title;
         case SettingsRoute.RisuBardWikiPrompt: return language.risuBardWikiPrompt.title;
+        case SettingsRoute.RisuBardGrimoirePrompt: return language.risuBardGrimoirePrompt.title;
         case SettingsRoute.RemoteAccess: return language.remoteAccess;
         case SettingsRoute.System: return language.system;
         case SettingsRoute.InlayImageGallery: return language.playground.inlayImageGallery;

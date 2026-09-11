@@ -6,6 +6,7 @@
     import { createSimpleCharacter, DBState, selectedCharID, ReloadChatPointer } from 'src/ts/stores.svelte';
     import { get } from 'svelte/store';
     import { scrollWithinContainer } from './scrollWithin';
+    import { buildChatTurnNavigation } from 'src/ts/chatTurnNavigation';
     
     const getCurrentChatRoomId = () => {
         const charId = get(selectedCharID);
@@ -23,6 +24,7 @@
         unReroll,
         onDeleteSwipe = () => {},
         onConfirmMemory = async () => false,
+        onReanalyzeMemory = async () => false,
         currentUsername,
         userIcon,
         pageStart,
@@ -37,6 +39,7 @@
         unReroll: () => void
         onDeleteSwipe?: () => void
         onConfirmMemory?: (messageId: string) => Promise<boolean>
+        onReanalyzeMemory?: (messageId: string) => Promise<boolean>
         currentUsername: string
         userIcon: string
         pageStart: number
@@ -90,6 +93,7 @@
         const activeStreamingIndex = performanceMode !== 'off' && currentChat?.isStreaming
             ? messages.length - 1
             : -1
+        const turnNavigation = buildChatTurnNavigation(messages)
 
         // Find the last real (non-comment, non-disabled) char message index
         // Only show reroll if it's the actual last non-disabled message
@@ -114,8 +118,9 @@
             const reloadPointer = reloadPointerMap[i] ?? 0;
             const isRerollTarget = i === lastRealCharIdx;
             const activeStreamingMessage = i === activeStreamingIndex && message.role === 'char';
+            const turnNumber = turnNavigation.turnByMessageIndex.get(i)
             const hashMessageData = activeStreamingMessage ? '' : message.data;
-            let hashd = hashMessageData + (message.chatId ?? '') + i.toString() + messageLargePortrait.toString() + message.disabled?.toString() + reloadPointer.toString() + (message.swipeId ?? 0).toString() + (message.swipes?.length ?? 0).toString() + isRerollTarget.toString() + (message.risubardMemoryConfirmed ?? false).toString() + JSON.stringify(message.risubardCanonicalReceipt ?? null);
+            let hashd = hashMessageData + (message.chatId ?? '') + i.toString() + messageLargePortrait.toString() + message.disabled?.toString() + reloadPointer.toString() + (message.swipeId ?? 0).toString() + (message.swipes?.length ?? 0).toString() + isRerollTarget.toString() + (turnNumber ?? 0).toString() + (message.risubardMemoryConfirmed ?? false).toString() + JSON.stringify(message.risubardCanonicalReceipt ?? null);
             const currentHash = hashCode(hashd);
             currentHashes.add(currentHash);
             if(!hashes.has(currentHash)){
@@ -137,6 +142,7 @@
                         unReroll: unReroll,
                         onDeleteSwipe: i === lastRealCharIdx ? onDeleteSwipe : () => {},
                         onConfirmMemory,
+                        onReanalyzeMemory,
                         memoryConfirmed:
                             message.risubardMemoryConfirmed === true,
                         canonicalReceipt: message.risubardCanonicalReceipt,
@@ -145,6 +151,7 @@
                         largePortrait: message.role === 'user' ? (userIconPortrait ?? false) : ((currentCharacter as character).largePortrait ?? false),
                         messageGenerationInfo: message.generationInfo,
                         role: message.role,
+                        turnNumber: turnNavigation.turnByMessageIndex.get(i),
                         name: message.role === 'user' ? currentUsername : currentCharacter.name,
                         isComment: message.isComment ?? false,
                         disabled: message.disabled ?? false,

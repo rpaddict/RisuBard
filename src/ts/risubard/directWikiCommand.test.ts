@@ -28,6 +28,45 @@ const documents: WikiDocument[] = [{
 }]
 
 describe('direct wiki command', () => {
+    test.each([32_768, 65_536])(
+        'uses the configured analysis limit for a large wiki: %i tokens', async (maxTokens) => {
+            const largeWiki = Array.from({ length: 600 }, (_, index) => ({
+                ...documents[0],
+                id: `character.${index}`, title: `인물 ${index}`, aliases: [],
+                content: '## 인물\n\n' + '저장된 정보. '.repeat(8),
+            }))
+            const requestModel = vi.fn(async (_request: DirectWikiModelCall) => ({
+                type: 'success' as const,
+                result: JSON.stringify({ schemaVersion: 1, operations: [{
+                    action: 'upsert', targetDocumentId: largeWiki[0].id,
+                    type: 'character', title: largeWiki[0].title,
+                    markdown: '## 인물 0\n\n갱신된 정보.', reason: '갱신',
+                }] }),
+            }))
+            const saveDocument = vi.fn(async () => ({
+                id: largeWiki[0].id, title: largeWiki[0].title,
+                relativePath: 'characters/0.md',
+            }))
+            const command = executeDirectWikiCommand({
+                instruction: '위키 문서를 점검해.', documents: largeWiki,
+                currentMessages: [], maxTokens, requestModel, saveDocument,
+                trashDocument: vi.fn(), retractEvent: vi.fn(),
+            })
+            if (maxTokens === 32_768) {
+                await expect(command).rejects.toThrow('AI 분석 토큰 상한')
+                expect(requestModel).not.toHaveBeenCalled()
+                expect(saveDocument).not.toHaveBeenCalled()
+                return
+            }
+            await expect(command).resolves.toMatchObject({ failed: [] })
+            const request = requestModel.mock.calls[0][0]
+            expect(request.maxTokens).toBe(maxTokens)
+            expect(request.formated[1].content.length).toBeGreaterThan(32_768 * 3)
+            expect(JSON.parse(request.formated[1].content).documents).toHaveLength(600)
+            expect(saveDocument).toHaveBeenCalledOnce()
+        }
+    )
+
     test('captures undo after plan validation and before the first write', async () => {
         const order: string[] = []
         await executeDirectWikiCommand({

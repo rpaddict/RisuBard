@@ -157,9 +157,13 @@ function writeJournal(journalPath, value) {
 
 function publishTransaction(root, journal, options = {}) {
     let published = 0;
+    let skipped = 0;
     for (const entry of journal.entries) {
         const target = resolveInside(root, entry.path);
-        if (fs.existsSync(target) && checksumFile(target) === entry.checksum) continue;
+        if (fs.existsSync(target) && checksumFile(target) === entry.checksum) {
+            skipped += 1;
+            continue;
+        }
         if (!fs.existsSync(entry.staged)) {
             throw new Error(`Transaction stage is missing for ${entry.path}`);
         }
@@ -171,6 +175,7 @@ function publishTransaction(root, journal, options = {}) {
         published += 1;
         if (options.failAfterPublish === published) throw new Error('simulated crash during transaction publish');
     }
+    return { published, skipped };
 }
 
 function cleanupJournal(journalPath, stageDir) {
@@ -180,7 +185,9 @@ function cleanupJournal(journalPath, stageDir) {
 }
 
 function commitTransaction(root, operations, options = {}) {
-    if (!Array.isArray(operations) || operations.length === 0) return { committed: 0 };
+    if (!Array.isArray(operations) || operations.length === 0) {
+        return { committed: 0, published: 0, skipped: 0, stagedBytes: 0 };
+    }
     const journalDir = resolveInside(root, '.journal');
     fs.mkdirSync(journalDir, { recursive: true });
     const id = crypto.randomUUID();
@@ -212,9 +219,10 @@ function commitTransaction(root, operations, options = {}) {
     const journalPath = path.join(journalDir, `${id}.json`);
     const journal = { schemaVersion: 1, id, state: 'prepared', createdAt: Date.now(), entries };
     writeJournal(journalPath, journal);
-    publishTransaction(root, journal, options);
+    const stagedBytes = entries.reduce((total, entry) => total + fs.statSync(entry.staged).size, 0);
+    const published = publishTransaction(root, journal, options);
     cleanupJournal(journalPath, stageDir);
-    return { committed: entries.length };
+    return { committed: entries.length, ...published, stagedBytes };
 }
 
 function recoverTransactions(root) {

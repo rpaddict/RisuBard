@@ -17,6 +17,10 @@
         getLatestChatPage,
         normalizeChatPageSize,
     } from 'src/ts/chatPagination';
+    import {
+        buildChatTurnNavigation,
+        normalizeChatNavigationTarget,
+    } from 'src/ts/chatTurnNavigation';
     import { loadChatViewSession, saveChatViewSession, type ChatViewSession } from 'src/ts/chatViewSession'
     import { type Chat as ChatData, type Message } from "../../ts/storage/database.svelte";
     import { DBState } from 'src/ts/stores.svelte';
@@ -25,6 +29,7 @@
         chatProcessStage,
         cancelCurrentWikiReboot,
         confirmCurrentNarrativeMessage,
+        reanalyzeNarrativeMessage,
         doingChat,
         executeCurrentNarrativeWikiCommand,
         forceCurrentNarrativeWikiUpdate,
@@ -133,7 +138,11 @@ import { isMobile } from 'src/ts/platform'
     let fileInput:string[] = $state([])
     let showNewMessageButton = $state(false)
     let showScrollNav = $state(false)
+    let scrollNavFocused = $state(false)
     let scrollNavTimer: ReturnType<typeof setTimeout> | null = null
+    let pageJumpInput = $state<number | undefined>(1)
+    let turnJumpInput = $state<number | undefined>(1)
+    let jumpDisplayKey = ''
     let chatsInstance: any = $state()
     let chatScrollContainer: HTMLElement | undefined = $state()
     let isScrollingToMessage = $state(false)
@@ -167,6 +176,27 @@ import { isMobile } from 'src/ts/platform'
     let currentChatFmIndex = $derived(currentChatReady ? (currentChatSlot.fmIndex ?? -1) : -1)
     let chatPageSize = $derived(normalizeChatPageSize(DBState.db.chatPageSize))
     let chatBounds = $derived(getChatPageBounds(currentChat.length, chatPageSize, chatPage))
+    let targetPageNumber = $derived(normalizeChatNavigationTarget(
+        pageJumpInput,
+        chatBounds.pageCount,
+        chatBounds.page + 1,
+    ))
+    let targetPageBounds = $derived(getChatPageBounds(
+        currentChat.length,
+        chatPageSize,
+        targetPageNumber - 1,
+    ))
+    let targetPageTurnNavigation = $derived(buildChatTurnNavigation(currentChat, targetPageBounds.start, targetPageBounds.end))
+
+    $effect(() => {
+        const nextKey = `${paginationKey}:${chatBounds.page}:${chatBounds.start}`
+        untrack(() => {
+            if (nextKey === jumpDisplayKey) return
+            jumpDisplayKey = nextKey
+            pageJumpInput = chatBounds.page + 1
+            turnJumpInput = 1
+        })
+    })
 
     function clearScrollAnchorTimers() {
         if (scrollAnchorCaptureTimer) clearTimeout(scrollAnchorCaptureTimer)
@@ -423,7 +453,22 @@ import { isMobile } from 'src/ts/platform'
     function bumpScrollNav() {
         showScrollNav = true
         if (scrollNavTimer) clearTimeout(scrollNavTimer)
-        scrollNavTimer = setTimeout(() => { showScrollNav = false }, 1500)
+        scrollNavTimer = null
+        if (!scrollNavFocused && !DBState.db.pinChatScrollNavigator) {
+            scrollNavTimer = setTimeout(() => { showScrollNav = false }, 1500)
+        }
+    }
+
+    function holdScrollNav() {
+        scrollNavFocused = true
+        showScrollNav = true
+        if (scrollNavTimer) clearTimeout(scrollNavTimer)
+        scrollNavTimer = null
+    }
+
+    function releaseScrollNav() {
+        scrollNavFocused = false
+        bumpScrollNav()
     }
 
     function getLoadedMessages(container: HTMLElement) {
@@ -432,21 +477,40 @@ import { isMobile } from 'src/ts/platform'
             .sort((a, b) => a.idx - b.idx)
     }
 
-    // Top of currently loaded messages (no force-load of older pages).
-    function scrollToLoadedTop() {
-        const container = document.querySelector('.default-chat-screen') as HTMLElement | null
+    function scrollToPageStart(behavior: ScrollBehavior = 'smooth') {
+        const container = chatScrollContainer
         if (!container) return
-        const messages = getLoadedMessages(container)
-        if (messages.length === 0) return
-        scrollWithinContainer(messages[0].el, container, { block: 'start', behavior: 'smooth' })
+        const pageStart = container.querySelector(`[data-chat-index="${chatBounds.start}"]`) as HTMLElement | null
+        const target = pageStart ?? getLoadedMessages(container).find(message => message.idx >= chatBounds.start)?.el
+        if (!target) return
+        scrollWithinContainer(target, container, { block: 'start', behavior })
     }
 
-    async function selectChatPage(page: number, scrollToLatest = false) {
+    async function selectChatPage(page: number, scrollToLatest = false, behavior: ScrollBehavior = 'smooth') {
         chatPage = getChatPageBounds(currentChat.length, chatPageSize, page).page
         chatFoldedState.data = null
         await tick()
         if (scrollToLatest) chatsInstance?.scrollToLatestMessage()
-        else scrollToLoadedTop()
+        else scrollToPageStart(behavior)
+    }
+
+    async function jumpToPageTurn() {
+        const page = targetPageNumber
+        pageJumpInput = page
+        if (targetPageTurnNavigation.turnCount === 0) {
+            turnJumpInput = 1
+            await selectChatPage(targetPageBounds.page, false, 'instant')
+            return
+        }
+        const target = normalizeChatNavigationTarget(
+            turnJumpInput,
+            targetPageTurnNavigation.turnCount,
+            1,
+        )
+        const messageIndex = targetPageTurnNavigation.messageIndexByTurn[target - 1]
+        if (messageIndex !== undefined) await scrollToMessage(messageIndex)
+        pageJumpInput = page
+        turnJumpInput = target
     }
 
     // Literal bottom of the scroll (end of the latest message).
@@ -1131,40 +1195,58 @@ import { isMobile } from 'src/ts/platform'
     
     {#if DBState.db.nodeOnlyScrollButtonType !== 'off' && currentChat.length > 0}
         <div
-            class="absolute right-3 bottom-16 z-40 flex flex-col rounded-lg bg-bgcolor/70 backdrop-blur-sm border border-darkborderc border-opacity-30 shadow-lg overflow-hidden transition-opacity duration-300"
-            class:opacity-0={!showScrollNav}
-            class:pointer-events-none={!showScrollNav}
+            class="absolute right-3 bottom-16 z-40 flex min-w-16 flex-col overflow-hidden rounded-lg border border-darkborderc border-opacity-30 bg-bgcolor/90 shadow-lg backdrop-blur-sm transition-opacity duration-300"
+            class:opacity-0={!DBState.db.pinChatScrollNavigator && !showScrollNav && !scrollNavFocused}
+            class:pointer-events-none={!DBState.db.pinChatScrollNavigator && !showScrollNav && !scrollNavFocused}
+            onfocusin={holdScrollNav}
+            onfocusout={releaseScrollNav}
         >
             {#if DBState.db.nodeOnlyScrollButtonType === 'four'}
-                <button
-                    class="w-9 h-9 text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
-                    onclick={() => { bumpScrollNav(); scrollToLoadedTop() }}
-                >
-                    <ChevronsUpIcon size={18} />
-                </button>
-                <div class="border-t border-darkborderc border-opacity-30"></div>
+            <button
+                data-chat-page-top
+                type="button"
+                class="h-9 w-full text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                title={language.chatPageTop}
+                aria-label={language.chatPageTop}
+                onclick={() => { bumpScrollNav(); scrollToPageStart() }}
+            >
+                <ChevronsUpIcon size={18} />
+            </button>
+            <div class="border-t border-darkborderc border-opacity-30"></div>
             {/if}
             <button
-                class="w-9 h-9 text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                data-chat-message-previous
+                type="button"
+                class="h-9 w-full text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                title={language.chatMessagePrevious}
+                aria-label={language.chatMessagePrevious}
                 onclick={() => { bumpScrollNav(); navigateMessage('prev') }}
             >
                 <ChevronUpIcon size={18} />
             </button>
             <div class="border-t border-darkborderc border-opacity-30"></div>
             <button
-                class="w-9 h-9 text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                data-chat-message-next
+                type="button"
+                class="h-9 w-full text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                title={language.chatMessageNext}
+                aria-label={language.chatMessageNext}
                 onclick={() => { bumpScrollNav(); navigateMessage('next') }}
             >
                 <ChevronDownIcon size={18} />
             </button>
             {#if DBState.db.nodeOnlyScrollButtonType === 'four'}
-                <div class="border-t border-darkborderc border-opacity-30"></div>
-                <button
-                    class="w-9 h-9 text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
-                    onclick={() => { bumpScrollNav(); scrollToLoadedBottom() }}
-                >
-                    <ChevronsDownIcon size={18} />
-                </button>
+            <div class="border-t border-darkborderc border-opacity-30"></div>
+            <button
+                data-chat-page-bottom
+                type="button"
+                class="h-9 w-full text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                title={language.chatPageBottom}
+                aria-label={language.chatPageBottom}
+                onclick={() => { bumpScrollNav(); scrollToLoadedBottom() }}
+            >
+                <ChevronsDownIcon size={18} />
+            </button>
             {/if}
         </div>
     {/if}
@@ -1246,6 +1328,11 @@ import { isMobile } from 'src/ts/platform'
                             onLoad={onOpenChatLoad}
                             {onQuickSave}
                             {onQuickLoad}
+                            bind:page={pageJumpInput}
+                            bind:turn={turnJumpInput}
+                            pageCount={chatBounds.pageCount}
+                            turnCount={targetPageTurnNavigation.turnCount}
+                            onJump={jumpToPageTurn}
                         />
                     </div>
                 {/if}
@@ -1333,7 +1420,6 @@ import { isMobile } from 'src/ts/platform'
                                 <ReplyIcon /><span>{language.autoSuggest}</span>
                             </ShDropdownMenuItem>
                             <ShDropdownMenuItem onSelect={() => {
-                                DBState.db.characters[$selectedCharID].chats[DBState.db.characters[$selectedCharID].chatPage].modules ??= []
                                 openModuleList = true
                             }}>
                                 <PackageIcon /><span>{language.modules}</span>
@@ -1717,6 +1803,7 @@ import { isMobile } from 'src/ts/platform'
                 onNextSwipe={nextSwipe}
                 onDeleteSwipe={deleteSwipe}
                 onConfirmMemory={confirmCurrentNarrativeMessage}
+                onReanalyzeMemory={reanalyzeNarrativeMessage}
                 unReroll={unReroll}
                 currentCharacter={currentCharacter}
                 currentUsername={currentUsername}

@@ -7,8 +7,8 @@
     import HotkeySettings from './Pages/HotkeySettings.svelte'
     import RisuBardCommonSettings from './Pages/RisuBardCommonSettings.svelte'
     import RisuBardWikiPromptSettings from './Pages/RisuBardWikiPromptSettings.svelte'
+    import RisuBardGrimoirePromptSettings from './Pages/RisuBardGrimoirePromptSettings.svelte'
     import InlayImageGallery from './Pages/InlayImageGallery.svelte'
-    import MigrationSettings from './Pages/MigrationSettings.svelte'
     import ModuleSettings from './Pages/Module/ModuleSettings.svelte'
     import NotificationSoundSettings from './Pages/NotificationSoundSettings.svelte'
     import PluginSettings from './Pages/PluginSettings.svelte'
@@ -24,7 +24,7 @@
     import DevPanel from 'src/lib/_dev/DevPanel.svelte'
     import { isLite } from 'src/ts/lite'
     import { MobileGUI, SettingsMenuIndex, settingsOpen } from 'src/ts/stores.svelte'
-    import { openSettings, SettingsRoute, type SettingsRouteValue } from 'src/ts/routing'
+    import { openSettings, SettingsRoute, SystemTab, type SettingsRouteValue } from 'src/ts/routing'
     import { getVisibleSettingsSections, isExperienceSettingsRoute } from 'src/ts/setting/settingsNavigation'
     import { isAISettingsRoute } from 'src/ts/setting/aiSettingsSections'
 
@@ -42,6 +42,10 @@
     }))
 
     $effect(() => {
+        if ($SettingsMenuIndex === SettingsRoute.Migration) {
+            openSettings(SettingsRoute.System, SystemTab.Backups)
+            return
+        }
         if (isDesktop && $SettingsMenuIndex === SettingsRoute.None) {
             $SettingsMenuIndex = $isLite ? SettingsRoute.Language : SettingsRoute.ModelPreset
         }
@@ -106,9 +110,7 @@
 
                 {#key $SettingsMenuIndex}
                     <div class="settings-page" class:settings-page--collection={$SettingsMenuIndex === SettingsRoute.Module || $SettingsMenuIndex === SettingsRoute.Plugin}>
-                        {#if $SettingsMenuIndex === SettingsRoute.Migration}
-                            <MigrationSettings />
-                        {:else if $SettingsMenuIndex === SettingsRoute.PromptPreset}
+                        {#if $SettingsMenuIndex === SettingsRoute.PromptPreset}
                             <PromptPresetSettings />
                         {:else if isAISettingsRoute($SettingsMenuIndex as SettingsRouteValue)}
                             <AISettingsWorkspace
@@ -119,6 +121,8 @@
                             <RisuBardCommonSettings />
                         {:else if $SettingsMenuIndex === SettingsRoute.RisuBardWikiPrompt}
                             <RisuBardWikiPromptSettings />
+                        {:else if $SettingsMenuIndex === SettingsRoute.RisuBardGrimoirePrompt}
+                            <RisuBardGrimoirePromptSettings />
                         {:else if isExperienceSettingsRoute($SettingsMenuIndex as SettingsRouteValue)}
                             <ExperienceSettingsWorkspace
                                 activeRoute={$SettingsMenuIndex as SettingsRouteValue}
@@ -219,6 +223,23 @@
         margin: 0 auto;
         padding: 4.5rem var(--settings-page-gutter) 7rem;
     }
+
+    .settings-page:has(> :global(.settings-standard-page--resizable)) {
+        padding-bottom: 0;
+    }
+
+    .settings-page:has(> :global(.settings-standard-page--full-width)) {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem clamp(1rem, 2vw, 2rem) 1.5rem;
+        overflow: hidden;
+    }
+
+    .settings-content:has(:global(.settings-standard-page--full-width)) { overflow: hidden; }
 
     :global(.settings-standard-page) {
         min-width: 0;
@@ -335,6 +356,9 @@
         .settings-page {
             padding: 1.15rem 1rem max(5rem, env(safe-area-inset-bottom));
         }
+
+        .settings-content:has(:global(.settings-standard-page--full-width)) { display: flex; flex-direction: column; }
+        .settings-content:has(:global(.settings-standard-page--full-width)) .settings-page { height: auto; flex: 1; }
 
         .settings-content--mobile-collection:has(:global(.settings-standard-page--resizable)) {
             display: flex;

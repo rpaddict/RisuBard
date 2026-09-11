@@ -108,6 +108,23 @@ describe('per-chat toggle pinning', () => {
         expect(chat.GLGlobalVariables).toEqual({ toggle_one: 'preset' })
     })
 
+    test('repinning uses current local values as a new manual reset baseline', () => {
+        const preset = { name: 'Story', values: { toggle_one: 'preset', toggle_two: '2' } }
+        applyTogglePresetToChat(preset, db, character, chat)
+        chat.GLGlobalVariables.toggle_one = 'edited'
+        chat.GLGlobalVariables.toggle_two = ''
+
+        pinToggleValuesToChat(chat, db, character)
+
+        expect(chat.useLocallySetGlobalVariables).toBe(true)
+        expect(chat.togglePresetBaseline).toEqual({ values: { toggle_one: 'edited', toggle_two: '' } })
+        chat.GLGlobalVariables.toggle_one = 'later edit'
+        resetPinnedToggleValues(chat)
+        expect(chat.GLGlobalVariables).toEqual({ toggle_one: 'edited', toggle_two: '' })
+        expect(db.globalChatVariables.toggle_one).toBe('1')
+        expect(preset.values.toggle_one).toBe('preset')
+    })
+
     test('snapshots and applies presets against the local map while pinned', () => {
         pinToggleValuesToChat(chat, db, character)
         db.globalChatVariables.toggle_one = 'global-unchanged'

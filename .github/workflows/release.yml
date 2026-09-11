@@ -254,7 +254,7 @@ jobs:
           #!/bin/bash
           PORTABLE_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
           cd "$PORTABLE_DIR"
-          PORT="${PORT:-6001}"
+          PORT="${PORT:-7777}"
           if [ ! -f "bin/node" ]; then
               osascript -e 'display dialog "RisuBard.app must remain inside the RisuBard portable folder." buttons {"OK"} default button 1 with icon stop'
               exit 1
@@ -273,6 +273,7 @@ jobs:
         if: matrix.platform == 'win'
         shell: bash
         run: |
+          cp scripts/portable/V2-to-V1.bat portable/V2-to-V1.bat
           printf '@echo off\r\n"%%~dp0bin\\node.exe" "%%~dp0scripts\\updater.cjs"\r\nif errorlevel 1 goto :fail\r\nif exist "%%~dp0.update-tmp" (\r\nif exist "%%~dp0.update-tmp\\new-bin\\" (\r\nxcopy /E /I /Y "%%~dp0.update-tmp\\new-bin\\*" "%%~dp0bin\\" >nul\r\nif errorlevel 1 goto :fail\r\n) else (\r\nif not exist "%%~dp0.update-tmp\\skip-bin-update" goto :fail\r\n)\r\nif not exist "%%~dp0.update-tmp\\latest-version" goto :fail\r\ncopy /Y "%%~dp0.update-tmp\\latest-version" "%%~dp0.installed-version" >nul\r\nif errorlevel 1 goto :fail\r\nrmdir /s /q "%%~dp0.update-tmp" 2>nul\r\n)\r\necho Update complete.\r\npause\r\nexit /b 0\r\n:fail\r\necho Update finalization failed. Existing installation was left in place where possible.\r\npause\r\nexit /b 1\r\n' > portable/update.bat
 
       - name: Add launcher scripts (Unix)
@@ -283,7 +284,7 @@ jobs:
           #!/bin/bash
           SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
           cd "$SCRIPT_DIR"
-          PORT="${PORT:-6001}"
+          export PORT="${PORT:-7777}"
           if command -v xdg-open >/dev/null 2>&1; then
               xdg-open "http://localhost:$PORT" 2>/dev/null &
           elif command -v open >/dev/null 2>&1; then
@@ -298,13 +299,15 @@ jobs:
           bin/node scripts/updater.cjs
           rm -rf .update-tmp 2>/dev/null
           EOF
-          chmod +x portable/start.sh portable/update.sh
+          cp scripts/portable/V2-to-V1.sh portable/V2-to-V1.sh
+          chmod +x portable/start.sh portable/update.sh portable/V2-to-V1.sh
 
       - name: Add updater script and portable marker
         shell: bash
         run: |
           mkdir -p portable/scripts
           cp scripts/updater.cjs portable/scripts/updater.cjs 2>/dev/null || true
+          cp scripts/convert-v2-to-v0925.cjs portable/scripts/convert-v2-to-v0925.cjs
           touch portable/.portable
 
       - name: Package portable (Windows)

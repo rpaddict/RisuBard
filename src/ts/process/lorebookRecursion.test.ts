@@ -43,14 +43,14 @@ vi.mock('./modules', () => ({
 import { convertImportedLorebook, exportLoreBook, importLoreBook, loadLoreBookV3Prompt } from './lorebook.svelte'
 import { buildPersonaBuilderMessages, matchPersonaBuilderCharacterLorebook } from '../personaBuilder'
 import { buildInjectionManifest } from '../status/requestStatus'
-import { fingerprintLegacyLore } from '../lorebook/bardLore'
+import { fingerprintLegacyLore, upgradeLegacyLorebook, createBardLoreSettings } from '../lorebook/bardLore'
 
 function lore(comment: string, key: string, content: string) {
     return {
         comment,
         key,
         content,
-        mode: 'normal',
+        mode: 'normal' as const,
         insertorder: 100,
         alwaysActive: false,
         secondkey: '',
@@ -58,6 +58,71 @@ function lore(comment: string, key: string, content: string) {
         useRegex: false,
     }
 }
+
+describe('Grimoire live prompt retrieval', () => {
+    it.each([0, 1, 3, 20])('injects a named character with a %s-message window and ignores disabled history', async (contextMessages) => {
+        mockModuleSources.length = 0
+        const sources = [
+            { ...lore('카이넬 레오', '카이넬 레오', 'LEO PROFILE'), id: 'leo' },
+            { ...lore('비활성 인물', '비활성 인물', 'DISABLED PROFILE'), id: 'disabled' },
+        ]
+        const bardLore = upgradeLegacyLorebook(sources, () => 'unused', createBardLoreSettings({ contextMessages }))
+        bardLore.mode = 'bard'
+        bardLore.metadata.forEach((metadata) => { metadata.kind = 'character' })
+        const character = {
+            chaId: 'test', name: 'test', chatPage: 0, globalLore: sources, bardLore,
+            chats: [{ id: 'chat', localLore: [], message: [
+                { role: 'user', data: '비활성 인물' },
+                { role: 'char', data: '경계', disabled: 'allBefore' },
+                { role: 'char', data: '장소 설명: 여성 전용 지역' },
+                { role: 'user', data: '카이넬 레오를 만난다.' },
+                { role: 'char', data: '여자 캐릭터 3명', isComment: true },
+                { role: 'user', data: '비활성 인물', disabled: true },
+                { role: 'char', data: '그는 지도를 펼친다.' },
+            ] }],
+        }
+        mockDBState.db = { username: 'user', loreBookDepth: 3, loreBookToken: 8000, characters: [character] }
+        const result = await loadLoreBookV3Prompt()
+        expect(result.actives).toContainEqual(expect.objectContaining({
+            prompt: 'LEO PROFILE', requestStatusKind: 'grimoire',
+        }))
+        expect(result.actives.some((active) => active.prompt === 'DISABLED PROFILE')).toBe(false)
+        expect(result.matchLog.find((log) => log.source === 'Grimoire query plan')?.prompt).toBe('카이넬 레오를 만난다.')
+    })
+
+    it('uses the active first message to bootstrap ambient scene retrieval in a new chat', async () => {
+        mockModuleSources.length = 0
+        const sources = [
+            { ...lore('학교', '학교', 'SCHOOL FACT'), id: 'school' },
+            { ...lore('신입생', '', 'STUDENT PROFILE'), id: 'student' },
+        ]
+        const bardLore = upgradeLegacyLorebook(sources, () => 'unused', createBardLoreSettings({ contextMessages: 3 }))
+        bardLore.mode = 'bard'
+        bardLore.metadata[0].kind = 'location'
+        bardLore.metadata[1].kind = 'character'
+        bardLore.metadata[1].links = [{ targetId: 'school', relation: 'attends', retrieval: 'ambient' }]
+        const character = {
+            chaId: 'test',
+            name: 'test',
+            firstMessage: '학교 복도에서 새로운 하루가 시작된다.',
+            alternateGreetings: [],
+            chatPage: 0,
+            globalLore: sources,
+            bardLore,
+            chats: [{ id: 'chat', fmIndex: -1, localLore: [], message: [
+                { role: 'user', data: '주위를 둘러본다.' },
+            ] }],
+        }
+        mockDBState.db = { username: 'user', loreBookDepth: 3, loreBookToken: 8000, characters: [character] }
+
+        const result = await loadLoreBookV3Prompt()
+
+        expect(result.actives.map((entry) => entry.prompt)).toEqual(expect.arrayContaining([
+            'SCHOOL FACT',
+            'STUDENT PROFILE',
+        ]))
+    })
+})
 
 function deferred<T>() {
     let resolve!: (value: T) => void

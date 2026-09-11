@@ -15,9 +15,11 @@ describe('Wiki prompt presets', () => {
         const preset = createDefaultWikiPromptPreset('preset-1')
 
         expect(preset.id).toBe('preset-1')
+        expect(preset.builtin).toBe(true)
         expect(preset.blocks.map((block) => block.id)).toEqual([
             'core-evidence-contract',
             'core-analysis-contract',
+            'core-historical-analysis-contract',
             'main-wiki-guide',
             'default-puzzle-clue-tracker',
             'default-puzzle-response-reasoning',
@@ -25,21 +27,15 @@ describe('Wiki prompt presets', () => {
             'chat-wiki-guide',
             'core-output-contract',
         ])
-        expect(preset.blocks.filter((block) => block.readonly).map((block) => block.id)).toEqual([
-            'core-evidence-contract',
-            'core-analysis-contract',
-            'character-wiki-guide',
-            'chat-wiki-guide',
-            'core-output-contract',
-        ])
-        expect(preset.blocks.filter((block) => block.readonly)
+        expect(preset.blocks.every((block) => block.readonly)).toBe(true)
+        expect(preset.blocks.filter((block) => block.type !== 'text')
             .every((block) => Boolean(block.content?.trim()))).toBe(true)
         expect(preset.blocks.find((block) =>
             block.id === 'default-puzzle-clue-tracker'
-        )).toMatchObject({ target: 'both', readonly: false, enabled: true })
+        )).toMatchObject({ target: 'both', readonly: true, enabled: true })
         expect(preset.blocks.find((block) =>
             block.id === 'default-puzzle-response-reasoning'
-        )).toMatchObject({ target: 'response', readonly: false, enabled: true })
+        )).toMatchObject({ target: 'response', readonly: true, enabled: true })
     })
 
     test('restores required anchors and bounds imported editable blocks', () => {
@@ -77,7 +73,7 @@ describe('Wiki prompt presets', () => {
             id: 'core-output-contract',
             type: 'core-ref',
             enabled: true,
-            readonly: true,
+            readonly: false,
         })
         expect(state.presets[0].blocks.some((block) =>
             block.id === 'custom-one' && block.content === 'Track promises.'
@@ -131,6 +127,18 @@ describe('Wiki prompt presets', () => {
         expect(result.analysis).not.toContain('reason about the relationship')
     })
 
+    test('uses a dedicated analysis contract for historical turn reanalysis', () => {
+        const preset = createDefaultWikiPromptPreset('preset-1')
+
+        const normal = compileWikiPromptGuide(preset, { analysisMode: 'normal' })
+        const historical = compileWikiPromptGuide(preset, { analysisMode: 'historical' })
+
+        expect(normal.analysis).toContain('Separate established events')
+        expect(normal.analysis).not.toContain('Reanalyze the selected historical turn')
+        expect(historical.analysis).toContain('Reanalyze the selected historical turn')
+        expect(historical.analysis).not.toContain('Separate established events')
+    })
+
     test('preserves explicit response blocks without widening both-stage blocks', () => {
         const preset = createDefaultWikiPromptPreset('preset-1')
         preset.blocks.push({
@@ -166,9 +174,25 @@ describe('Wiki prompt presets', () => {
         const duplicated = duplicateWikiPromptPreset(first, 'second')
         expect(duplicated.id).toBe('second')
         expect(duplicated.name).toContain(first.name)
+        expect(duplicated.builtin).toBe(false)
+        expect(duplicated.blocks.find((block) =>
+            block.id === 'core-analysis-contract'
+        )).toMatchObject({ type: 'core-ref', readonly: false })
+        expect(duplicated.blocks.find((block) =>
+            block.id === 'character-wiki-guide'
+        )).toMatchObject({ type: 'injection', readonly: true })
+
+        const customCore = duplicated.blocks.find((block) =>
+            block.id === 'core-analysis-contract'
+        )!
+        customCore.content = 'Custom analysis contract.'
 
         const imported = parseWikiPromptPreset(serializeWikiPromptPreset(duplicated), () => 'imported')
         expect(imported.id).toBe('imported')
+        expect(imported.builtin).toBe(false)
+        expect(imported.blocks.find((block) =>
+            block.id === 'core-analysis-contract'
+        )?.content).toBe('Custom analysis contract.')
         expect(imported.blocks.find((block) => block.id === 'main-wiki-guide')?.content)
             .toBe(duplicated.blocks.find((block) => block.id === 'main-wiki-guide')?.content)
 
@@ -177,7 +201,11 @@ describe('Wiki prompt presets', () => {
             deleted: false,
         })
         expect(deleteWikiPromptPreset([first, duplicated], first.id)).toEqual({
-            presets: [duplicated],
+            presets: [first, duplicated],
+            deleted: false,
+        })
+        expect(deleteWikiPromptPreset([first, duplicated], duplicated.id)).toEqual({
+            presets: [first],
             deleted: true,
         })
     })

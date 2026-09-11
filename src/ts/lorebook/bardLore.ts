@@ -1,6 +1,7 @@
 import type { loreBook } from '../storage/database.svelte'
 import { safeStructuredClone } from '../polyfill'
 import type { ResolvedBardLoreAnalysisLanguage } from './bardLoreLanguage'
+import type { BardLoreInstructionPreset } from './bardLoreInstructionPreset'
 
 export type BardLoreActivation = 'required' | 'keyed' | 'retrieve' | 'never'
 export type BardLoreKind = 'system' | 'character' | 'location' | 'faction' | 'item' | 'event' | 'concept' | 'other'
@@ -45,6 +46,7 @@ export interface BardLoreAnalysisCandidate {
     id: string
     sourceHash: string
     kind: BardLoreKind
+    activation?: Exclude<BardLoreActivation, 'never'>
     aliases: string[]
     tags: string[]
     summary: string
@@ -96,6 +98,7 @@ export interface BardLoreAnalysisRun {
     status: 'running' | 'paused' | 'review' | 'failed'
     settingsSnapshot: BardLoreSettings
     languageSnapshot?: ResolvedBardLoreAnalysisLanguage
+    instructionPresetSnapshot?: BardLoreInstructionPreset
     batches: BardLoreAnalysisBatch[]
     overwriteExisting: boolean
     replaceLinks?: boolean
@@ -497,6 +500,7 @@ function normalizeBardLoreAnalysisRun(
                     || !batch.targetIds.includes(candidate.id)
                     || typeof candidate.sourceHash !== 'string'
                     || !bardLoreKinds.has(candidate.kind as BardLoreKind)
+                    || (candidate.activation !== undefined && !['required', 'keyed', 'retrieve'].includes(candidate.activation as string))
                     || !Array.isArray(candidate.aliases)
                     || !candidate.aliases.every((item) => typeof item === 'string')
                     || !Array.isArray(candidate.tags)
@@ -584,6 +588,7 @@ function normalizeBardLoreAnalysisRun(
                     id: candidate.id,
                     sourceHash: candidate.sourceHash,
                     kind: candidate.kind as BardLoreKind,
+                    activation: candidate.activation as Exclude<BardLoreActivation, 'never'> | undefined,
                     aliases: cleanStrings(candidate.aliases as string[]),
                     tags: cleanStrings(candidate.tags as string[]),
                     summary: candidate.summary,
@@ -604,6 +609,17 @@ function normalizeBardLoreAnalysisRun(
             ...(batch.error ? { error: batch.error as string } : {}),
         })
     }
+    const instructionPreset = raw.instructionPresetSnapshot as Partial<BardLoreInstructionPreset> | undefined
+    const instructionPresetSnapshot = instructionPreset
+        && instructionPreset.schemaVersion === 1
+        && typeof instructionPreset.id === 'string'
+        && typeof instructionPreset.name === 'string'
+        && typeof instructionPreset.revision === 'number'
+        && Number.isInteger(instructionPreset.revision)
+        && typeof instructionPreset.builtin === 'boolean'
+        && typeof instructionPreset.content === 'string'
+        ? safeStructuredClone(instructionPreset as BardLoreInstructionPreset)
+        : undefined
     return {
         schemaVersion: 1,
         id: raw.id,
@@ -622,6 +638,7 @@ function normalizeBardLoreAnalysisRun(
             || raw.languageSnapshot === 'bilingual'
             ? { languageSnapshot: raw.languageSnapshot }
             : {}),
+        ...(instructionPresetSnapshot ? { instructionPresetSnapshot } : {}),
         batches,
         overwriteExisting: raw.overwriteExisting === true,
         ...(typeof raw.replaceLinks === 'boolean' ? { replaceLinks: raw.replaceLinks } : {}),

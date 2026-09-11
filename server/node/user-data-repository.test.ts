@@ -47,7 +47,14 @@ describe('canonical entity tree', () => {
     it('imports the legacy projection into stable-ID JSON and chat JSONL files', () => {
         const dataRoot = root()
         const repository = createUserDataRepository({ dataRoot })
-        repository.importLegacyDatabase(legacyDatabase(), { mode: 'merge' })
+        const result = repository.importLegacyDatabase(legacyDatabase(), { mode: 'merge' })
+
+        expect(result.transaction).toMatchObject({
+            committed: result.files,
+            published: result.files,
+            skipped: 0,
+        })
+        expect(result.transaction.stagedBytes).toBeGreaterThan(0)
 
         expect(JSON.parse(fs.readFileSync(path.join(dataRoot, 'settings', 'app.json'), 'utf8')).openAIKey).toBeUndefined()
         expect(JSON.parse(fs.readFileSync(path.join(dataRoot, 'secrets', 'credentials.json'), 'utf8')).openAIKey).toBe('secret-key')

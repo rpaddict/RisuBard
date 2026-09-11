@@ -6,6 +6,7 @@ import { selectMarkdownExcerpt } from './risubard-markdown-excerpt'
 
 const MAX_SELECTED_DOCUMENTS = 12
 const MAX_SOURCE_CHARACTERS = 12_000
+const MAX_FALLBACK_CURRENT_INPUT_CHARACTERS = 128
 const MAX_CANDIDATES = 64
 const MAX_DIRECT_SEEDS = 32
 const MAX_SEMANTIC_SEEDS = 32
@@ -64,6 +65,7 @@ function truncateToTokenBudget(value: string, maximumTokens: number): string {
 export interface MarkdownInquiryInput {
     documents: readonly MarkdownWikiDocument[]
     currentInput: string
+    fallbackInput?: string
     semanticMatches?: readonly {
         documentId: string
         score: number
@@ -334,17 +336,21 @@ function candidateScore(
 export function inquireMarkdownDocuments(
     input: MarkdownInquiryInput
 ): MarkdownInquiryResult {
-    const normalizedQuery = normalized(input.currentInput.slice(0, 4_096))
-    const terms = queryTerms(input.currentInput.slice(0, 4_096))
+    const currentNormalizedQuery = normalized(
+        input.currentInput.slice(0, 4_096)
+    )
+    let retrievalInput = input.currentInput.slice(0, 4_096)
+    let normalizedQuery = currentNormalizedQuery
+    let terms = queryTerms(retrievalInput)
     const eligibleDocuments = input.documents.filter((document) =>
         isEligible(document, input))
     const characterTitles = new Set(eligibleDocuments
         .filter((document) => document.type === 'character')
         .flatMap((document) => [document.title, ...document.aliases]
             .map(normalized)))
-    const characterAnchorTerms = new Set(terms.filter((term) =>
+    let characterAnchorTerms = new Set(terms.filter((term) =>
         characterTitles.has(term)))
-    const termWeights = queryTermWeights(eligibleDocuments, terms)
+    let termWeights = queryTermWeights(eligibleDocuments, terms)
     const requiredDocuments = eligibleDocuments.filter((document) =>
         document.contextMode === 'always'
             || document.type === 'scene')
@@ -356,7 +362,7 @@ export function inquireMarkdownDocuments(
     const byId = new Map(eligibleDocuments.map((document) =>
         [document.id, document]))
 
-    const direct = eligibleDocuments.map((document) => ({
+    let direct = eligibleDocuments.map((document) => ({
         document,
         directScore: lexicalScore(
             document,
@@ -418,6 +424,47 @@ export function inquireMarkdownDocuments(
             document,
             directScore: (existing?.directScore ?? 0) + ENTITY_HINT_SCORE,
         })
+    }
+    if (directById.size === 0
+        && requiredDocuments.length === 0
+        && input.currentInput.trim().length
+            <= MAX_FALLBACK_CURRENT_INPUT_CHARACTERS
+        && input.fallbackInput?.trim()) {
+        const fallbackInput = input.fallbackInput.slice(-4_096)
+        const fallbackNormalizedQuery = normalized(fallbackInput)
+        const fallbackTerms = queryTerms(fallbackInput)
+        const fallbackCharacterAnchorTerms = new Set(
+            fallbackTerms.filter((term) => characterTitles.has(term))
+        )
+        const fallbackTermWeights = queryTermWeights(
+            eligibleDocuments,
+            fallbackTerms,
+        )
+        const fallbackDirect = eligibleDocuments.map((document) => ({
+            document,
+            directScore: lexicalScore(
+                document,
+                fallbackNormalizedQuery,
+                fallbackTerms,
+                fallbackCharacterAnchorTerms,
+                fallbackTermWeights,
+            ),
+        })).filter(({ directScore }) => directScore > 0)
+            .sort((left, right) =>
+                right.directScore - left.directScore
+                || right.document.updated.localeCompare(left.document.updated)
+                || left.document.id.localeCompare(right.document.id))
+        if (fallbackDirect.length > 0) {
+            retrievalInput = fallbackInput
+            normalizedQuery = fallbackNormalizedQuery
+            terms = fallbackTerms
+            characterAnchorTerms = fallbackCharacterAnchorTerms
+            termWeights = fallbackTermWeights
+            direct = fallbackDirect
+            for (const item of direct.slice(0, MAX_DIRECT_SEEDS)) {
+                directById.set(item.document.id, item)
+            }
+        }
     }
     const hybridDirect = [...directById.values()]
         .sort((left, right) =>
@@ -510,7 +557,7 @@ export function inquireMarkdownDocuments(
         .test(input.currentInput)
         || eligibleDocuments.some((document) => document.type === 'event'
             && [document.title, ...(document.aliases ?? [])].some((title) =>
-                normalizedQuery.includes(normalized(title))))
+                currentNormalizedQuery.includes(normalized(title))))
     const currentStateIntent = stateTopicIntent
         && !stateHistoryIntent
         && !explicitEventIntent
@@ -558,7 +605,7 @@ export function inquireMarkdownDocuments(
         const content = selectMarkdownExcerpt({
             content: candidate.document.content,
             documentType: candidate.document.type,
-            query: input.currentInput,
+            query: retrievalInput,
             maximumCharacters: excerptCharacters,
             chronologyIntent,
         })
@@ -676,7 +723,7 @@ export function inquireMarkdownDocuments(
             const excerpt = selectMarkdownExcerpt({
                 content: match.content,
                 documentType: 'other',
-                query: input.currentInput,
+                query: retrievalInput,
                 maximumCharacters: Math.min(
                     MAX_SOURCE_CHARACTERS,
                     bodyTokenBudget,

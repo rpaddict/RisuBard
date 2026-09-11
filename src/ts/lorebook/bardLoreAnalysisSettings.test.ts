@@ -72,4 +72,13 @@ describe('Grimoire analysis settings', () => {
             analysisTemperature: 0.2,
         })
     })
+
+    it('keeps the largest complete entry within the recommended input allowance', () => {
+        const recommended = recommendBardLoreAnalysisSettings({
+            targetCount: 100,
+            estimatedInputTokens: 100_000,
+            minimumInputTokens: 40_000,
+        })
+        expect(recommended.analysisInputTokens).toBeGreaterThanOrEqual(40_000)
+    })
 })

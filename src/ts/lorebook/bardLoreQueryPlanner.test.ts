@@ -30,6 +30,36 @@ function entry(id: string, overrides: Partial<BardLoreEntry> = {}): BardLoreEntr
 }
 
 describe('Bard Lore deterministic query planner', () => {
+    it('does not turn syllables inside Korean words into facet constraints', () => {
+        const people = ['male', 'female'].map((gender) => entry(gender, {
+            bard: { ...entry(gender).bard, kind: 'character', facets: [
+                { key: 'gender', value: gender, aliases: gender === 'male' ? ['남'] : ['여'] },
+            ] },
+        }))
+        const plan = planBardLoreQuery('여행을 마치고 남아 있는 지도를 본다.',
+            compileBardLoreIndex(people), createBardLoreSettings())
+        expect(plan.constraints).toEqual([])
+    })
+
+    it('does not treat Korean names containing category words as kind filters', () => {
+        const plan = planBardLoreQuery('장소희를 만난다.', compileBardLoreIndex([]), createBardLoreSettings())
+        expect(plan.targetKinds).toEqual([])
+    })
+
+    it('accepts alternative values of the same facet while retaining cross-facet restrictions', () => {
+        const people = ['male', 'female'].map((gender) => entry(gender, {
+            bard: { ...entry(gender).bard, kind: 'character', facets: [
+                { key: 'gender', value: gender, aliases: [] },
+                { key: 'work', value: 'Game A', aliases: [] },
+            ] },
+        }))
+        const outsider = entry('outsider', { bard: { ...entry('x').bard, kind: 'character',
+            facets: [{ key: 'gender', value: 'male', aliases: [] }] } })
+        const plan = planBardLoreQuery('Game A의 남자와 여자 캐릭터 목록',
+            compileBardLoreIndex([...people, outsider]), createBardLoreSettings())
+        expect(plan.candidates.map((item) => item.entryId).sort()).toEqual(['female', 'male'])
+    })
+
     it('resolves a location anchor and discovers ambient characters through reverse relations', () => {
         const school = entry('school', {
             comment: '월광관 고등학교',

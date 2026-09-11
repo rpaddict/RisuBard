@@ -2,6 +2,7 @@ interface ResizeOptions {
     start: () => ((dx: number, dy: number) => void) | undefined
     reset: () => void
     end?: () => void
+    cancel?: () => void
 }
 
 /** Shared pointer capture and keyboard controls for local editor resize handles. */
@@ -14,9 +15,13 @@ export function resizeHandle(node: HTMLElement, options: ResizeOptions) {
         delete node.dataset.resizing
         host.removeEventListener('pointermove', move, true)
         host.removeEventListener('pointerup', up, true)
-        host.removeEventListener('pointercancel', up, true)
+        host.removeEventListener('pointercancel', cancel, true)
         if (id !== undefined && node.hasPointerCapture?.(id)) node.releasePointerCapture(id)
-        if (commit && id !== undefined) options.end?.()
+        if (id !== undefined) {
+            if (commit) options.end?.()
+            else if (options.cancel) options.cancel()
+            else options.end?.()
+        }
     }
     function down(event: PointerEvent) {
         if (event.button !== 0 || drag) return
@@ -31,13 +36,16 @@ export function resizeHandle(node: HTMLElement, options: ResizeOptions) {
         // Track the whole window while dragging, including hosts that do not retarget captured events.
         host.addEventListener('pointermove', move, true)
         host.addEventListener('pointerup', up, true)
-        host.addEventListener('pointercancel', up, true)
+        host.addEventListener('pointercancel', cancel, true)
     }
     function move(event: PointerEvent) {
         if (drag?.id === event.pointerId) drag.move(event.clientX - drag.x, event.clientY - drag.y)
     }
     function up(event: PointerEvent) {
         if (drag?.id === event.pointerId) finish()
+    }
+    function cancel(event: PointerEvent) {
+        if (drag?.id === event.pointerId) finish(false)
     }
     function reset() { finish(false); options.reset(); options.end?.() }
     function key(event: KeyboardEvent) {
@@ -57,7 +65,7 @@ export function resizeHandle(node: HTMLElement, options: ResizeOptions) {
     return {
         update(next: ResizeOptions) { options = next },
         destroy() {
-            finish()
+            finish(false)
             node.removeEventListener('pointerdown', down)
             node.removeEventListener('lostpointercapture', up)
             node.removeEventListener('dblclick', reset)

@@ -29,11 +29,20 @@ describe('automatic BardWiki confirmation', () => {
 
     test('guards automatic confirmation and keeps manual confirmation available', () => {
         const processSource = readFileSync('src/ts/process/index.svelte.ts', 'utf8')
+        const chatSource = readFileSync('src/lib/ChatScreens/Chat.svelte', 'utf8')
+        const chatsSource = readFileSync('src/lib/ChatScreens/Chats.svelte', 'utf8')
+        const screenSource = readFileSync('src/lib/ChatScreens/DefaultChatScreen.svelte', 'utf8')
 
         expect(processSource).toMatch(
             /shouldAutomaticallyConfirmNarrativeTurn\(\s*DBState\.db\.risuBardAutoWikiEnabled\s*\)/
         )
         expect(processSource).toContain('export async function confirmCurrentNarrativeMessage(')
+        expect(processSource).toContain('export async function reanalyzeNarrativeMessage(')
+        expect(processSource).toContain('historicalReanalysis: true')
+        expect(chatSource).toContain('data-risubard-reanalyze-memory')
+        expect(chatSource).toContain('<SearchIcon size={20}')
+        expect(chatsSource).toContain('onReanalyzeMemory')
+        expect(screenSource).toContain('onReanalyzeMemory={reanalyzeNarrativeMessage}')
     })
 
     test('keeps configurable confirmation delay out of the product path', () => {

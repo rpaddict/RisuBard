@@ -1,6 +1,7 @@
 import { parseSingleJsonObject } from '../../../packages/risubard-core/src/modelOutput'
 import { ModelOutputError, modelOutputRepairInstruction, runValidatedModelRequest, type ModelResponse } from '../../../packages/risubard-core/src/modelResponse'
 import type { NarrativeMemoryWikiMarkdown } from './memoryWiki'
+import { normalizeRisuBardAnalysisTokenLimit } from './risuBardSettings'
 
 type WikiDocument = NarrativeMemoryWikiMarkdown['documents'][number]
 type CanonicalType = Exclude<WikiDocument['type'], 'event'>
@@ -316,7 +317,7 @@ function boundedInput(input: {
             .sort((left, right) => right.value.length - left.value.length)[0]
         if (!reducible) {
             throw new Error(
-                '직접 위키 명령 자료가 AI 분석 토큰 상한을 초과했습니다. 설정에서 상한을 늘려 주세요.'
+                `직접 위키 명령 자료가 AI 분석 토큰 상한(${input.maxTokens.toLocaleString()} 토큰)을 초과했습니다. 현재 챗 설정 → 분석 · 응답 → 분석 토큰 한도를 늘리거나, 바드챗의 컨텍스트에서 참고 자료를 줄여 주세요.`
             )
         }
         reducible.update(reducible.value.slice(
@@ -356,9 +357,7 @@ export async function executeDirectWikiCommand(input: {
     if (instruction.length < 1 || instruction.length > 8_000) {
         throw new Error('직접 위키 명령은 1~8000자로 입력해 주세요.')
     }
-    const maxTokens = Number.isSafeInteger(input.maxTokens)
-        ? Math.max(2_048, Math.min(32_768, input.maxTokens))
-        : 12_000
+    const maxTokens = normalizeRisuBardAnalysisTokenLimit(input.maxTokens)
     const modelCall: DirectWikiModelCall = {
         formated: [{
             role: 'system',

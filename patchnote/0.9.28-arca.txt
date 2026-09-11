@@ -1,0 +1,138 @@
+<div style="max-width:880px;margin:0 auto;background:linear-gradient(160deg,#f5f8fc,#fbfdff);border:1px solid #bbccdf;color:#29415a;font-family:'Pretendard','Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+	<div style="padding:40px 22px 32px;background:linear-gradient(125deg,#fff0ef,#fff9f8);border-top:5px solid #b84b4b;border-bottom:1px solid #dfc2c2;">
+		<div style="margin:0 0 14px;color:#8f4a4a;font-size:12px;font-weight:800;letter-spacing:2px;line-height:1.6;">RISUBARD v0.9.28
+			<br><span style="font-size:38px;font-weight:900;line-height:1.2;letter-spacing:-2px;color:#8f3030;">먼저 사과드립니다.</span></div>
+
+		<p style="margin:20px 0 0;color:#612f2f;font-size:17px;line-height:1.9;">0.9.26과 0.9.27에서 V2 폴더 구조를 너무 성급하게 배포했습니다. 충분히 다양한 실제 세이브와 환경에서 확인하지 않은 채 자동 이관을 넣었고, 그 결과 시작 단계에서 서버가 뜨지 않거나 캐릭터와 채팅이 제대로 불러와지지 않고, 캐릭터 삭제 뒤 전환과 RisuRealm 로딩이 오래 멈추는 문제까지 발생했습니다.</p>
+
+		<p style="margin:16px 0 0;color:#612f2f;font-size:17px;line-height:1.9;">업데이트를 믿고 적용한 분들이 직접 오류를 찾고, 폴더와 로그를 확인하고, 이전 버전으로 돌아갈 방법까지 고민하게 만들었습니다. 저장 위치를 바꾸는 작업을 가볍게 판단했고 검증이 부족했습니다. 제 잘못입니다. 불편과 불안을 드려 정말 죄송합니다.</p>
+
+		<p style="margin:16px 0 0;color:#612f2f;font-size:17px;line-height:1.9;">0.9.28에서는 실행 중 자동 V2 이관을 포기하고, 저장·로딩·인덱스 동작을 0.9.25의 V1 구조로 되돌렸습니다. 이미 V2로 이관된 데이터는 원본을 수정하지 않는 별도 변환기로 새 V1 폴더를 만든 뒤 사용하도록 변경했습니다.</p>
+	</div>
+
+	<div style="margin:26px 18px 0;padding:26px 20px 24px;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<h2 style="margin:0 0 18px;padding:0 0 13px;color:#173e69;font-size:26px;font-weight:850;line-height:1.45;border-bottom:2px solid #c3d4e6;">업데이트 전에 현재 버전을 확인해 주세요</h2>
+
+		<div style="margin:0 0 18px;padding:18px 17px;background:linear-gradient(110deg,#eaf2fb,#f5f9fe);border-left:4px solid #2d629d;">
+			<p style="margin:0;color:#173e69;font-size:18px;font-weight:850;line-height:1.65;">0.9.25를 사용 중인 경우</p>
+			<p style="margin:9px 0 0;color:#29415a;font-size:15px;line-height:1.85;">그대로 사용하셔도 됩니다. V1 데이터이므로 변환기를 실행할 필요가 없습니다. 0.9.28의 다른 수정이 필요하다면 기존 V1 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">save</code> 폴더를 평소처럼 이어서 사용하면 됩니다.</p>
+		</div>
+
+		<div style="padding:18px 17px;background:#fff8ec;border-left:4px solid #c68a2c;">
+			<p style="margin:0;color:#754d16;font-size:18px;font-weight:850;line-height:1.65;">0.9.26 또는 0.9.27에서 V2 이관이 끝난 경우</p>
+			<p style="margin:9px 0 0;color:#5c4930;font-size:15px;line-height:1.85;">아래 운영체제별 안내에 따라 V2 원본과 별도의 V1 변환본을 만들어 주세요. 정상적으로 사용 중이더라도 0.9.28은 V1 구조를 기준으로 하므로 변환이 필요합니다. 변환본을 충분히 확인하기 전에는 기존 V2 폴더를 삭제하지 마세요.</p>
+		</div>
+	</div>
+
+	<div style="margin:18px 18px 0;padding:26px 20px 24px;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<h2 style="margin:0 0 18px;padding:0 0 13px;color:#173e69;font-size:25px;font-weight:850;line-height:1.45;border-bottom:1px solid #c3d4e6;">Windows에서 V2를 V1으로 변환하기</h2>
+
+		<ol style="margin:0;padding-left:24px;color:#29415a;">
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;"><strong style="color:#173e69;">실행 중인 RisuBard를 모두 종료합니다.</strong> 서버 터미널도 함께 종료해 주세요.</p></li>
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;"><a href="https://github.com/rpaddict/RisuBard/releases/download/v0.9.28/RisuBard-v0.9.28-win-x64.zip" target="_blank" rel="noopener noreferrer"><strong style="color:#225992;">RisuBard-v0.9.28-win-x64.zip</strong></a>을 받아 기존 설치와 겹치지 않는 새 폴더에 압축을 풉니다.</p></li>
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;">0.9.26 또는 0.9.27에서 사용하던 <strong style="color:#173e69;">V2 데이터 폴더</strong>를 찾습니다. 기본 포터블 설치라면 이전 RisuBard 폴더 안의 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">save</code> 폴더입니다.</p></li>
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;">그 V2 데이터 폴더를 압축을 푼 폴더 최상위의 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">V2-to-V1.bat</code> 파일 위에 끌어다 놓습니다. 드래그 앤 드롭이 어렵다면 BAT을 더블 클릭하고 V2 폴더의 절대경로를 입력한 뒤 <code>Enter</code>를 누르면 됩니다.</p></li>
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;">창에 표시되는 작업 내용과 진행률이 100%가 될 때까지 기다립니다. 원본이 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">save</code>라면 같은 위치에 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">save-v1</code>이 생성됩니다.</p></li>
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;">생성된 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">save-v1</code>을 새 0.9.28 포터블 폴더 안으로 옮긴 뒤 이름을 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">save</code>로 바꾸고 RisuBard를 실행합니다.</p></li>
+		</ol>
+
+		<p style="margin:18px 0 0;padding:14px 16px;background:#fff4f2;border-left:3px solid #b84b4b;color:#653737;font-size:14px;line-height:1.8;"><strong>주의:</strong> 변환기는 기존 폴더를 덮어쓰지 않습니다. 이미 <code>save-v1</code> 폴더가 있다면 중단됩니다. 파일 누락으로 실패하면 누락된 대화·설명·에셋을 제외하고 복구할지 선택할 수 있지만, 빠진 데이터는 결과에서 비거나 사라질 수 있습니다. 핵심 인덱스나 설정이 없으면 복구 모드도 중단됩니다. 캐릭터·채팅·이미지와 재시작까지 확인하기 전에는 V2 원본을 보관해 주세요.</p>
+
+		<div style="margin:14px 0 0;padding:18px 17px;background:#f3f7fc;border:1px solid #c7d7e8;color:#29415a;">
+			<p style="margin:0;color:#173e69;font-size:17px;font-weight:850;line-height:1.7;">V1 세이브 폴더를 직접 지정해서 실행하려면</p>
+			<p style="margin:9px 0 0;font-size:14px;line-height:1.85;">변환한 폴더를 포터블 폴더 안으로 옮기지 않고 원래 위치에서 사용하고 싶을 때만 아래 방법을 사용하세요.</p>
+
+			<p style="margin:17px 0 0;color:#173e69;font-size:15px;font-weight:800;line-height:1.7;">명령 프롬프트에서 한 번만 설정하기</p>
+			<ol style="margin:6px 0 0;padding-left:22px;font-size:14px;line-height:1.85;">
+				<li>파일 탐색기로 압축을 푼 0.9.28 포터블 폴더를 엽니다.</li>
+				<li>창 위쪽에서 현재 폴더 경로가 표시된 주소 표시줄을 클릭하고, 내용을 모두 지운 뒤 <code>cmd</code>를 입력해 <code>Enter</code>를 누릅니다.</li>
+				<li>아래 예시 경로를 실제 V1 폴더 경로로 바꾼 뒤, 명령 한 줄을 복사해 실행합니다.</li>
+				<li>명령 프롬프트와 실행 중인 RisuBard를 모두 닫은 뒤, 평소처럼 <code>RisuBard.exe</code>를 실행합니다.</li>
+			</ol>
+			<pre style="margin:10px 0 0;padding:14px;overflow-x:auto;background:#17283b;color:#eef6ff;border:1px solid #28445f;font-family:Consolas,'D2Coding',monospace;font-size:14px;line-height:1.7;">setx RISUBARD_DATA_ROOT "E:\RisuBard-userdata-v1"</pre>
+
+			<p style="margin:12px 0 0;font-size:13px;line-height:1.8;color:#55718e;">이 경로는 현재 Windows 사용자에게 저장되므로 이후에는 명령을 다시 입력하지 않아도 됩니다. 다른 RisuBard 설치도 같은 경로를 사용합니다.</p>
+
+			<p style="margin:14px 0 0;font-size:14px;line-height:1.85;">나중에 이 설정을 지우고 포터블 폴더 안의 기본 <code>save</code>를 다시 사용하려면 명령 프롬프트에서 아래 한 줄을 실행한 뒤 RisuBard를 다시 시작합니다.</p>
+			<pre style="margin:10px 0 0;padding:14px;overflow-x:auto;background:#17283b;color:#eef6ff;border:1px solid #28445f;font-family:Consolas,'D2Coding',monospace;font-size:14px;line-height:1.7;">reg delete HKCU\Environment /v RISUBARD_DATA_ROOT /f</pre>
+		</div>
+	</div>
+
+	<div style="margin:18px 18px 0;padding:26px 20px 24px;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<h2 style="margin:0 0 18px;padding:0 0 13px;color:#173e69;font-size:25px;font-weight:850;line-height:1.45;border-bottom:1px solid #c3d4e6;">Android Termux에서 V2를 V1으로 변환하기</h2>
+
+		<ol style="margin:0;padding-left:24px;color:#29415a;">
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;">서버가 실행 중인 Termux에서 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">Ctrl + C</code>를 눌러 먼저 종료합니다.</p></li>
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;">RisuBard 소스 폴더에서 코드를 0.9.28로 업데이트하고 기존 설치 안내와 같은 방법으로 빌드합니다.</p></li>
+			<li><p style="margin:11px 0;font-size:15px;line-height:1.85;">같은 RisuBard 소스 폴더에서 아래 명령 한 줄을 실행합니다.</p></li>
+		</ol>
+
+		<pre style="margin:14px 0;padding:16px;overflow-x:auto;background:#17283b;color:#eef6ff;border:1px solid #28445f;font-family:Consolas,'D2Coding',monospace;font-size:14px;line-height:1.7;">bash scripts/termux/downgrade-and-start-v1.sh</pre>
+
+		<p style="margin:14px 0;color:#29415a;font-size:15px;line-height:1.85;">기본 V2 데이터인 <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">$HOME/.local/share/risubard</code>는 그대로 두고, <code style="padding:2px 5px;background:#e7eef7;color:#173e69;">$HOME/.local/share/risubard-v1</code>을 새로 만듭니다. 변환이 성공하면 그 V1 폴더로 서버까지 바로 시작합니다.</p>
+
+		<p style="margin:14px 0;color:#29415a;font-size:15px;line-height:1.85;">이후에도 서버를 켤 때 같은 명령을 사용하면 됩니다. 이미 검증된 V1 폴더가 있으면 변환을 반복하지 않고 바로 실행합니다.</p>
+
+		<p style="margin:14px 0 0;color:#29415a;font-size:15px;line-height:1.85;">기본 경로가 아닌 별도 V2 폴더를 사용했다면 경로를 하나만 뒤에 붙입니다.</p>
+
+		<pre style="margin:14px 0 0;padding:16px;overflow-x:auto;background:#17283b;color:#eef6ff;border:1px solid #28445f;font-family:Consolas,'D2Coding',monospace;font-size:14px;line-height:1.7;">bash scripts/termux/downgrade-and-start-v1.sh "/data/data/com.termux/files/home/my-risubard-data"</pre>
+
+		<p style="margin:18px 0 0;padding:14px 16px;background:#fff4f2;border-left:3px solid #b84b4b;color:#653737;font-size:14px;line-height:1.8;"><strong>주의:</strong> 데이터 폴더는 Termux 내부 저장소에 두어야 합니다. <code>/sdcard</code>와 <code>/storage/emulated</code>는 정본 데이터 경로로 사용할 수 없습니다. V1 변환본을 확인하기 전에는 기존 <code>risubard</code> 폴더를 삭제하지 마세요.</p>
+	</div>
+
+	<div style="margin:18px 18px 0;padding:28px 20px;background:linear-gradient(115deg,#dceaf8,#f5f9fe);border:2px solid #8eafd0;text-align:center;box-shadow:0 5px 18px rgba(45,98,157,.12);">
+		<p style="margin:0 0 8px;color:#4b6783;font-size:13px;font-weight:750;letter-spacing:1px;">LATEST RELEASE</p>
+		<p style="margin:0;"><strong><a href="https://github.com/rpaddict/RisuBard/releases/latest" target="_blank" rel="noopener noreferrer"><span style="font-size:36px;color:#225992;line-height:1.45;">RisuBard v0.9.28 다운로드</span></a></strong></p>
+	</div>
+
+	<div style="margin:26px 18px 0;padding:24px 20px 20px;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<h2 style="margin:0 0 10px;color:#173e69;font-size:26px;font-weight:850;line-height:1.5;">그 외 0.9.28 변경 사항</h2>
+		<p style="margin:0;color:#55718e;font-size:14px;line-height:1.8;">저장 구조와 무관하게 추가됐던 기능과 수정 중, 0.9.25 기반에서 다시 검증한 항목만 포함했습니다.</p>
+	</div>
+
+	<details open style="margin:18px 18px 0;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<summary style="cursor:pointer;padding:19px;background:linear-gradient(100deg,#dceaf8,#eff5fc);color:#173e69;font-size:20px;font-weight:850;line-height:1.55;">캐릭터 삭제 뒤 로딩과 전환 문제 수정</summary>
+		<div style="padding:22px 20px;border-top:1px solid #c8d8e8;">
+			<p style="margin:0;color:#29415a;font-size:15px;line-height:1.85;">닫힌 BardWiki 창이 삭제된 캐릭터의 정보를 계속 조회하지 않도록 수정했습니다. 캐릭터를 삭제한 뒤 RisuRealm을 열거나 다른 캐릭터로 전환할 때 수 분 동안 로딩이 이어지던 문제를 해결했습니다.</p>
+		</div>
+	</details>
+
+	<details style="margin:18px 18px 0;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<summary style="cursor:pointer;padding:19px;background:linear-gradient(100deg,#dceaf8,#eff5fc);color:#173e69;font-size:20px;font-weight:850;line-height:1.55;">Grimoire 검색과 분석 진단 개선</summary>
+		<div style="padding:22px 20px;border-top:1px solid #c8d8e8;">
+			<ul style="margin:0;padding-left:22px;">
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">직접 언급한 이름과 키를 우선하며, 이어쓰기나 짧은 입력에서도 마지막 유효 사용자 입력을 사용합니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">로어북에서 이름·키·본문을 한 번에 검색할 수 있습니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">해석된 검색 입력과 후보 제외 이유, 분석 한도를 넘는 긴 로어를 진단 화면에서 확인할 수 있습니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">BardChat 직접 분석 명령에도 설정한 토큰 한도를 적용합니다.</p></li>
+			</ul>
+		</div>
+	</details>
+
+	<details style="margin:18px 18px 0;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<summary style="cursor:pointer;padding:19px;background:linear-gradient(100deg,#dceaf8,#eff5fc);color:#173e69;font-size:20px;font-weight:850;line-height:1.55;">로어·페르소나·프롬프트 편집 개선</summary>
+		<div style="padding:22px 20px;border-top:1px solid #c8d8e8;">
+			<ul style="margin:0;padding-left:22px;">
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">로어·페르소나 빌더의 긴 원문과 수정본을 스크롤하거나 세로 크기를 조절할 수 있으며 작업 상태를 유지합니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">프롬프트 V2 편집기에서 선택 블록 또는 전체 블록의 문구를 찾아 바꿀 수 있습니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">프롬프트 편집기의 연속 입력 반응성과 미리보기 커서·간격을 조정했습니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">지난 메시지를 바로 본문 끝에서 편집할 수 있고, 열린 로어북 폴더와 하이파 표시 설정을 유지합니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">채팅 모듈 활성화 버튼을 더 작고 빠르게 조작할 수 있게 정리했습니다.</p></li>
+			</ul>
+		</div>
+	</details>
+
+	<details style="margin:18px 18px 28px;border:1px solid #b8cce1;background:#fbfdff;box-shadow:0 4px 14px rgba(45,98,157,.08);">
+		<summary style="cursor:pointer;padding:19px;background:linear-gradient(100deg,#dceaf8,#eff5fc);color:#173e69;font-size:20px;font-weight:850;line-height:1.55;">로그·위키 저장·로그인·포터블 수정</summary>
+		<div style="padding:22px 20px;border-top:1px solid #c8d8e8;">
+			<ul style="margin:0;padding-left:22px;">
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">외부 변경으로 시스템 로그 체크섬이 달라져도 다시 읽고 복구하도록 수정했습니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">정본 위키 문서 일부 저장에 실패한 턴은 성공한 결과를 보존하면서 실패한 부분을 다시 시도합니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">이전 포터블에 포함될 수 있었던 공통 로그인 키를 설치별 새 키로 교체합니다. 업데이트 후 다시 로그인해야 할 수 있습니다.</p></li>
+				<li><p style="margin:10px 0;color:#29415a;font-size:15px;line-height:1.8;">Linux·macOS 포터블 실행기의 기본 접속 포트를 서버와 같은 <code>7777</code>로 맞췄습니다.</p></li>
+			</ul>
+		</div>
+	</details>
+
+	<div style="padding:22px;color:#4b6783;font-size:13px;line-height:1.8;text-align:center;background:linear-gradient(100deg,#e8f0f9,#f4f8fd);border-top:1px solid #bbccdf;">문제가 발생하면 사용 중인 버전, 운영체제, 데이터 폴더 경로와 오류 메시지를 함께 남겨 주세요.<br>V2 원본은 V1 변환본을 충분히 확인한 뒤에도 당분간 보관해 주시기 바랍니다.</div>
+</div>

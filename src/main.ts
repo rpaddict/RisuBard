@@ -7,6 +7,7 @@ import { loadData } from "./ts/bootstrap";
 import { initHotkey } from "./ts/hotkey";
 import { preLoadCheck } from "./preload";
 import { mount } from "svelte";
+import { applyEarlyLanguage } from "./lang";
 
 window.addEventListener('vite:preloadError', (event) => {
     console.error("Chunk load error detected:", event);
@@ -14,11 +15,22 @@ window.addEventListener('vite:preloadError', (event) => {
 });
 
 preLoadCheck()
+applyEarlyLanguage()
 let app = mount(App, {
     target: document.getElementById("app"),
 });
 loadData()
 initHotkey()
-document.getElementById('preloading').remove()
+
+async function handoffStartupLogo() {
+    const preloader = document.getElementById('preloading')
+    const appLogo = document.querySelector<HTMLImageElement>('[data-startup-logo="app"]')
+    if (appLogo) {
+        try { await appLogo.decode() } catch {}
+    }
+    preloader?.remove()
+}
+
+void handoffStartupLogo()
 
 export default app;

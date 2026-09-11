@@ -488,6 +488,9 @@ function registerRisuBardMemoryRoutes(app, options) {
                 ...(req.body.tokenBudget === undefined
                     ? []
                     : ['tokenBudget']),
+                ...(req.body.fallbackInput === undefined
+                    ? []
+                    : ['fallbackInput']),
                 ...(req.body.semanticMatches === undefined
                     ? []
                     : ['semanticMatches']),
@@ -507,6 +510,10 @@ function registerRisuBardMemoryRoutes(app, options) {
                 || typeof req.body.currentInput !== 'string'
                 || req.body.currentInput.trim().length === 0
                 || req.body.currentInput.length > 4_096
+                || (req.body.fallbackInput !== undefined
+                    && (typeof req.body.fallbackInput !== 'string'
+                        || req.body.fallbackInput.trim().length === 0
+                        || req.body.fallbackInput.length > 4_096))
                 || (req.body.tokenBudget !== undefined
                     && !validInquiryTokenBudget(req.body.tokenBudget))
                 || (req.body.semanticMatches !== undefined

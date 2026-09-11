@@ -286,18 +286,27 @@
         event.dataTransfer.setData('application/x-risubard-collection-items', JSON.stringify(draggedItemIds))
     }
 
-    function dropItemsOnFolder(event: DragEvent, folderId: string | null) {
+    function acceptCollectionDrag(event: DragEvent, allowFolders = false) {
+        if (!draggedItemIds.length && !(allowFolders && draggedFolderId)) return
         event.preventDefault()
+        event.stopPropagation()
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+    }
+
+    function dropItemsOnFolder(event: DragEvent, folderId: string | null) {
         if (!draggedItemIds.length) return
+        event.preventDefault()
+        event.stopPropagation()
         moveItems(draggedItemIds, folderId)
         draggedItemIds = []
         primaryDraggedItemId = null
     }
 
     function dropItemForReorder(event: DragEvent, targetItemId: string) {
-        event.preventDefault()
         const sourceItemId = primaryDraggedItemId
         if (!sourceItemId) return
+        event.preventDefault()
+        event.stopPropagation()
         const visibleIds = visibleItems.map((item) => item.id)
         const reordered = reorderCollectionItemDragGroup(
             visibleIds,
@@ -333,7 +342,7 @@
                 class="flex min-h-9 w-full items-center justify-between rounded-md px-2 text-left hover:bg-selected/30 focus-visible:ring-2 focus-visible:ring-borderc/50"
                 class:bg-selected={selectedFolderId === null}
                 onclick={() => selectFolder(null)}
-                ondragover={(event) => { if (draggedItemIds.length) event.preventDefault() }}
+                ondragover={(event) => acceptCollectionDrag(event)}
                 ondrop={(event) => dropItemsOnFolder(event, null)}
             >
                 <span>{copy.uncategorized}</span><span class="text-xs text-textcolor2">{folderCounts.uncategorized}</span>
@@ -352,10 +361,13 @@
                             event.dataTransfer?.setData('application/x-risubard-collection-folder', folder.id)
                         }}
                         ondragend={() => { draggedFolderId = null }}
-                        ondragover={(event) => event.preventDefault()}
+                        ondragover={(event) => acceptCollectionDrag(event, true)}
                         ondrop={(event) => {
-                            event.preventDefault()
-                            if (draggedFolderId) dropFolder(folder.id)
+                            if (draggedFolderId) {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                dropFolder(folder.id)
+                            }
                             else dropItemsOnFolder(event, folder.id)
                         }}
                     >
@@ -470,7 +482,7 @@
                         class:gap-2={!managerLayout}
                         class:p-2={!managerLayout}
                         role="listitem"
-                        ondragover={(event) => { if (draggedItemIds.length) event.preventDefault() }}
+                        ondragover={(event) => acceptCollectionDrag(event)}
                         ondrop={(event) => dropItemForReorder(event, item.id)}
                     >
                         {#if managerLayout}
@@ -559,7 +571,7 @@
     .collection-item--manager { align-items: stretch; overflow: hidden; min-height: 4.75rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, .75rem); background: var(--settings-surface, var(--color-bgcolor)); }
     .collection-item--manager .collection-item-content { min-width: 0; padding: .45rem .7rem; }
     .collection-item--selected { border-color: color-mix(in srgb, var(--color-borderc) 70%, var(--settings-border, var(--color-darkborderc))); background: color-mix(in srgb, var(--color-selected) 22%, var(--settings-surface, var(--color-bgcolor))); }
-    .collection-item-selection-rail { display: flex; width: 2.5rem; flex: 0 0 2.5rem; align-self: stretch; align-items: flex-start; justify-content: center; border-right: 1px solid var(--settings-border, var(--color-darkborderc)); background: color-mix(in srgb, var(--settings-surface, var(--color-bgcolor)) 88%, var(--risu-theme-textcolor)); }
+    .collection-item-selection-rail { display: flex; width: 2.5rem; flex: 0 0 2.5rem; align-self: stretch; align-items: center; justify-content: center; border-right: 1px solid var(--settings-border, var(--color-darkborderc)); background: color-mix(in srgb, var(--settings-surface, var(--color-bgcolor)) 88%, var(--risu-theme-textcolor)); }
     .collection-item-selection-rail :global(button) { width: 100%; min-height: 2.5rem; border-radius: 0; }
     .collection-item-content--drag-handle { cursor: grab; }
     .collection-item-content--drag-handle:active { cursor: grabbing; }

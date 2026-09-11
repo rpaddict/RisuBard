@@ -23,4 +23,21 @@ describe('chat page-size setting connections', () => {
         expect(read('src/lang/help.ko.ts')).toContain('"chatPageSize"')
         expect(read('src/lang/help.en.ts')).toContain('chatPageSize:')
     })
+
+    it('persists a scroll-tab toggle that keeps the side navigator visible', () => {
+        const database = read('src/ts/storage/database.svelte.ts')
+        const settings = read('src/ts/setting/accessibilitySettingsData.ts')
+        const screen = read('src/lib/ChatScreens/DefaultChatScreen.svelte')
+
+        expect(database).toContain('pinChatScrollNavigator?: boolean')
+        expect(database).toContain('data.pinChatScrollNavigator ??= false')
+        expect(settings).toContain("id: 'acc.pinChatScrollNavigator'")
+        expect(settings).toContain("bindKey: 'pinChatScrollNavigator'")
+        expect(settings).toMatch(/accessibilityScrollItems[\s\S]*'acc\.pinChatScrollNavigator'/)
+        expect(screen).toContain('DBState.db.pinChatScrollNavigator')
+        expect(read('src/lang/ko.ts')).toContain('pinChatScrollNavigator: "사이드 네비게이터를 고정"')
+        expect(read('src/lang/en.ts')).toContain('pinChatScrollNavigator: "Pin Side Navigator"')
+        expect(read('src/lang/help.ko.ts')).toContain('"pinChatScrollNavigator"')
+        expect(read('src/lang/help.en.ts')).toContain('pinChatScrollNavigator:')
+    })
 })

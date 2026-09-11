@@ -292,8 +292,36 @@ describe('RisuBardSaveSlotsDialog', () => {
         )!.click()
 
         await vi.waitFor(() => expect(mocks.alertConfirm).toHaveBeenCalledWith(
-            '저장하지 않은 채팅은 사라집니다. 불러올까요?'
+            '저장하지 않은 채팅은 사라집니다. 불러올까요?',
+            { tier: 'top' },
         ))
+        await vi.waitFor(() => expect(onLoad).toHaveBeenCalledWith('save-1', false))
+    })
+
+    test('keeps the load control idle while the nested overwrite confirmation is open', async () => {
+        let resolveConfirmation!: (confirmed: boolean) => void
+        mocks.alertConfirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => {
+            resolveConfirmation = resolve
+        }))
+        const onLoad = render()
+        await vi.waitFor(() => expect(document.body.querySelector(
+            '[aria-label="SAVE 01 불러오기"]'
+        )).not.toBeNull())
+        const loadButton = document.body.querySelector<HTMLButtonElement>(
+            '[aria-label="SAVE 01 불러오기"]'
+        )!
+
+        loadButton.click()
+
+        await vi.waitFor(() => expect(mocks.alertConfirm).toHaveBeenCalledWith(
+            '저장하지 않은 채팅은 사라집니다. 불러올까요?',
+            { tier: 'top' },
+        ))
+        expect(loadButton.disabled).toBe(false)
+        expect(loadButton.querySelector('.animate-spin')).toBeNull()
+        expect(onLoad).not.toHaveBeenCalled()
+
+        resolveConfirmation(true)
         await vi.waitFor(() => expect(onLoad).toHaveBeenCalledWith('save-1', false))
     })
 

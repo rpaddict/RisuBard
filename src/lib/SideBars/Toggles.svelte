@@ -5,9 +5,9 @@
     import { language } from "src/lang";
     import type { PromptItem } from "src/ts/process/prompt";
     import type { character } from "src/ts/storage/database.svelte";
-    import { fillMissingPinnedToggleValues, getCurrentChat, resetPinnedToggleValues, saveTogglesToChat, unpinToggleValuesFromChat } from "src/ts/storage/database.svelte";
+    import { fillMissingPinnedToggleValues, getCurrentChat, pinToggleValuesToChat, resetPinnedToggleValues, saveTogglesToChat, unpinToggleValuesFromChat } from "src/ts/storage/database.svelte";
     import { getToggleValueDifferences } from "src/ts/storage/togglePresetBaseline";
-    import { alertConfirm, alertTogglePresets, notifySuccess } from "src/ts/alert";
+    import { alertConfirmMulti, alertTogglePresets, notifySuccess } from "src/ts/alert";
     import { tooltip } from "src/ts/gui/tooltip";
     import { PinIcon, FolderHeartIcon, RotateCcwIcon } from "@lucide/svelte";
     import ShAccordion from '../UI/GUI/ShAccordion.svelte'
@@ -44,8 +44,14 @@
         const chat = getCurrentChat()
         if (!chat) return
         if (chat.useLocallySetGlobalVariables) {
-            const confirmed = await alertConfirm(language.togglePinRemove)
-            if (confirmed) {
+            const choice = await alertConfirmMulti(language.toggleBindingLabel, [
+                language.togglePinOverwrite,
+                { label: language.togglePinUnpin, variant: 'destructive' },
+            ])
+            if (choice === 0) {
+                pinToggleValuesToChat(chat)
+                notifySuccess(language.togglePinSaved)
+            } else if (choice === 1) {
                 unpinToggleValuesFromChat(chat)
                 notifySuccess(language.togglePinUnbound)
             }
@@ -244,7 +250,7 @@
 <div class="text-[11px] text-textcolor2 mt-4 px-1">{language.toggleBindingLabel}</div>
 <div class="flex gap-1 mt-1 items-stretch">
     {#if isPinned}
-        <span class="flex-1 min-w-0 flex" use:tooltip={dirtyDifferences.length > 0 ? dirtyTooltip : language.togglePinRemove}>
+        <span class="flex-1 min-w-0 flex" use:tooltip={dirtyDifferences.length > 0 ? `${language.togglePinManage}\n${dirtyTooltip}` : language.togglePinManage}>
             <ShButton variant={dirtyDifferences.length > 0 ? "destructive" : "binding"} className="w-full min-w-0" onclick={pinToChat}>
                 <PinIcon size={16} />
                 <span class="truncate">{pinnedPresetName}</span>
@@ -291,7 +297,7 @@
             {@render sep()}
         {/if}
         {@render toggles(groupedToggles, true)}
-        {#if chara && DBState.db.hypaV3}
+        {#if chara && DBState.db.showMenuHypaMemoryModal && DBState.db.hypaV3}
             <div class="w-full flex mt-2 items-center justify-between gap-2 min-h-10 rounded-md px-1">
                 <span class="flex items-center gap-1">
                     <span>{language.ToggleHypaMemory}</span>
@@ -320,7 +326,7 @@
         {/if}
     {/if}
     {@render toggles(groupedToggles)}
-    {#if DBState.db.hypaV3}
+    {#if DBState.db.showMenuHypaMemoryModal && DBState.db.hypaV3}
         <div class="w-full flex mt-2 items-center justify-between gap-2 min-h-10 rounded-md px-1">
             <span class="flex items-center gap-1">
                 <span>{language.ToggleHypaMemory}</span>

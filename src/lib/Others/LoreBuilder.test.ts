@@ -44,7 +44,7 @@ describe('lore builder UI contract', () => {
         expect(builder).toContain("import ManagerResizeHandles from 'src/lib/UI/GUI/ManagerResizeHandles.svelte'")
         expect(builder).toContain('let dialogElement = $state<HTMLElement | null>(null)')
         expect(builder).toContain('bind:contentElement={dialogElement}')
-        expect(builder).toContain('<ManagerResizeHandles target={dialogElement} centered />')
+        expect(builder).toContain('<ManagerResizeHandles target={dialogElement} centered')
         expect(builder).toContain('var(--manager-width, 56rem)')
         expect(builder).toContain('calc(100vw - 2rem)')
         expect(builder).toContain('calc(100dvh - 2rem)')
@@ -66,7 +66,7 @@ describe('lore builder UI contract', () => {
         expect(builder).toContain('data-lore-builder-original')
         expect(builder).toMatch(/data-lore-builder-original[\s\S]*?readonly/)
         expect(builder).toContain('data-lore-builder-draft')
-        expect(builder).toContain('overflow-y: auto')
+        expect(builder).toContain('overflow-y: scroll')
         expect(builder).toMatch(/@media \(max-width: 700px\)[\s\S]*?grid-template-columns: 1fr/)
         expect(english).toContain('originalDraft: "Original"')
         expect(english).toContain('revisedDraft: "Revision"')
@@ -78,6 +78,26 @@ describe('lore builder UI contract', () => {
         expect(splitter).toContain("--draft-left-width")
         expect(splitter).toContain("--draft-right-width")
         expect(splitter).toContain("@media (max-width: 700px)")
+    })
+
+    it('persists lore builder switches, dialog size, split, and textarea heights', () => {
+        const builder = source('src/lib/Others/LoreBuilder.svelte')
+        const presetEditor = source('src/lib/Others/LorePromptPresetEditor.svelte')
+        const splitter = source('src/lib/UI/GUI/DraftSplitHandle.svelte')
+
+        expect(builder).toContain('loadLoreBuilderSelections')
+        expect(builder).toContain('saveLoreBuilderSelections')
+        expect(builder).toContain('DBState.db.loreBuilderStylePromptPresetId')
+        expect(builder).toContain('resolveLoreBuilderPromptPreset')
+        expect(presetEditor).toContain('DBState.db.loreBuilderStylePromptPresetId = id || undefined')
+        expect(builder).toContain('resizeStorageKey="lore-builder-dialog"')
+        expect(builder).toContain('resizeStorageKey="lore-builder-draft-split"')
+        expect(builder).toContain("use:persistElementHeight={'lore-builder-instruction'}")
+        expect(builder).toContain("use:persistElementHeight={'lore-builder-original'}")
+        expect(builder).toContain("use:persistElementHeight={'lore-builder-revision'}")
+        expect(builder).toMatch(/\.draft-pane \.builder-textarea \{[^}]*resize: vertical;[^}]*overflow-y: scroll;/)
+        expect(splitter).toContain('loadResizableSize')
+        expect(splitter).toContain('saveResizableSize')
     })
 
     it('starts with an empty revision while sending the original as the first draft context', () => {
@@ -92,5 +112,16 @@ describe('lore builder UI contract', () => {
 
         expect(builder.match(/userInstruction = ''/g)).toHaveLength(1)
         expect(builder).toMatch(/finally\s*\{\s*if \(abortController === controller\) \{\s*abortController = null\s*generating = false/s)
+    })
+
+    it('keeps the header concise and places icon undo plus apply beside the revision title', () => {
+        const builder = source('src/lib/Others/LoreBuilder.svelte')
+        const korean = source('src/lang/ko.ts')
+
+        expect(builder).not.toContain('{#snippet description()}')
+        expect(builder).not.toContain('copy.contextHint')
+        expect(builder).not.toContain('<Undo2Icon size={15} />{copy.undo}')
+        expect(builder).toMatch(/draft-heading[\s\S]*data-lore-builder-undo[\s\S]*data-lore-builder-apply/)
+        expect(korean).toContain('applyDraft: "적용"')
     })
 })

@@ -214,6 +214,41 @@ describe('actual narrative inquiry prompt', () => {
         })).rejects.toMatchObject({ name: 'AbortError' })
     })
 
+    it('sends bounded recent conversation text as a fallback inquiry', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            mode: 'v2-current',
+            graphRevision: 0,
+            indexRevision: 0,
+            cacheStatus: 'current',
+            sources: [],
+            entityCandidates: [],
+            metrics: {
+                candidateCount: 0,
+                inspectedNodeCount: 0,
+                inspectedEdgeCount: 0,
+                selectedNodeCount: 0,
+                selectedTokens: 0,
+                hopCount: 0,
+                auxiliaryModelCalls: 0,
+            },
+        }))) as unknown as typeof fetch
+
+        await loadNarrativeInquiry({
+            characterId: 'character-1',
+            chatId: 'chat-1',
+            currentInput: '*says nothing*',
+            fallbackInput: '하니아와 침수된 도서관'.repeat(400),
+            fetchImpl,
+            createAuth: async () => 'auth',
+        })
+
+        const body = JSON.parse((fetchImpl as any).mock.calls[0][1].body)
+        expect(body.fallbackInput).toHaveLength(4_096)
+        expect(body.fallbackInput).toBe(
+            '하니아와 침수된 도서관'.repeat(400).slice(-4_096)
+        )
+    })
+
     it('loads bounded server sources and serializes only selected content', async () => {
         const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
             mode: 'v2-current',

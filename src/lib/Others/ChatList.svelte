@@ -72,11 +72,13 @@
         {/each}
         <div class="flex mt-2 items-center">
             <button class="text-textcolor2 hover:text-primary cursor-pointer mr-1" onclick={() => {
-                const len = DBState.db.characters[$selectedCharID].chats.length
-                let chats = DBState.db.characters[$selectedCharID].chats
+                const character = DBState.db.characters[$selectedCharID]
+                const currentChat = character.chats[character.chatPage]
+                const len = character.chats.length
+                let chats = character.chats
                 const newChat = {
                     message:[], note:'', name:`New Chat ${len + 1}`, localLore:[], fmIndex: -1, id: v4(),
-                    ...newChatModelDefaults()
+                    ...newChatModelDefaults(character, currentChat)
                 }
                 chats.unshift(newChat)
                 DBState.db.characters[$selectedCharID].chats = chats

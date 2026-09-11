@@ -12,7 +12,7 @@ describe('sidebar model mode persistence', () => {
         expect(modelBind).toContain(
             'if (!bindingTarget) DBState.db.useModelPresetByDefault = target.useModelPreset;'
         )
-        expect(chatList).toContain('...newChatModelDefaults()')
+        expect(chatList).toContain('...newChatModelDefaults(chara, activeChat)')
     })
 
     test('saving a preset binding as default also makes preset mode the new-chat default', () => {

@@ -7,6 +7,7 @@
     } from 'src/ts/lorebook/bardLoreLanguage'
     import { normalizeWikiWritingLanguage } from 'src/ts/risubard/wikiWritingLanguage'
     import { DBState } from 'src/ts/stores.svelte'
+    import { resolveBardLoreInstructionPreset } from 'src/ts/lorebook/bardLoreInstructionPreset'
 
     let selectedLanguage = $derived(normalizeBardLoreAnalysisLanguage(
         DBState.db.risuBardGrimoireLanguage
@@ -18,6 +19,10 @@
         undefined,
         selectedLanguage,
         wikiLanguage,
+        resolveBardLoreInstructionPreset(
+            DBState.db.risuBardGrimoirePromptPresets,
+            DBState.db.risuBardGrimoirePromptPresetId,
+        ),
     ))
 
     function setLanguage(value: string): void {

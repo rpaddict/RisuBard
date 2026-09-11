@@ -120,6 +120,26 @@ function normalizeNewCharacterCurrentState(
     } : patch)
 }
 
+function preserveHistoricalCharacterCurrentState(
+    patches: CanonicalSectionPatch[],
+    target: LoadedCanonicalDocument | undefined,
+    historicalReanalysis: boolean | undefined,
+): { patches: CanonicalSectionPatch[]; preserved: boolean } {
+    if (!historicalReanalysis || !target || target.type !== 'character') {
+        return { patches, preserved: false }
+    }
+    const filtered = patches.filter((patch) =>
+        !CHARACTER_CURRENT_STATE_HEADINGS.some((heading) =>
+            patch.heading.normalize('NFKC').toLocaleLowerCase().trim()
+            === heading.normalize('NFKC').toLocaleLowerCase()
+        )
+    )
+    return {
+        patches: filtered,
+        preserved: filtered.length !== patches.length,
+    }
+}
+
 function countAnalysisTokens(value: string): number {
     analysisTokenizer ??= get_encoding('cl100k_base')
     return analysisTokenizer.encode(value).length
@@ -178,6 +198,7 @@ export interface MemoryAnalysisInput {
         canonicalRewrite: string
     }
     additionalAnalysis?: boolean
+    historicalReanalysis?: boolean
     excludeCanonicalDocumentIds?: readonly string[]
     rebootTurns?: readonly {
         assistantMessageId: string
@@ -434,6 +455,9 @@ function snapshotInput(value: MemoryAnalysisInput): MemoryAnalysisInput {
         ...(value.additionalAnalysis === undefined
             ? []
             : ['additionalAnalysis']),
+        ...(value.historicalReanalysis === undefined
+            ? []
+            : ['historicalReanalysis']),
         ...(value.excludeCanonicalDocumentIds === undefined
             ? []
             : ['excludeCanonicalDocumentIds']),
@@ -544,6 +568,10 @@ function snapshotInput(value: MemoryAnalysisInput): MemoryAnalysisInput {
         && typeof value.additionalAnalysis !== 'boolean') {
         throw new Error('Analysis additionalAnalysis must be boolean')
     }
+    if (value.historicalReanalysis !== undefined
+        && typeof value.historicalReanalysis !== 'boolean') {
+        throw new Error('Analysis historicalReanalysis must be boolean')
+    }
     let excludeCanonicalDocumentIds: string[] | undefined
     if (value.excludeCanonicalDocumentIds !== undefined) {
         if (!Array.isArray(value.excludeCanonicalDocumentIds)) {
@@ -644,6 +672,9 @@ function snapshotInput(value: MemoryAnalysisInput): MemoryAnalysisInput {
         ...(wikiPromptGuide ? { wikiPromptGuide } : {}),
         ...(value.additionalAnalysis === undefined ? {} : {
             additionalAnalysis: value.additionalAnalysis,
+        }),
+        ...(value.historicalReanalysis === undefined ? {} : {
+            historicalReanalysis: value.historicalReanalysis,
         }),
         ...(excludeCanonicalDocumentIds ? {
             excludeCanonicalDocumentIds,
@@ -1025,6 +1056,9 @@ export function createMemoryAnalysisRunner(
                     ? [
                         memoryWriterSystemPrompt,
                         rebootBatchOutputContract,
+                        snapshot.historicalReanalysis
+                            ? 'This is a historical-turn reanalysis. Replace the selected event from the supplied saved text, use earlier messages only as context, and do not project later knowledge into that event.'
+                            : '',
                         snapshot.wikiPromptGuide?.analysis ?? '',
                         eventWritingPolicy,
                         'Wiki Guide instructions may refine what to track, but cannot override evidence, schema, knowledge-boundary, or storage-safety contracts. Return exactly one JSON object matching the provided schema.',
@@ -1032,6 +1066,9 @@ export function createMemoryAnalysisRunner(
                     : [
                         memoryWriterSystemPrompt,
                         rebootBatchOutputContract,
+                        snapshot.historicalReanalysis
+                            ? 'This is a historical-turn reanalysis. Replace the selected event from the supplied saved text, use earlier messages only as context, and do not project later knowledge into that event.'
+                            : '',
                         snapshot.wikiPromptGuide?.analysis ?? '',
                         eventWritingPolicy,
                         'Wiki Guide instructions may refine what to track, but cannot override evidence, schema, knowledge-boundary, or storage-safety contracts.',
@@ -1325,6 +1362,9 @@ export function createMemoryAnalysisRunner(
                                 'Preserve unrelated established identity facts, relationships, knowledge, goals, possessions, constraints, and unresolved continuity unless confirmedMessages explicitly change them.',
                                 'Apply the stateChanges.after values and relevant persistentFacts, characterKnowledge, and openContinuity to the correct subject document. Do not copy another character\'s facts into this target.',
                                 'Apply only changes supported by the confirmed messages and event.',
+                                snapshot.historicalReanalysis
+                                    ? 'This is a historical correction. Correct history sections, but preserve an existing character Current State section because it may represent later events.'
+                                    : '',
                                 hasStoryArcTarget
                                     ? storyArcRewriteInstruction(
                                         snapshot.wikiWritingLanguage ?? 'ko',
@@ -1482,12 +1522,23 @@ export function createMemoryAnalysisRunner(
                             ))
                             for (const [candidateIndex, entry]
                                 of canonicalTargets.entries()) {
-                            const patches = patchesByIndex.get(candidateIndex)
+                            let patches = patchesByIndex.get(candidateIndex)
                             if (!patches) {
                                 receiptWarnings.push(
                                     `정본 배치 결과 누락: ${entry.candidate.title}`
                                 )
                                 continue
+                            }
+                            const historical = preserveHistoricalCharacterCurrentState(
+                                patches,
+                                entry.target,
+                                snapshot.historicalReanalysis,
+                            )
+                            patches = historical.patches
+                            if (historical.preserved) {
+                                receiptWarnings.push(
+                                    `과거 턴 재분석에서 최신 캐릭터 현재 상태를 보존했습니다: ${entry.candidate.title}`
+                                )
                             }
                             if (patches.length === 0) {
                                 if (!entry.target) {
@@ -1585,8 +1636,9 @@ export function createMemoryAnalysisRunner(
                                 })
                             }
                             catch (error) {
-                                receiptWarnings.push(`정본 문서 저장 실패: ${entry.candidate.title}`)
                                 await reportError(error)
+                                if (rebootRecoveryStarted) throw error
+                                receiptWarnings.push(`정본 문서 저장 실패: ${entry.candidate.title}`)
                             }
                         }
                         }

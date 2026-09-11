@@ -3,7 +3,18 @@
     import { DownloadIcon, UploadIcon, SettingsIcon } from '@lucide/svelte'
     import { alertConfirm } from 'src/ts/alert'
     import { language } from 'src/lang'
-    import { LoadLocalBackup, SaveLocalBackup, SaveSettingsOnlyBackup } from 'src/ts/drive/backuplocal'
+    import {
+        CleanupMigratedFiles,
+        ImportFromSaveZip,
+        LoadLocalBackup,
+        SaveLocalBackup,
+        SaveLocalBackupForUpstream,
+        SavePartialLocalBackup,
+        SaveSettingsOnlyBackup,
+    } from 'src/ts/drive/backuplocal'
+    import { exportAsDataset } from 'src/ts/storage/exportAsDataset'
+    import ShAccordion from 'src/lib/UI/GUI/ShAccordion.svelte'
+    import Button from 'src/lib/UI/GUI/Button.svelte'
 
     async function downloadLocal() {
         if (!(await alertConfirm(language.backupConfirm))) return
@@ -18,6 +29,16 @@
         if (!(await alertConfirm(language.backupLoadConfirm))) return
         if (!(await alertConfirm(language.backupLoadConfirm2))) return
         LoadLocalBackup()
+    }
+
+    async function downloadForUpstream() {
+        if (!(await alertConfirm(language.saveBackupForUpstreamConfirm))) return
+        SaveLocalBackupForUpstream()
+    }
+
+    async function downloadPartial() {
+        if (!(await alertConfirm(language.backupConfirm))) return
+        SavePartialLocalBackup()
     }
 </script>
 
@@ -61,5 +82,46 @@
                 {language.loadBackupLocal}
             </ShButton>
         </div>
+    </div>
+</div>
+
+<div class="border border-darkborderc bg-darkbg/40 rounded-md p-4 mb-4" data-v1-transfer-tools>
+    <div class="flex items-center gap-2 text-textcolor mb-2">
+        <UploadIcon size={16} />
+        <span class="font-medium">{language.migration}</span>
+    </div>
+    <p class="text-textcolor2 text-sm leading-relaxed mb-4">{language.migrationDesc}</p>
+
+    <div class="flex flex-col gap-2">
+        <Button onclick={downloadForUpstream} className="w-full">
+            {language.saveBackupForUpstream}
+        </Button>
+        <Button onclick={restoreFromLocalFile} className="w-full">
+            {language.migrationLoadUpstreamBackup}
+        </Button>
+    </div>
+
+    <div class="mt-4">
+        <ShAccordion name={language.migrationSaveFolderAccordion} variant="card">
+            <p class="text-textcolor2 text-sm leading-relaxed mb-3">{language.migrationSaveFolderDesc}</p>
+            <p class="text-textcolor2 text-sm leading-relaxed mb-2">{language.importSaveZipDesc}</p>
+            <div class="flex flex-col gap-2">
+                <Button onclick={ImportFromSaveZip} className="w-full">{language.importSaveZip}</Button>
+            </div>
+            <p class="text-textcolor2 text-sm leading-relaxed mt-4 mb-2">{language.cleanupMigratedDesc}</p>
+            <div class="flex flex-col gap-2">
+                <Button onclick={CleanupMigratedFiles} className="w-full">{language.cleanupMigratedFiles}</Button>
+            </div>
+        </ShAccordion>
+    </div>
+
+    <div class="mt-3">
+        <ShAccordion name={language.migrationLegacyAccordion} variant="card">
+            <p class="text-textcolor2 text-sm leading-relaxed mb-3">{language.migrationLegacyDesc}</p>
+            <div class="flex flex-col gap-2">
+                <Button onclick={downloadPartial} className="w-full">{language.savePartialLocalBackup}</Button>
+                <Button onclick={exportAsDataset} className="w-full">{language.exportAsDataset}</Button>
+            </div>
+        </ShAccordion>
     </div>
 </div>

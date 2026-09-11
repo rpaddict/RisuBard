@@ -67,6 +67,36 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         keywords: ['analysis', 'wiki', 'recent messages', '분석', '위키', '최근 대화'],
     },
     {
+        id: 'risubard.chat.analysisExcludeUserMessages',
+        type: 'check',
+        labelKey: 'risuBardAnalysisExcludeUsers',
+        helpKey: 'risuBardAnalysisExcludeUsers',
+        bindKey: 'risuBardAnalysisExcludeUserMessages',
+        keywords: ['analysis', 'exclude user messages', '분석', '사용자 메시지 제외'],
+    },
+    {
+        id: 'risubard.chat.bardChan',
+        type: 'check',
+        labelKey: 'risuBardBardChanEnabled',
+        helpKey: 'risuBardBardChanEnabled',
+        bindKey: 'risuBardBardChanEnabled',
+        keywords: ['Bard-chan', 'reranker', 'auxiliary model', '바드쨩', '재순위', '보조 모델'],
+    },
+    {
+        id: 'risubard.chat.bardChanModel',
+        type: 'select',
+        labelKey: 'risuBardBardChanModelMode',
+        helpKey: 'risuBardBardChanModelMode',
+        bindKey: 'risuBardBardChanModelMode',
+        options: {
+            selectOptions: [
+                { value: 'memory', labelKey: 'risuBardBardChanModelAuxiliary' },
+                { value: 'model', labelKey: 'risuBardBardChanModelMain' },
+            ],
+        },
+        keywords: ['Bard-chan', 'reranker', 'main model', 'auxiliary model', '바드쨩', '메인 모델', '보조 모델'],
+    },
+    {
         id: 'risubard.chat.inquiryTargetTokenBudget',
         type: 'number',
         labelKey: 'risuBardInquiryTargetTokenBudget',
@@ -83,6 +113,15 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         bindKey: 'risuBardInquiryEventTokenBudget',
         options: { min: 256, step: 256 },
         keywords: ['inquiry', 'event', 'token', '검색', '사건', '토큰'],
+    },
+    {
+        id: 'risubard.chat.inquiryTimeoutMs',
+        type: 'number',
+        labelKey: 'risuBardInquiryTimeoutMs',
+        helpKey: 'risuBardInquiryTimeoutMs',
+        bindKey: 'risuBardInquiryTimeoutMs',
+        options: { min: 1, max: 10_000, step: 500 },
+        keywords: ['inquiry', 'timeout', 'wiki', '조회', '시간', '제한'],
     },
     {
         id: 'risubard.chat.inquiryMaximumTokenBudget',

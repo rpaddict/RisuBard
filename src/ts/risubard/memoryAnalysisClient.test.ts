@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest'
 import { get_encoding } from '@dqbd/tiktoken'
 import {
+    buildBoundedNarrativeInquiryFallback,
     createStoredResponseMemoryAnalysis,
     projectRecentMemoryMessages,
     type MemoryAnalysisModelCall,
@@ -8,6 +9,13 @@ import {
 } from './memoryAnalysisClient'
 
 describe('stored response memory analysis', () => {
+    test('builds the recent inquiry fallback from the end within its character budget', () => {
+        expect(buildBoundedNarrativeInquiryFallback([
+            { messageId: '1', role: 'assistant', content: 'a'.repeat(20) },
+            { messageId: '2', role: 'user', content: '*waits*' },
+        ], 16)).toBe(`${'a'.repeat(8)}\n*waits*`)
+    })
+
     test('selects only the accepted prior turn after the next user message', async () => {
         const module = await import('./memoryAnalysisClient')
         const project = (

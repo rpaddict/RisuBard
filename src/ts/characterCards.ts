@@ -16,7 +16,7 @@ import { type CharacterCardV3, type LorebookEntry } from '@risuai/ccardlib'
 import { reencodeImage } from "./process/files/inlays"
 import { PngChunk } from "./pngChunk"
 import type { OnnxModelFiles } from "./process/transformers"
-import { CharXImporter, CharXSkippableChecker, CharXWriter } from "./process/processzip"
+import { CharXImporter, CharXSkippableChecker, CharXWriter, type CharXImportProgress } from "./process/processzip"
 import { exportModuleLegacy, readModule, type RisuModule } from "./process/modules"
 import { pinCharacterVaultQuickAccess } from './characterVault'
 import { normalizeFirstMessageStudioProject, type FirstMessageStudioProject } from './firstMessageStudio'
@@ -26,6 +26,55 @@ import { normalizeBardLoreOwnerState, type BardLoreState } from './lorebook/bard
 const EXTERNAL_HUB_URL = 'https://sv.risuai.xyz';
 const NIGHTLY_HUB_URL = 'https://nightly.sv.risuai.xyz'
 export const hubURL = '/hub-proxy';
+
+function formatImportBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function showCharacterImportProgress(progress: CharXImportProgress) {
+    let msg: string
+    switch (progress.phase) {
+        case 'reading':
+            msg = progress.total
+                ? language.characterImportReadingBytes(
+                    formatImportBytes(progress.completed),
+                    formatImportBytes(progress.total),
+                )
+                : language.characterImportReading
+            break
+        case 'scanning':
+            msg = language.characterImportScanning(progress.completed)
+            break
+        case 'extracting':
+            msg = language.characterImportExtracting(
+                progress.completed, progress.total ?? progress.completed,
+            )
+            break
+        case 'preparing-assets':
+            msg = language.characterImportPreparingAssets(
+                progress.completed, progress.total ?? progress.completed,
+            )
+            break
+        case 'saving-assets':
+            msg = language.characterImportSavingAssets(
+                progress.completed, progress.total ?? progress.completed,
+            )
+            break
+        case 'finalizing':
+            msg = language.characterPackageProgressFinalizing
+            break
+    }
+    const determinate = progress.total && progress.total > 0
+        ? Math.min(100, progress.completed / progress.total * 100)
+        : undefined
+    alertStore.set({
+        type: determinate === undefined ? 'wait' : 'progress',
+        msg,
+        ...(determinate === undefined ? {} : { submsg: determinate.toFixed(0) }),
+    })
+}
 
 export function readFirstMessageStudioExtension(data: { extensions?: { risuai?: { firstMessageStudio?: unknown } } }): FirstMessageStudioProject | undefined {
     const project = data?.extensions?.risuai?.firstMessageStudio
@@ -89,15 +138,10 @@ export async function importCharacterProcess<T extends boolean = false>(f:{
 
     if(f.name.endsWith('charx') || f.name.endsWith('jpg') || f.name.endsWith('jpeg')){
         console.log('reading charx')
-        alertStore.set({
-            type: 'wait',
-            msg: 'Loading... (Reading)'
-        })
-
-        const importer = new CharXImporter()
-        importer.alertInfo = true
+        const importer = new CharXImporter(showCharacterImportProgress)
         await importer.parse(f.data)
         await importer.done()
+        alertWait(language.characterImportReadingMetadata)
         const cardData = importer.cardData
         if(!cardData){
             alertError(language.errors.noData)
@@ -110,6 +154,7 @@ export async function importCharacterProcess<T extends boolean = false>(f:{
         }
         let lorebook:loreBook[] = null
         if(importer.moduleData){
+            alertWait(language.characterImportReadingModule)
             const md = await readModule(Buffer.from(importer.moduleData))
             card.data.extensions ??= {}
             card.data.extensions.risuai ??= {}
@@ -137,10 +182,7 @@ export async function importCharacterProcess<T extends boolean = false>(f:{
     }
     
 
-    alertStore.set({
-        type: 'wait',
-        msg: 'Loading... (Reading)'
-    })
+    alertWait(language.characterImportReading)
     await sleep(10)
     
     // const readed = PngChunk.read(img, ['chara'])?.['chara']
@@ -172,6 +214,7 @@ export async function importCharacterProcess<T extends boolean = false>(f:{
             }
             if(chunk.key.startsWith('chara-ext-asset_')){
                 pngChunks++
+                alertWait(language.characterImportScanning(pngChunks))
             }
         }
     }
@@ -209,13 +252,13 @@ export async function importCharacterProcess<T extends boolean = false>(f:{
             const assetIndex = chunk.key.replace('chara-ext-asset_:', '').replace('chara-ext-asset_', '')
             const assetData = Buffer.from(chunk.value, 'base64')
             if(pngChunks === 0){
-                alertWait('Loading... (Loaded ' + readedPngChunks + ' Assets)')
+                alertWait(language.characterImportAssets(readedPngChunks + 1, readedPngChunks + 1))
             }
             else{
                 alertStore.set({
                     type: 'progress',
-                    msg: 'Loading... (Loading Assets)',
-                    submsg: (readedPngChunks / pngChunks * 100).toFixed(2)
+                    msg: language.characterImportAssets(readedPngChunks + 1, pngChunks),
+                    submsg: ((readedPngChunks + 1) / pngChunks * 100).toFixed(0)
                 })
             }
 
@@ -384,7 +427,7 @@ export async function characterURLImport() {
     const charPath = (new URLSearchParams(location.search)).get('charahub')
     try {
         if(charPath){
-            alertWait('Loading from Chub...')
+            alertWait(language.characterImportDownloading)
             const url = new URL(location.href);
             url.searchParams.delete('charahub');
             window.history.pushState(null, '', url.toString());
@@ -656,6 +699,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
     }
 
     console.log(`Importing ${card.spec}, mode is ${mode}`)
+    alertWait(language.characterImportApplying)
 
     const data = card.data
     let im = img ? await saveAsset(img) : undefined
@@ -683,15 +727,15 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
             for(let i=0;i<risuext.emotions.length;i++){
                 alertStore.set({
                     type: 'progress',
-                    msg: `Loading... (Loading Emotions)`,
-                    submsg: (i / risuext.emotions.length * 100).toFixed(2)
+                    msg: language.characterImportEmotions(i + 1, risuext.emotions.length),
+                    submsg: ((i + 1) / risuext.emotions.length * 100).toFixed(0)
                 })
                 await sleep(10)
                 if(risuext.emotions[i][1].startsWith('__asset:')){
                     const key = risuext.emotions[i][1].replace('__asset:', '')
                     const imgp = assetDict[key]
                     if(!imgp){
-                        throw new Error('Error while importing, asset ' + key + ' not found')
+                        throw new Error(language.characterImportMissingAsset(key))
                     }
                     emotions.push([risuext.emotions[i][0],imgp])
                     continue
@@ -704,8 +748,8 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
             for(let i=0;i<risuext.additionalAssets.length;i++){
                 alertStore.set({
                     type: 'progress',
-                    msg: `Loading... (Loading Assets)`,
-                    submsg: (i / risuext.additionalAssets.length * 100).toFixed(2)
+                    msg: language.characterImportAssets(i + 1, risuext.additionalAssets.length),
+                    submsg: ((i + 1) / risuext.additionalAssets.length * 100).toFixed(0)
                 })
 
                 if(i % 100 === 0){
@@ -718,7 +762,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
                     const key = risuext.additionalAssets[i][1].replace('__asset:', '')
                     const imgp = assetDict[key]
                     if(!imgp){
-                        throw new Error('Error while importing, asset ' + key + ' not found')
+                        throw new Error(language.characterImportMissingAsset(key))
                     }
                     extAssets.push([risuext.additionalAssets[i][0],imgp,fileName])
                     continue
@@ -732,8 +776,8 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
             for(let i=0;i<keys.length;i++){
                 alertStore.set({
                     type: 'progress',
-                    msg: `Loading... (Loading VITS)`,
-                    submsg: (i / keys.length * 100).toFixed(2)
+                    msg: language.characterImportVoiceFiles(i + 1, keys.length),
+                    submsg: ((i + 1) / keys.length * 100).toFixed(0)
                 })
                 await sleep(10)
                 const key = keys[i]
@@ -741,7 +785,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
                     const rkey = risuext.vits[key].replace('__asset:', '')
                     const imgp = assetDict[rkey]
                     if(!imgp){
-                        throw new Error('Error while importing, asset ' + rkey + ' not found')
+                        throw new Error(language.characterImportMissingAsset(rkey))
                     }
                     risuext.vits[key] = imgp
                     continue
@@ -775,8 +819,8 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
             for(let i=0;i<data.assets.length;i++){
                 alertStore.set({
                     type: 'progress',
-                    msg: `Loading... (Assets)`,
-                    submsg: (i / data.assets.length * 100).toFixed(2)
+                    msg: language.characterImportAssets(i + 1, data.assets.length),
+                    submsg: ((i + 1) / data.assets.length * 100).toFixed(0)
                 })
                 if(i % 100 === 0){
                     await sleep(10)
@@ -790,7 +834,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
                     const key = data.assets[i].uri.replace('__asset:', '')
                     imgp = assetDict[key]
                     if(!imgp){
-                        throw new Error('Error while importing, asset ' + key + ' not found')
+                        throw new Error(language.characterImportMissingAsset(key))
                     }
                 }
                 else if(data.assets[i].uri === 'ccdefault:'){
@@ -800,7 +844,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
                     const key = data.assets[i].uri.replace('embeded://', '')
                     imgp = assetDict[key]
                     if(!imgp){
-                        throw new Error('Error while importing, asset ' + key + ' not found')
+                        throw new Error(language.characterImportMissingAsset(key))
                     }
                 }
                 else if(data.assets[i].uri.startsWith('data:')){
@@ -810,7 +854,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
                         imgp = await saveAsset(Buffer.from(b64, 'base64'))
                     }
                     else{
-                        alertError('Data URI too large')
+                        alertError(language.characterImportDataUriTooLarge)
                         continue
                     }
                 }
@@ -1736,7 +1780,7 @@ export async function downloadRisuHub(id:string, arg:{
             }
             alertStore.set({
                 type: "wait",
-                msg: "Downloading..."
+                msg: language.characterImportDownloading
             })
         }
         const res = await fetch("https://realm.risuai.net/api/v1/download/dynamic/" + id + '?cors=true', {
@@ -1796,7 +1840,7 @@ export async function downloadRisuHub(id:string, arg:{
     } catch (error) {
         console.error(error)
         console.log(error.stack)
-        alertError("Error while importing")
+        alertError(language.characterImportFailed)
     }
 }
 

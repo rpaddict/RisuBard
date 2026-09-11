@@ -17,7 +17,7 @@ describe('development workflow', () => {
         const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
 
         expect(pkg.scripts['dev:server']).toBe(
-            'node --watch --watch-preserve-output server/node/server.cjs',
+            'node --watch-path=server/node --watch-preserve-output server/node/server.cjs',
         )
     })
 

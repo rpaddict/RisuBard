@@ -13,4 +13,10 @@ describe('HypaMemory modal entry visibility', () => {
             '{#if DBState.db.showMenuHypaMemoryModal && DBState.db.hypaV3}',
         )
     })
+
+    test('the sidebar HypaMemory toggle honors the same visibility preference', () => {
+        const toggles = source('src/lib/SideBars/Toggles.svelte')
+
+        expect(toggles.match(/DBState\.db\.showMenuHypaMemoryModal && DBState\.db\.hypaV3/g)).toHaveLength(2)
+    })
 })

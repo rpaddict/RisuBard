@@ -82,6 +82,25 @@ describe('crash-safe canonical writes', () => {
 })
 
 describe('journal recovery and trash', () => {
+    it('reports published and unchanged files without changing transaction behavior', () => {
+        const root = tempRoot()
+        atomicWriteFile(root, 'settings/app.json', Buffer.from('{"same":true}'))
+
+        const result = commitTransaction(root, [
+            { path: 'settings/app.json', data: Buffer.from('{"same":true}') },
+            { path: 'presets/preset-1.json', data: Buffer.from('{"id":"preset-1"}') },
+        ])
+
+        expect(result).toEqual({
+            committed: 2,
+            published: 1,
+            skipped: 1,
+            stagedBytes: 30,
+        })
+        expect(fs.readFileSync(path.join(root, 'settings/app.json'), 'utf8')).toBe('{"same":true}')
+        expect(fs.readFileSync(path.join(root, 'presets/preset-1.json'), 'utf8')).toBe('{"id":"preset-1"}')
+    })
+
     it('commits staged source files without requiring in-memory operation data', () => {
         const root = tempRoot()
         const source = path.join(root, '.import-staging', 'settings.json')

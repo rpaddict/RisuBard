@@ -16,7 +16,7 @@ describe('RisuBard development launcher', () => {
     expect(specs).toEqual([
       {
         label: 'SERVER',
-        args: ['server/node/server.cjs'],
+        args: ['--watch-path=server/node', '--watch-preserve-output', 'server/node/server.cjs'],
       },
       {
         label: 'WEB',
@@ -28,6 +28,16 @@ describe('RisuBard development launcher', () => {
   it('reserves R as the manual restart key', () => {
     expect(isRestartKey({ name: 'r', ctrl: false })).toBe(true);
     expect(isRestartKey({ name: 'r', ctrl: true })).toBe(false);
+  });
+
+  it('limits automatic server restarts to server code', () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    );
+
+    expect(packageJson.scripts['dev:server']).toBe(
+      'node --watch-path=server/node --watch-preserve-output server/node/server.cjs',
+    );
   });
 
   it('keeps the command wrapper repository-relative', () => {

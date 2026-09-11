@@ -44,6 +44,7 @@ export const SettingsRoute = {
     InlayImageGallery: 23 as const,
     RisuBardCommon: 24 as const,
     RisuBardWikiPrompt: 25 as const,
+    RisuBardGrimoirePrompt: 26 as const,
     DevPanel: 99 as const,
 } as const;
 

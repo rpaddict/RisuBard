@@ -104,7 +104,7 @@
     let selectionAnchorId = $state<string | null>(null)
     let expandedFolderIds = $state(new Set<string>())
     let query = $state('')
-    let searchTarget = $state<'name' | 'keys'>('name')
+    let searchTarget = $state<'name' | 'keys' | 'all'>('name')
     let enabledFilter = $state<'all' | 'enabled' | 'disabled'>('all')
     let mobileView = $state<'list' | 'editor'>('list')
     let conditionView = $state(false)
@@ -1008,6 +1008,7 @@
             >
                 <option value="name">{language.lorebookWorkspace.searchName}</option>
                 <option value="keys">{language.lorebookWorkspace.searchKeys}</option>
+                <option value="all">{language.lorebookWorkspace.searchAll}</option>
             </select>
             <select
                 data-lorebook-enabled-filter

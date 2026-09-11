@@ -10,6 +10,7 @@
     import type { Chat } from "src/ts/storage/database.svelte";
     import { getCharImage } from "src/ts/characters";
     import { getEffectivePersona, resolvePersonaById, type PersonaSelection } from "src/ts/personaScopes";
+    import { changeUserPersona } from "src/ts/persona";
 
     interface Props {
         bindingTarget?: Pick<Chat, 'bindedPersona'>;
@@ -39,6 +40,7 @@
         if (!chat) return
         const persona = selection.persona
         if (!persona.id) persona.id = v4()
+        if (selection.scope === 'global') changeUserPersona(selection.index)
         chat.bindedPersona = persona.id
         onBindingChange()
         notifySuccess(language.personaBindedSuccess)

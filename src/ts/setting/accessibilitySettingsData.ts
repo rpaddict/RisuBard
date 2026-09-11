@@ -231,6 +231,15 @@ export const accessibilitySettingsItems: SettingItem[] = [
         keywords: ['chat', 'page', 'render', 'memory', 'message', 'count'],
     },
     {
+        id: 'acc.pinChatScrollNavigator',
+        type: 'check',
+        labelKey: 'pinChatScrollNavigator',
+        bindKey: 'pinChatScrollNavigator',
+        helpKey: 'pinChatScrollNavigator',
+        condition: (ctx) => ctx.db.nodeOnlyScrollButtonType !== 'off',
+        keywords: ['side', 'navigator', 'pin', 'scroll', 'fixed', '고정'],
+    },
+    {
         id: 'acc.createFolderOnBranch',
         type: 'check',
         labelKey: 'createFolderOnBranch',
@@ -348,6 +357,7 @@ export const accessibilityScrollItems = pick([
     'acc.alwaysScrollToNewMessage',
     'acc.newMessageButtonStyle',
     'acc.nodeOnlyScrollButtonType',
+    'acc.pinChatScrollNavigator',
     'acc.chatPageSize',
 ]);
 

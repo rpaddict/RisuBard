@@ -1,7 +1,7 @@
 {
   "name": "risubard",
   "private": true,
-  "version": "0.9.22",
+  "version": "0.9.30",
   "license": "GPL-3.0-only",
   "packageManager": "pnpm@10.34.1",
   "engines": {
@@ -10,7 +10,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "node --watch --watch-preserve-output server/node/server.cjs",
+    "dev:server": "node --watch-path=server/node --watch-preserve-output server/node/server.cjs",
+    "convert:v2-to-v1": "node scripts/convert-v2-to-v0925.cjs",
     "build": "vite build --sourcemap",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",

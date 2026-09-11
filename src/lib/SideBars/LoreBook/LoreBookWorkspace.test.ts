@@ -654,7 +654,7 @@ describe('LoreBookWorkspace', () => {
         expect(summary.querySelector('[data-cbs-token="literal"]')?.textContent).toBe('"1"')
         expect(summary.textContent).toContain('OR <img src=x onerror=alert(1)>')
         expect(summary.querySelector('img')).toBeNull()
-        click('.condition summary')
+        click('.condition-block summary')
         await tick()
         expect(document.body.querySelector('.condition-source')?.textContent).toBe(opening)
         expect(onChange).not.toHaveBeenCalled()
@@ -793,7 +793,9 @@ describe('LoreBookWorkspace', () => {
         expect(document.body.querySelector('[data-cbs-view-toggle]')).not.toBeNull()
         click('[data-cbs-view-toggle]')
         await tick()
-        expect(document.body.textContent).toContain('$cv_g8 = "1"')
+        const summary = document.body.querySelector('[data-cbs-summary]')!
+        expect(summary.querySelector('[data-cbs-token="variable"]')?.textContent).toContain('$cv_g8')
+        expect(summary.querySelector('[data-cbs-token="literal"]')?.textContent).toBe('"1"')
         const body = document.body.querySelector<HTMLTextAreaElement>('[data-cbs-body]')!
         expect(body.value).toBe('Original body')
         body.value = 'Edited body'
@@ -988,6 +990,26 @@ describe('LoreBookWorkspace', () => {
         const list = document.body.querySelector('[data-lorebook-list]')!
         expect(list.textContent).toContain('Places')
         expect(list.textContent).toContain('Library')
+        expect(list.textContent).not.toContain('Weather')
+    })
+
+    it('offers an all-fields search target that finds lore body content', async () => {
+        await render([
+            entry('body-hit', { comment: 'Alchemy', key: 'atelier', content: 'A forbidden library beneath the academy.' }),
+            entry('miss', { comment: 'Weather', key: 'rain', content: 'Clouds gather at dusk.' }),
+        ])
+
+        const target = document.body.querySelector<HTMLSelectElement>('[data-lorebook-search-target]')!
+        expect([...target.options].map((option) => option.value)).toContain('all')
+        target.value = 'all'
+        target.dispatchEvent(new Event('change', { bubbles: true }))
+        const search = document.body.querySelector<HTMLInputElement>('[data-lorebook-search]')!
+        search.value = 'forbidden library'
+        search.dispatchEvent(new Event('input', { bubbles: true }))
+        await tick()
+
+        const list = document.body.querySelector('[data-lorebook-list]')!
+        expect(list.textContent).toContain('Alchemy')
         expect(list.textContent).not.toContain('Weather')
     })
 

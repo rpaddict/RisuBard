@@ -31,11 +31,47 @@ export const LORE_BUILDER_BUILTIN_PRESETS: readonly LoreBuilderPromptPreset[] = 
     { id: 'builtin:lore-style-en', kind: 'style', name: 'Structured Lorebook (English)', content: LORE_STYLE_PROMPT_EN },
 ]
 
+export function resolveLoreBuilderPromptPreset(
+    presets: LoreBuilderPromptPreset[],
+    kind: LoreBuilderPromptKind,
+    id: string | undefined,
+): LoreBuilderPromptPreset | undefined {
+    if (!id) return undefined
+    return [...LORE_BUILDER_BUILTIN_PRESETS, ...presets]
+        .find((preset) => preset.kind === kind && preset.id === id)
+}
+
 export interface LoreBuilderSelections {
     systemPrompt: boolean
     characterDescription: boolean
     characterLorebook: boolean
     moduleLorebook: boolean
+}
+
+const LORE_BUILDER_SELECTIONS_STORAGE_KEY = 'risubard:lore-builder-selections:v1'
+
+function defaultStorage(): Storage | null {
+    try { return typeof localStorage === 'undefined' ? null : localStorage }
+    catch { return null }
+}
+
+export function loadLoreBuilderSelections(storage = defaultStorage()): LoreBuilderSelections | null {
+    if (!storage) return null
+    try {
+        const value = JSON.parse(storage.getItem(LORE_BUILDER_SELECTIONS_STORAGE_KEY) ?? 'null')
+        if (!value || typeof value !== 'object') return null
+        const keys = ['systemPrompt', 'characterDescription', 'characterLorebook', 'moduleLorebook'] as const
+        return keys.every((key) => typeof value[key] === 'boolean')
+            ? Object.fromEntries(keys.map((key) => [key, value[key]])) as unknown as LoreBuilderSelections
+            : null
+    }
+    catch { return null }
+}
+
+export function saveLoreBuilderSelections(selections: LoreBuilderSelections, storage = defaultStorage()): void {
+    if (!storage) return
+    try { storage.setItem(LORE_BUILDER_SELECTIONS_STORAGE_KEY, JSON.stringify(selections)) }
+    catch {}
 }
 
 export interface LoreBuilderSourceSnapshot {

@@ -137,6 +137,18 @@ describe('workspaceOperations', () => {
             .map((entry) => entry.id)).toEqual(['folder'])
     })
 
+    it('searches names, keys, and entry bodies with the all target', () => {
+        const entries = [
+            lore({ id: 'name-hit', comment: 'Hidden Library', key: 'archive', content: 'ordinary text' }),
+            lore({ id: 'key-hit', comment: 'Weather', key: 'library-key', content: 'ordinary text' }),
+            lore({ id: 'body-hit', comment: 'Alchemy', key: 'atelier', content: 'The library keeps forbidden formulas.' }),
+            lore({ id: 'miss', comment: 'Harbor', key: 'ships', content: 'Salt and rope.' }),
+        ]
+
+        expect(filterLorebookEntries(entries, { query: 'library', target: 'all', enabled: 'all' })
+            .map((entry) => entry.id)).toEqual(['name-hit', 'key-hit', 'body-hit'])
+    })
+
     it('filters by enabled state independently from alwaysActive', () => {
         const entries = [
             lore({ id: 'enabled', enabled: true, alwaysActive: false }),

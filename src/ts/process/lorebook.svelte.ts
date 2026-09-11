@@ -87,7 +87,8 @@ export function addLorebookFolder(type:number) {
 export async function loadLoreBookV3Prompt(search?: { character: character; text: string }){
     const char = search?.character ?? DBState.db.characters[get(selectedCharID)]
     const page = char.chatPage
-    const currentChat: Message[] = search ? [{ role: 'user', data: search.text }] : char.chats[page].message
+    const currentChatState = char.chats[page]
+    const currentChat: Message[] = search ? [{ role: 'user', data: search.text }] : currentChatState.message
     const loreDepth = search ? 1 : (char.loreSettings?.scanDepth ?? DBState.db.loreBookDepth)
     const characterScopeId = `character:${char.chaId}`
     const bardSelectedIds = new Set<string>()
@@ -106,27 +107,44 @@ export async function loadLoreBookV3Prompt(search?: { character: character; text
         await Promise.all(bardEntries.filter((entry) => entry.bard.injection !== 'index-only').map(async (entry) => {
             tokenCounts[entry.id] = await tokenize(risuChatParser(entry.content, {chara: char}))
         }))
-        const query = currentChat
-            .slice(Math.max(0, currentChat.length - bardSettings.contextMessages))
+        const disabledThrough = currentChat.findLastIndex((message) => message.disabled === 'allBefore')
+        const activeMessages = currentChat.slice(disabledThrough + 1)
+            .filter((message) => !message.disabled && !message.isComment)
+        const recentMessages = activeMessages
+            .slice(Math.max(0, activeMessages.length - bardSettings.contextMessages))
             .map((message) => message.data)
-            .join('\n')
+        const selectedGreeting = !search
+            && disabledThrough < 0
+            && bardSettings.contextMessages > 0
+            && activeMessages.length <= bardSettings.contextMessages
+            && !currentChatState.firstMessageDisabled
+            ? (currentChatState.fmIndex ?? -1) === -1
+                ? char.firstMessage
+                : char.alternateGreetings?.[currentChatState.fmIndex ?? 0] ?? ''
+            : ''
+        const firstMessageEvidence = selectedGreeting
+            ? risuChatParser(selectedGreeting, { chara: char })
+            : ''
+        const query = [firstMessageEvidence, ...recentMessages].filter(Boolean).join('\n')
         let priorityQuery = ''
-        for (let index = currentChat.length - 1; index >= 0; index -= 1) {
-            const message = currentChat[index]
-            if (message.disabled || message.isComment) continue
-            if (message.role === 'user') priorityQuery = message.data
-            break
+        for (let index = activeMessages.length - 1; index >= 0; index -= 1) {
+            const message = activeMessages[index]
+            if (message.role === 'user') {
+                priorityQuery = message.data
+                break
+            }
         }
         const selection = selectBardLoreEntries({
             query,
             priorityQuery,
+            routingEvidence: firstMessageEvidence,
             entries: bardEntries,
             tokenCounts,
             settings: bardSettings,
             scopeAliases: [char.name],
         })
         bardMatchLog.push({
-            prompt: query,
+            prompt: selection.plan.query,
             source: 'Grimoire query plan',
             activated: [
                 `intent=${selection.plan.intent}`,
@@ -147,6 +165,14 @@ export async function loadLoreBookV3Prompt(search?: { character: character; text
                 alwaysActive: true,
             }
         })
+        for (const { entry, reason } of selection.excluded) {
+            if (reason === 'no-match' || reason === 'ineligible') continue
+            bardMatchLog.push({
+                prompt: selection.plan.query,
+                source: 'Grimoire excluded',
+                activated: `${entry.comment || entry.id} (${reason})`,
+            })
+        }
     }
 
     const loreSources = [

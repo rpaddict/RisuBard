@@ -2,7 +2,7 @@ import type { loreBook } from '../storage/database.svelte'
 
 export type LorebookFilter = {
     query: string
-    target: 'name' | 'keys'
+    target: 'name' | 'keys' | 'all'
     enabled: 'all' | 'enabled' | 'disabled'
 }
 
@@ -198,7 +198,9 @@ export function filterLorebookEntries(entries: loreBook[], filter: LorebookFilte
 
         const searchable = filter.target === 'name'
             ? entry.comment
-            : `${entry.key},${entry.secondkey}`
+            : filter.target === 'keys'
+                ? `${entry.key},${entry.secondkey}`
+                : `${entry.comment}\n${entry.key}\n${entry.secondkey}\n${entry.content}`
         if (query && !searchable.toLocaleLowerCase().includes(query)) continue
 
         included.add(entry)

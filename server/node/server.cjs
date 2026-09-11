@@ -31,6 +31,7 @@ const {
     logger, installProcessHandlers, expressErrorMiddleware,
 } = require('./logs.cjs');
 const { createRequestLogs } = require('./request-logs.cjs');
+const { createSaveObservation } = require('./save-observation.cjs');
 const { resolveDataRoot } = require('./data-root.cjs');
 const { commitTransaction, moveToTrash } = require('./file-store.cjs');
 const { createRuntimeMemoryService } = require('./risubard-memory-runtime.cjs');
@@ -239,16 +240,10 @@ async function flushPendingDb() {
         clearTimeout(saveTimers[DB_HEX_KEY]);
         delete saveTimers[DB_HEX_KEY];
         if (dbCache[DB_HEX_KEY]) {
-            await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin');
+            await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin', 'flush');
         } else if (fullChatStore && fullChatStore.size > 0) {
             // No stripped cache but chat store has data — merge and persist directly
-            const raw = kvGet('database/database.bin');
-            if (raw) {
-                const dbObj = normalizeJSON(await decodeRisuSave(raw));
-                const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
-                kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(fullDb)));
-                persistCanonicalProjection(fullDb);
-            }
+            await persistChatStoreWithoutCache('flush');
         }
         maybeCollectUnreferencedObjects();
     }
@@ -696,50 +691,165 @@ function findStubFlagLossChats(fullDb) {
 /**
  * Persist dbCache to disk with full chats merged back in.
  */
-async function persistDbCacheWithChats(filePath, decodedKey) {
-    const strippedDb = dbCache[filePath];
-    if (!strippedDb) return;
-    await ensureChatStore();
-    const fullDb = reassembleFullDb(strippedDb);
+let activeCompatibilityPersists = 0;
 
-    // Disk protection guard: abort persist when reassemble produced metadata-only
-    // chats. Writing them would lock the loss in (next /api/read returns the
-    // stripped chat with no `_stub`, so hydration never re-merges fullChatStore).
-    // Invalidate dbCache so the next request re-reads from disk and rebuilds a
-    // consistent stub view; client receives 409 on next /api/patch via hash mismatch.
-    if (decodedKey === 'database/database.bin') {
-        const losses = findStubFlagLossChats(fullDb);
-        if (losses.length > 0) {
-            const sample = losses.slice(0, 3).map(l => `${l.chaId}/${l.chatId ?? l.chatIndex}`).join(', ');
-            const err = new Error(
-                `persist aborted: ${losses.length} chat(s) lost _stub flag without upgrade — `
-                + `would silently strip messages on disk. sample=[${sample}]`
-            );
-            recordPersistFailure(err, 'persistDbCacheWithChats:stub-flag-loss');
-            delete dbCache[filePath];
-            throw err;
+function summarizeDatabaseShape(databaseObject) {
+    let chatCount = 0;
+    let messageCount = 0;
+    const characters = Array.isArray(databaseObject?.characters) ? databaseObject.characters : [];
+    for (const character of characters) {
+        const chats = Array.isArray(character?.chats) ? character.chats : [];
+        chatCount += chats.length;
+        for (const chat of chats) {
+            if (Array.isArray(chat?.message)) messageCount += chat.message.length;
         }
     }
+    return { characterCount: characters.length, chatCount, messageCount };
+}
 
-    const data = Buffer.from(encodeRisuSaveLegacy(fullDb));
+function elapsedMs(startedAt) {
+    return Math.round((performance.now() - startedAt) * 1000) / 1000;
+}
+
+async function persistChatStoreWithoutCache(trigger) {
+    const raw = kvGet('database/database.bin');
+    if (!raw) return;
+    const operationId = nodeCrypto.randomUUID();
+    const startedAt = performance.now();
+    const overlappingPersists = activeCompatibilityPersists;
+    activeCompatibilityPersists += 1;
+    const metrics = {};
+    let errorStage = 'decode';
+    let data;
     try {
+        let phaseStartedAt = performance.now();
+        const databaseObject = normalizeJSON(await decodeRisuSave(raw));
+        metrics.decodeMs = elapsedMs(phaseStartedAt);
+        errorStage = 'reassemble';
+        phaseStartedAt = performance.now();
+        const fullDb = reassembleFullDb(stripChatsFromDb(databaseObject));
+        metrics.reassembleMs = elapsedMs(phaseStartedAt);
+        Object.assign(metrics, summarizeDatabaseShape(fullDb));
+        errorStage = 'encode';
+        phaseStartedAt = performance.now();
+        data = Buffer.from(encodeRisuSaveLegacy(fullDb));
+        metrics.encodeMs = elapsedMs(phaseStartedAt);
+        metrics.databaseBytes = data.length;
+        errorStage = 'kv-write';
+        phaseStartedAt = performance.now();
+        kvSet('database/database.bin', data);
+        metrics.kvWriteMs = elapsedMs(phaseStartedAt);
+        errorStage = 'canonical-sync';
+        phaseStartedAt = performance.now();
+        persistCanonicalProjection(fullDb, { operationId, trigger });
+        metrics.canonicalSyncMs = elapsedMs(phaseStartedAt);
+        saveObservation.record({
+            kind: 'compatibility-persist', trigger, outcome: 'success', operationId,
+            durationMs: elapsedMs(startedAt), overlappingPersists, ...metrics,
+        });
+    } catch (error) {
+        if (data && error && typeof error === 'object') {
+            try { error.attemptedSize = data.length; } catch {}
+        }
+        saveObservation.record({
+            kind: 'compatibility-persist', trigger, outcome: 'failure', operationId,
+            errorStage, errorCode: String(error?.code || ''),
+            errorName: String(error?.name || 'Error'), durationMs: elapsedMs(startedAt),
+            overlappingPersists, ...metrics,
+        });
+        throw error;
+    } finally {
+        activeCompatibilityPersists -= 1;
+    }
+}
+
+async function persistDbCacheWithChats(filePath, decodedKey, trigger = 'unknown') {
+    const strippedDb = dbCache[filePath];
+    if (!strippedDb) return;
+    const operationId = nodeCrypto.randomUUID();
+    const startedAt = performance.now();
+    const overlappingPersists = activeCompatibilityPersists;
+    activeCompatibilityPersists += 1;
+    let errorStage = 'ensure-chat-store';
+    let fullDb;
+    let data;
+    const metrics = {};
+    try {
+        let phaseStartedAt = performance.now();
+        await ensureChatStore();
+        metrics.ensureChatStoreMs = elapsedMs(phaseStartedAt);
+        errorStage = 'reassemble';
+        phaseStartedAt = performance.now();
+        fullDb = reassembleFullDb(strippedDb);
+        metrics.reassembleMs = elapsedMs(phaseStartedAt);
+        Object.assign(metrics, summarizeDatabaseShape(fullDb));
+
+        // Disk protection guard: abort persist when reassemble produced metadata-only
+        // chats. Writing them would lock the loss in (next /api/read returns the
+        // stripped chat with no `_stub`, so hydration never re-merges fullChatStore).
+        // Invalidate dbCache so the next request re-reads from disk and rebuilds a
+        // consistent stub view; client receives 409 on next /api/patch via hash mismatch.
+        if (decodedKey === 'database/database.bin') {
+            errorStage = 'integrity-check';
+            phaseStartedAt = performance.now();
+            const losses = findStubFlagLossChats(fullDb);
+            metrics.integrityCheckMs = elapsedMs(phaseStartedAt);
+            if (losses.length > 0) {
+                const sample = losses.slice(0, 3).map(l => `${l.chaId}/${l.chatId ?? l.chatIndex}`).join(', ');
+                const err = new Error(
+                    `persist aborted: ${losses.length} chat(s) lost _stub flag without upgrade — `
+                    + `would silently strip messages on disk. sample=[${sample}]`
+                );
+                recordPersistFailure(err, 'persistDbCacheWithChats:stub-flag-loss');
+                delete dbCache[filePath];
+                throw err;
+            }
+        }
+
+        errorStage = 'encode';
+        phaseStartedAt = performance.now();
+        data = Buffer.from(encodeRisuSaveLegacy(fullDb));
+        metrics.encodeMs = elapsedMs(phaseStartedAt);
+        metrics.databaseBytes = data.length;
+        errorStage = 'kv-write';
+        phaseStartedAt = performance.now();
         kvSet(decodedKey, data);
-        if (decodedKey === 'database/database.bin') persistCanonicalProjection(fullDb);
+        metrics.kvWriteMs = elapsedMs(phaseStartedAt);
+        if (decodedKey === 'database/database.bin') {
+            errorStage = 'canonical-sync';
+            phaseStartedAt = performance.now();
+            persistCanonicalProjection(fullDb, { operationId, trigger });
+            metrics.canonicalSyncMs = elapsedMs(phaseStartedAt);
+        }
+        // Refresh fullChatStore from the persisted snapshot so subsequent
+        // /api/chat-content GETs return the same metadata (folderId, modules)
+        // that just hit disk. Without this, PATCH-only clears of stub fields
+        // leave fullChatStore holding stale fullChat objects, and hydration
+        // would resurrect the cleared values until the next /api/read.
+        if (decodedKey === 'database/database.bin') {
+            errorStage = 'refresh-chat-store';
+            phaseStartedAt = performance.now();
+            initChatStore(fullDb);
+            metrics.refreshMs = elapsedMs(phaseStartedAt);
+        }
+        saveObservation.record({
+            kind: 'compatibility-persist', trigger, outcome: 'success', operationId,
+            durationMs: elapsedMs(startedAt), overlappingPersists, ...metrics,
+        });
     } catch (err) {
         // Tag with BLOB size so the visibility layer can surface it to the user.
         // Oversized compatibility blobs are rejected before allocating copies.
-        if (err && typeof err === 'object') {
+        if (data && err && typeof err === 'object') {
             try { err.attemptedSize = data.length; } catch {}
         }
+        saveObservation.record({
+            kind: 'compatibility-persist', trigger, outcome: 'failure', operationId,
+            errorStage, errorCode: String(err?.code || ''), errorName: String(err?.name || 'Error'),
+            durationMs: elapsedMs(startedAt), overlappingPersists, ...metrics,
+        });
         throw err;
-    }
-    // Refresh fullChatStore from the persisted snapshot so subsequent
-    // /api/chat-content GETs return the same metadata (folderId, modules)
-    // that just hit disk. Without this, PATCH-only clears of stub fields
-    // leave fullChatStore holding stale fullChat objects, and hydration
-    // would resurrect the cleared values until the next /api/read.
-    if (decodedKey === 'database/database.bin') {
-        initChatStore(fullDb);
+    } finally {
+        activeCompatibilityPersists -= 1;
     }
 }
 
@@ -808,6 +918,8 @@ const savePath = resolveDataRoot()
 if(!existsSync(savePath)){
     mkdirSync(savePath)
 }
+const saveObservation = createSaveObservation({ dataRoot: savePath })
+saveObservation.record({ kind: 'session', trigger: 'server-start', outcome: 'started' })
 const CANONICAL_PROJECTION_REVISION_KEY = 'database/canonical-projection-revision'
 const canonicalProjectionSync = createCanonicalProjectionSync({
     repository: userDataRepository,
@@ -820,16 +932,37 @@ const canonicalProjectionSync = createCanonicalProjectionSync({
     },
 })
 let canonicalProjectionReady = existsSync(path.join(savePath, 'index', 'sidebar.json'))
-function persistCanonicalProjection(databaseObject) {
-    if (canonicalProjectionSync.hasExternalChanges()) {
-        const error = new Error('Canonical entity files changed outside RisuBard before projection save')
-        error.code = 'CANONICAL_FILES_CHANGED'
+function persistCanonicalProjection(databaseObject, observationContext = {}) {
+    const startedAt = performance.now()
+    const operationId = observationContext.operationId || nodeCrypto.randomUUID()
+    const trigger = observationContext.trigger || 'unspecified'
+    let errorStage = 'external-change-check'
+    try {
+        if (canonicalProjectionSync.hasExternalChanges()) {
+            const error = new Error('Canonical entity files changed outside RisuBard before projection save')
+            error.code = 'CANONICAL_FILES_CHANGED'
+            throw error
+        }
+        errorStage = 'transaction'
+        const result = userDataRepository.importLegacyDatabase(databaseObject, { mode: 'sync' })
+        canonicalProjectionSync.accept()
+        canonicalProjectionReady = true
+        saveObservation.record({
+            kind: 'canonical-sync', trigger, outcome: 'success', operationId,
+            durationMs: elapsedMs(startedAt), plannedFiles: result.files,
+            publishedFiles: result.transaction?.published,
+            skippedFiles: result.transaction?.skipped,
+            stagedBytes: result.transaction?.stagedBytes,
+        })
+        return result
+    } catch (error) {
+        saveObservation.record({
+            kind: 'canonical-sync', trigger, outcome: 'failure', operationId, errorStage,
+            errorCode: String(error?.code || ''), errorName: String(error?.name || 'Error'),
+            durationMs: elapsedMs(startedAt),
+        })
         throw error
     }
-    const result = userDataRepository.importLegacyDatabase(databaseObject, { mode: 'sync' })
-    canonicalProjectionSync.accept()
-    canonicalProjectionReady = true
-    return result
 }
 
 function adoptExternallyChangedCanonicalProjection() {
@@ -910,14 +1043,7 @@ if(existsSync(passwordPath)){
 // so we moved JWT signing/verification to the server using HMAC-SHA256.
 // If upstream changes its auth flow, this section needs manual sync.
 // Related: createServerJwt(), checkAuth(), /api/login, /api/token/refresh
-const jwtSecretPath = path.join(savePath, '__jwt_secret')
-let jwtSecret
-if (existsSync(jwtSecretPath)) {
-    jwtSecret = readFileSync(jwtSecretPath, 'utf-8').trim()
-} else {
-    jwtSecret = nodeCrypto.randomBytes(64).toString('hex')
-    writeFileSync(jwtSecretPath, jwtSecret, 'utf-8')
-}
+const jwtSecret = require('./jwt-secret.cjs').loadJwtSecret(savePath)
 
 // ── Instance ID for anonymous usage analytics ────────────────────────────────
 const instanceIdPath = path.join(savePath, '__instance_id')
@@ -3732,10 +3858,25 @@ app.post('/api/write', async (req, res, next) => {
                 kvDel(key);
             } else if (key === 'database/database.bin') {
                 // Client sends stubs-only DB — merge full chats from server before persisting
+                const operationId = nodeCrypto.randomUUID();
+                const startedAt = performance.now();
+                const overlappingPersists = activeCompatibilityPersists;
+                activeCompatibilityPersists += 1;
+                const metrics = {};
+                let errorStage = 'decode';
                 try {
+                    let phaseStartedAt = performance.now();
                     const incomingDb = await decodeRisuSave(fileContent);
+                    metrics.decodeMs = elapsedMs(phaseStartedAt);
+                    errorStage = 'ensure-chat-store';
+                    phaseStartedAt = performance.now();
                     await ensureChatStore();
+                    metrics.ensureChatStoreMs = elapsedMs(phaseStartedAt);
+                    errorStage = 'reassemble';
+                    phaseStartedAt = performance.now();
                     const fullDb = reassembleFullDb(incomingDb);
+                    metrics.reassembleMs = elapsedMs(phaseStartedAt);
+                    Object.assign(metrics, summarizeDatabaseShape(fullDb));
 
                     // Mirror the patch-persist guard (persistDbCacheWithChats):
                     // a malformed full-write payload could carry chats with
@@ -3747,7 +3888,10 @@ app.post('/api/write', async (req, res, next) => {
                     // on every chat first), but external tools / future
                     // regressions could bypass that — keep the guard at the
                     // disk boundary for defense in depth.
+                    errorStage = 'integrity-check';
+                    phaseStartedAt = performance.now();
                     const losses = findStubFlagLossChats(fullDb);
+                    metrics.integrityCheckMs = elapsedMs(phaseStartedAt);
                     if (losses.length > 0) {
                         const sample = losses.slice(0, 3).map(l => `${l.chaId}/${l.chatId ?? l.chatIndex}`).join(', ');
                         const err = new Error(
@@ -3756,21 +3900,51 @@ app.post('/api/write', async (req, res, next) => {
                         );
                         recordPersistFailure(err, '/api/write:stub-flag-loss');
                         logger.error(`[Write] ${err.message}`);
+                        saveObservation.record({
+                            kind: 'compatibility-persist', trigger: 'full-write', outcome: 'failure',
+                            operationId, errorStage, errorName: err.name,
+                            durationMs: elapsedMs(startedAt), overlappingPersists, ...metrics,
+                        });
                         res.status(500).json({ error: 'Write aborted: chat data integrity check failed' });
                         return;
                     }
 
+                    errorStage = 'encode';
+                    phaseStartedAt = performance.now();
                     const mergedContent = Buffer.from(encodeRisuSaveLegacy(fullDb));
+                    metrics.encodeMs = elapsedMs(phaseStartedAt);
+                    metrics.databaseBytes = mergedContent.length;
                     // Re-init chat store from merged result
+                    errorStage = 'refresh-chat-store';
+                    phaseStartedAt = performance.now();
                     initChatStore(fullDb);
+                    metrics.refreshMs = elapsedMs(phaseStartedAt);
+                    errorStage = 'kv-write';
+                    phaseStartedAt = performance.now();
                     kvSet(key, mergedContent);
-                    persistCanonicalProjection(fullDb);
+                    metrics.kvWriteMs = elapsedMs(phaseStartedAt);
+                    errorStage = 'canonical-sync';
+                    phaseStartedAt = performance.now();
+                    persistCanonicalProjection(fullDb, { operationId, trigger: 'full-write' });
+                    metrics.canonicalSyncMs = elapsedMs(phaseStartedAt);
+                    saveObservation.record({
+                        kind: 'compatibility-persist', trigger: 'full-write', outcome: 'success',
+                        operationId, durationMs: elapsedMs(startedAt), overlappingPersists, ...metrics,
+                    });
                 } catch (e) {
+                    saveObservation.record({
+                        kind: 'compatibility-persist', trigger: 'full-write', outcome: 'failure',
+                        operationId, errorStage, errorCode: String(e?.code || ''),
+                        errorName: String(e?.name || 'Error'), durationMs: elapsedMs(startedAt),
+                        overlappingPersists, ...metrics,
+                    });
                     logger.error('[Write] Failed to merge chats into database.bin:', e.message);
                     // Do NOT write stubs-only to disk — that would permanently
                     // destroy existing full chat data. Preserve disk as-is.
                     res.status(500).json({ error: 'Database merge failed' });
                     return;
+                } finally {
+                    activeCompatibilityPersists -= 1;
                 }
             } else {
                 kvSet(key, fileContent);
@@ -3946,7 +4120,7 @@ app.post('/api/patch', async (req, res, next) => {
             saveTimers[filePath] = setTimeout(async () => {
                 try {
                     if (decodedKey === 'database/database.bin') {
-                        await persistDbCacheWithChats(filePath, decodedKey);
+                        await persistDbCacheWithChats(filePath, decodedKey, 'patch-debounce');
                     } else {
                         const data = Buffer.from(encodeRisuSaveLegacy(dbCache[filePath]));
                         try {
@@ -5031,24 +5205,10 @@ app.post('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
                 try {
                     // If dbCache has stripped DB, persist with merged chats
                     if (dbCache[DB_HEX_KEY]) {
-                        await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin');
+                        await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin', 'chat-debounce');
                     } else {
                         // No stripped cache — load, merge, save
-                        const raw = kvGet('database/database.bin');
-                        if (raw) {
-                            const dbObj = normalizeJSON(await decodeRisuSave(raw));
-                            const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
-                            const encoded = Buffer.from(encodeRisuSaveLegacy(fullDb));
-                            try {
-                                kvSet('database/database.bin', encoded);
-                                persistCanonicalProjection(fullDb);
-                            } catch (err) {
-                                if (err && typeof err === 'object') {
-                                    try { err.attemptedSize = encoded.length; } catch {}
-                                }
-                                throw err;
-                            }
-                        }
+                        await persistChatStoreWithoutCache('chat-debounce');
                     }
                     // Persist succeeded — clear before backup so a backup-only
                     // failure isn't attributed to data loss.
@@ -6477,15 +6637,23 @@ function startTunnelProcess(cfPath) {
     tunnelUrl = null;
 
     try {
-        tunnelProcess = spawn(cfPath, ['tunnel', '--url', 'http://localhost:' + port], {
+        tunnelProcess = spawn(cfPath, ['tunnel', '--protocol', 'auto', '--url', 'http://localhost:' + port], {
             stdio: ['ignore', 'pipe', 'pipe']
         });
 
+        let startupOutput = '';
+        let pendingUrl = null;
+        let connectionRegistered = false;
         tunnelProcess.stderr.on('data', (chunk) => {
-            const text = chunk.toString();
-            const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
-            if (match && tunnelStatus === 'starting') {
-                tunnelUrl = match[0];
+            if (tunnelStatus !== 'starting') return;
+            // A Quick Tunnel URL is allocated before cloudflared connects to the edge.
+            // Keep a bounded buffer because log messages may span stream chunks.
+            startupOutput = (startupOutput + chunk.toString()).slice(-8192);
+            const match = startupOutput.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
+            if (match) pendingUrl = match[0];
+            if (startupOutput.includes('Registered tunnel connection')) connectionRegistered = true;
+            if (pendingUrl && connectionRegistered) {
+                tunnelUrl = pendingUrl;
                 tunnelStatus = 'running';
                 if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
                 console.log(`[Tunnel] Quick tunnel URL: ${tunnelUrl}`);
@@ -6614,6 +6782,7 @@ for (const sig of ['SIGTERM', 'SIGINT']) {
         console.log(`[Server] Received ${sig}, flushing pending data...`);
         stopTunnel();
         try { await flushPendingDb(); } catch (e) { logger.error('[Server] Flush error:', e); }
+        await saveObservation.flush();
         process.exit(0);
     });
 }

@@ -3,6 +3,7 @@ import type { RequestLogSource } from './requestLog'
 export type RequestPurpose =
     | 'chat-response'
     | 'bardwiki-analysis'
+    | 'bardwiki-bard-chan-rerank'
     | 'bardwiki-canonical-update'
     | 'bardwiki-admin'
     | 'persona-builder'
@@ -12,6 +13,7 @@ export type RequestPurpose =
 export const requestPurposeLabels: Record<RequestPurpose, string> = {
     'chat-response': '채팅 답변 생성',
     'bardwiki-analysis': 'BardWiki 의미 분석',
+    'bardwiki-bard-chan-rerank': '바드쨩 검색 재정렬',
     'bardwiki-canonical-update': 'BardWiki 정본 갱신',
     'bardwiki-admin': 'BardWiki 관리자 명령',
     'persona-builder': '페르소나 빌더',

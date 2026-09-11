@@ -3,6 +3,7 @@
     import { ArrowLeft, ArrowRight, HashIcon, MenuIcon, SearchIcon, SparklesIcon } from '@lucide/svelte';
     import { alertInput } from 'src/ts/alert';
     import { language } from 'src/lang';
+    import { loadingActivity } from 'src/ts/gui/loadingActivity';
     import { DBState, RealmInitialOpenChar } from 'src/ts/stores.svelte';
     import { TagList } from 'src/ts/util';
     import ShButton from '../GUI/ShButton.svelte';
@@ -102,12 +103,12 @@
     }
 
     async function getHub() {
-        charas = await getRisuHub({
+        charas = await loadingActivity.read('RisuRealm', () => getRisuHub({
             search: currentSearch(),
             page,
             nsfw,
             sort,
-        });
+        }));
     }
 
     function submitSearch(event?: SubmitEvent) {

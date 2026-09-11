@@ -6,6 +6,7 @@
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte'
     import ManagerResizeHandles from 'src/lib/UI/GUI/ManagerResizeHandles.svelte'
     import DraftSplitHandle from 'src/lib/UI/GUI/DraftSplitHandle.svelte'
+    import { persistElementHeight } from 'src/ts/gui/resizableSize'
     import { getModuleLorebooksWithSources } from 'src/ts/process/modules'
     import { requestChatData } from 'src/ts/process/request/request'
     import {
@@ -13,7 +14,10 @@
         LORE_BUILDER_BUILTIN_PRESETS,
         buildLoreBuilderMessages,
         collectLoreBuilderSources,
+        loadLoreBuilderSelections,
         matchLoreBuilderCharacterLorebook,
+        resolveLoreBuilderPromptPreset,
+        saveLoreBuilderSelections,
         type LoreBuilderSelections,
         type LoreBuilderSourceSnapshot,
     } from 'src/ts/loreBuilder'
@@ -45,7 +49,7 @@
     let sources = $state<LoreBuilderSourceSnapshot>({
         systemPrompt: '', characterDescription: '', characterLorebook: '', moduleLorebook: '',
     })
-    let selections = $state<LoreBuilderSelections>({
+    let selections = $state<LoreBuilderSelections>(loadLoreBuilderSelections() ?? {
         systemPrompt: false, characterDescription: true, characterLorebook: true, moduleLorebook: false,
     })
     let currentCharacter = $state<character | undefined>()
@@ -73,16 +77,21 @@
             targetEntryId,
             parsePrompt: (text, role) => risuChatParser(text, { chara: currentCharacter, role }),
         })
-        selections = {
+        selections = loadLoreBuilderSelections() ?? {
             systemPrompt: false,
             characterDescription: !!sources.characterDescription,
             characterLorebook: !!sources.characterLorebook,
             moduleLorebook: false,
         }
+        const selectedStylePreset = resolveLoreBuilderPromptPreset(
+            DBState.db.loreBuilderPromptPresets ?? [],
+            'style',
+            DBState.db.loreBuilderStylePromptPresetId ?? 'builtin:lore-style-ko',
+        )
         taskInstruction = DEFAULT_LORE_BUILDER_TASK_PROMPT
-        styleInstruction = defaultStyle
+        styleInstruction = selectedStylePreset?.content ?? defaultStyle
         taskPresetId = 'builtin:lore-task-default'
-        stylePresetId = 'builtin:lore-style-ko'
+        stylePresetId = selectedStylePreset?.id ?? 'builtin:lore-style-ko'
         userInstruction = ''
         originalDraft = currentContent
         draft = initialDraft
@@ -195,6 +204,8 @@
         wasOpen = open
     })
 
+    $effect(() => saveLoreBuilderSelections(selections))
+
     onDestroy(abortRequest)
 </script>
 
@@ -202,7 +213,6 @@
     bind:contentElement={dialogElement}
     contentClass="lore-builder-dialog" bodyClass="min-h-0 overflow-y-auto" closeAriaLabel={copy.close}>
     {#snippet title()}<span class="inline-flex items-center gap-2"><SparklesIcon size={19} />{copy.title}</span>{/snippet}
-    {#snippet description()}{copy.description(entryName)}{/snippet}
 
     <div class="flex flex-col gap-4 pb-1">
         <div class="grid gap-2">
@@ -212,7 +222,6 @@
 
         <fieldset data-lore-builder-context class="context-panel">
             <legend>{copy.contextTitle}</legend>
-            <p class="context-hint">{copy.contextHint}</p>
             <div class="context-options">
                 <label class:unavailable={!sources.systemPrompt}>
                     <input type="checkbox" bind:checked={selections.systemPrompt} disabled={!sources.systemPrompt} />
@@ -238,6 +247,7 @@
             <label for="lore-builder-instruction">{copy.instructionLabel}</label>
             <div class="instruction-row">
                 <textarea id="lore-builder-instruction" data-lore-builder-instruction class="builder-textarea instruction"
+                    use:persistElementHeight={'lore-builder-instruction'}
                     bind:value={userInstruction} placeholder={copy.instructionPlaceholder} disabled={generating}></textarea>
                 <div class="instruction-actions">
                     <ShButton data-lore-builder-send size="icon" variant={generating ? 'destructive' : 'primary'}
@@ -258,32 +268,35 @@
                         <label for="lore-builder-original">{copy.originalDraft}</label>
                     </div>
                     <textarea id="lore-builder-original" data-lore-builder-original class="builder-textarea draft"
+                        use:persistElementHeight={'lore-builder-original'}
                         value={originalDraft} readonly aria-label={copy.originalDraft}></textarea>
                 </div>
-                <DraftSplitHandle target={draftComparisonElement} ariaLabel={`${copy.originalDraft} / ${copy.revisedDraft}`} />
+                <DraftSplitHandle target={draftComparisonElement} ariaLabel={`${copy.originalDraft} / ${copy.revisedDraft}`}
+                    resizeStorageKey="lore-builder-draft-split" />
                 <div class="draft-pane" data-draft-pane="revision">
                     <div class="draft-heading flex items-center justify-between gap-2">
                         <label for="lore-builder-draft">{copy.revisedDraft}</label>
                         <div class="flex items-center gap-2">
                             {#if generating}<LoaderCircleIcon class="animate-spin text-textcolor2" size={17} />{/if}
-                            <ShButton data-lore-builder-undo variant="outline" size="sm" disabled={!canUndoDraft || generating} onclick={undoDraft}>
-                                <Undo2Icon size={15} />{copy.undo}
+                            <ShButton data-lore-builder-undo variant="outline" size="icon" disabled={!canUndoDraft || generating}
+                                aria-label={copy.undo} title={copy.undo} onclick={undoDraft}>
+                                <Undo2Icon size={15} />
+                            </ShButton>
+                            <ShButton data-lore-builder-apply variant="success" size="sm"
+                                disabled={!draft.trim() || generating} onclick={applyDraft}>
+                                {copy.applyDraft}
                             </ShButton>
                         </div>
                     </div>
                     <textarea id="lore-builder-draft" data-lore-builder-draft class="builder-textarea draft" bind:value={draft}
+                        use:persistElementHeight={'lore-builder-revision'}
                         placeholder={copy.draftPlaceholder} disabled={generating}></textarea>
                 </div>
             </div>
         </section>
 
         {#if error}<p role="alert" class="error-message">{error}</p>{/if}
-        <div class="flex justify-end border-t border-darkborderc pt-3">
-            <ShButton data-lore-builder-apply variant="success" disabled={!draft.trim() || generating} onclick={applyDraft}>
-                {copy.applyDraft}
-            </ShButton>
-        </div>
-        <ManagerResizeHandles target={dialogElement} centered />
+        <ManagerResizeHandles target={dialogElement} centered resizeStorageKey="lore-builder-dialog" />
     </div>
 </ShDialog>
 
@@ -313,7 +326,6 @@
     .context-panel label span { display: flex; min-width: 0; flex-direction: column; font-size: .75rem; line-height: 1.3; overflow-wrap: anywhere; }
     .context-panel label small { color: var(--color-textcolor2); font-size: .75rem; font-weight: 400; }
     .context-panel p { margin: .55rem 0 0; color: var(--color-textcolor2); font-size: .78rem; }
-    .context-panel .context-hint { margin: 0 0 .65rem; }
     .builder-section { display: flex; flex-direction: column; gap: .55rem; }
     .instruction-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: .55rem; }
     .instruction-actions { display: flex; flex-direction: column; justify-content: space-between; gap: .55rem; }
@@ -334,7 +346,7 @@
     .draft-pane:first-child { padding-right: .375rem; }
     .draft-pane:last-child { padding-left: .375rem; }
     .draft-heading { display: flex; min-width: 0; height: 2rem; align-items: center; }
-    .draft-pane .builder-textarea { box-sizing: border-box; min-height: 0; height: 100%; resize: none; overflow-y: auto; scrollbar-gutter: stable; }
+    .draft-pane .builder-textarea { box-sizing: border-box; min-height: 0; height: 100%; resize: vertical; overflow-y: scroll; scrollbar-gutter: stable; }
     .error-message {
         margin: 0; border: 1px solid color-mix(in srgb, var(--color-draculared) 55%, var(--color-darkborderc));
         border-radius: .55rem; padding: .7rem .8rem; color: var(--color-draculared);

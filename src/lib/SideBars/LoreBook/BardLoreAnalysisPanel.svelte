@@ -8,6 +8,7 @@
     import { resizeHandle } from 'src/ts/gui/resizeHandle'
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte'
     import ManagerResizeHandles from 'src/lib/UI/GUI/ManagerResizeHandles.svelte'
+    import RisuBardGrimoirePromptWorkspace from 'src/lib/Setting/Pages/RisuBardGrimoirePromptWorkspace.svelte'
     import BardLoreAnalysisHelp from './BardLoreAnalysisHelp.svelte'
     import SolarIcon from './SolarIcon.svelte'
     import disketteIcon from 'src/assets/solar-bold/diskette-bold.svg'
@@ -33,6 +34,7 @@
     } from 'src/ts/lorebook/bardLoreAnalysisSettings'
     import { orderLorebookEntriesForDisplay } from 'src/ts/lorebook/workspaceOperations'
     import {
+        BardLoreAnalysisBudgetError,
         applyBardLoreAnalysisDraft,
         auditBardLoreAnalysisDraft,
         auditBardLoreMetadata,
@@ -61,6 +63,10 @@
         type ResolvedBardLoreAnalysisLanguage,
     } from 'src/ts/lorebook/bardLoreLanguage'
     import { normalizeWikiWritingLanguage } from 'src/ts/risubard/wikiWritingLanguage'
+    import {
+        createDefaultBardLoreInstructionPreset,
+        resolveBardLoreInstructionPreset,
+    } from 'src/ts/lorebook/bardLoreInstructionPreset'
 
     interface Props {
         entries: BardLoreEntry[]
@@ -87,8 +93,10 @@
     }: Props = $props()
     let open = $state(false)
     let helpOpen = $state(false)
+    let promptPresetOpen = $state(false)
     let dialogElement = $state<HTMLElement | null>(null)
     let workbenchElement = $state<HTMLElement | null>(null)
+    let settingsPaneElement = $state<HTMLElement | null>(null)
     let scope = $state<BardLoreAnalysisScope>('all')
     let planning = $state(false)
     let analyzing = $state(false)
@@ -113,6 +121,10 @@
     let replanSequence = 0
 
     const eligibleEntries = $derived(entries.filter((entry) => entry.mode !== 'folder' && entry.mode !== 'child'))
+    const activeInstructionPreset = $derived(resolveBardLoreInstructionPreset(
+        DBState.db.risuBardGrimoirePromptPresets,
+        DBState.db.risuBardGrimoirePromptPresetId,
+    ))
     const untypedCount = $derived(eligibleEntries.filter((entry) => entry.bard.kind === 'other').length)
     const missingSummaryCount = $derived(eligibleEntries.filter((entry) => !entry.bard.summary.trim()).length)
     const missingTagsCount = $derived(eligibleEntries.filter((entry) => entry.bard.tags.length === 0).length)
@@ -156,9 +168,12 @@
     }
 
     async function prepareTargets(targets: BardLoreEntry[], runtimeSettings = workingSettings) {
+        const sequence = ++replanSequence
         error = ''
         conflicts = []
         plan = null
+        plannedTargets = targets
+        planning = targets.length > 0
         runtimeSettings = createBardLoreSettings(runtimeSettings)
         if (targets.length === 0) {
             error = language.lorebookWorkspace.bardAnalysisNoTargets
@@ -171,23 +186,33 @@
                 DBState.db.risuBardGrimoireLanguage,
                 normalizeWikiWritingLanguage(DBState.db.risuBardWikiWritingLanguage),
             )
-            plannedTargets = targets
-            plannedLanguage = analysisLanguage
-            plan = await planBardLoreAnalysisBatches(
+            const nextPlan = await planBardLoreAnalysisBatches(
                 targets,
                 entries,
                 runtimeSettings,
                 tokenize,
                 analysisLanguage,
                 'ko',
+                activeInstructionPreset,
             )
+            if (sequence !== replanSequence) return
+            plannedLanguage = analysisLanguage
+            plan = nextPlan
         }
         catch (cause) {
-            error = cause instanceof Error ? cause.message : String(cause)
+            if (sequence === replanSequence) error = planningError(cause)
         }
         finally {
-            planning = false
+            if (sequence === replanSequence) planning = false
         }
+    }
+
+    function planningError(cause: unknown): string {
+        if (cause instanceof BardLoreAnalysisBudgetError && cause.details) {
+            const { entryName, inputTokens, limit } = cause.details
+            return language.lorebookWorkspace.bardAnalysisInputLimitExceeded(entryName, inputTokens, limit)
+        }
+        return cause instanceof Error ? cause.message : String(cause)
     }
 
     async function prepare(runtimeSettings = workingSettings) {
@@ -233,6 +258,31 @@
 
     function resetWorkbenchResize() {
         workbenchElement?.style.removeProperty('--analysis-settings-width')
+    }
+
+    function startSettingsPaneResize() {
+        const pane = settingsPaneElement
+        const settingsSection = pane?.querySelector<HTMLElement>('.analysis-settings')
+        if (!pane || !settingsSection) return
+        const startHeight = settingsSection.getBoundingClientRect().height
+        const availableHeight = pane.getBoundingClientRect().height
+        const minimumHeight = Math.min(150, availableHeight)
+        const maximumHeight = Math.max(minimumHeight, availableHeight - 150)
+        return (_dx: number, dy: number) => {
+            const nextHeight = Math.min(maximumHeight, Math.max(minimumHeight, startHeight + dy))
+            pane.style.setProperty('--analysis-settings-height', `${nextHeight}px`)
+        }
+    }
+
+    function resetSettingsPaneResize() {
+        settingsPaneElement?.style.removeProperty('--analysis-settings-height')
+    }
+
+    function handlePromptPresetOpenChange(next: boolean) {
+        promptPresetOpen = next
+        if (next || analyzing) return
+        if (currentRun) void replanCurrentRun(workingSettings)
+        else if (open) void replanSelectedTargets(workingSettings)
     }
 
     function openQualityRepair() {
@@ -286,6 +336,8 @@
     async function replanSelectedTargets(runtimeSettings = workingSettings) {
         const targets = availableTargets.filter((entry) => selectedTargetIds.has(entry.id))
         if (targets.length === 0) {
+            ++replanSequence
+            planning = false
             plannedTargets = []
             plan = null
             error = ''
@@ -382,18 +434,44 @@
         notifySuccess(language.lorebookWorkspace.bardAnalysisDefaultSaved)
     }
 
-    function applyRecommendedSettings() {
-        const recommended = recommendBardLoreAnalysisSettings({
-            targetCount: plannedTargets.length || selectedTargetIds.size,
-            estimatedInputTokens: plan?.totalInputTokens ?? workingSettings.analysisInputTokens,
-        })
-        if (currentRun) recommended.analysisLinkedDepth = workingSettings.analysisLinkedDepth
-        const next = createBardLoreSettings({ ...workingSettings, ...recommended })
-        workingSettings = next
-        onSettingsChange(next)
-        if (currentRun) void replanCurrentRun(next)
-        else void replanSelectedTargets(next)
-        notifySuccess(language.lorebookWorkspace.bardAnalysisRecommendedApplied)
+    async function applyRecommendedSettings() {
+        const completedIds = new Set(currentRun?.batches.filter((batch) => batch.status === 'complete').flatMap((batch) => batch.targetIds))
+        const targets = (currentRun ? displayRunTargets() : availableTargets.filter((entry) => selectedTargetIds.has(entry.id)))
+            .filter((entry) => !completedIds.has(entry.id))
+        if (targets.length === 0) return
+        const sequence = ++replanSequence
+        planning = true
+        error = ''
+        try {
+            const { tokenize } = await import('src/ts/tokenizer')
+            // Measure full single-entry requests locally, even when the current
+            // allowance cannot produce a plan. This never sends a model request.
+            const estimate = await planBardLoreAnalysisBatches(targets, entries, createBardLoreSettings({
+                ...workingSettings, analysisBatchEntries: 1, analysisInputTokens: Number.MAX_SAFE_INTEGER,
+            }), tokenize, currentRun ? currentRun.languageSnapshot ?? 'bilingual' : resolveBardLoreAnalysisLanguage(
+                DBState.db.risuBardGrimoireLanguage,
+                normalizeWikiWritingLanguage(DBState.db.risuBardWikiWritingLanguage),
+            ), 'ko', currentRun?.instructionPresetSnapshot ?? activeInstructionPreset)
+            if (sequence !== replanSequence) return
+            const recommended = recommendBardLoreAnalysisSettings({
+                targetCount: targets.length,
+                estimatedInputTokens: estimate.totalInputTokens,
+                minimumInputTokens: estimate.batches.reduce((largest, batch) => Math.max(largest, batch.inputTokens), 0),
+            })
+            if (currentRun) recommended.analysisLinkedDepth = workingSettings.analysisLinkedDepth
+            const next = createBardLoreSettings({ ...workingSettings, ...recommended })
+            workingSettings = next
+            onSettingsChange(next)
+            if (currentRun) await replanCurrentRun(next)
+            else await replanSelectedTargets(next)
+            notifySuccess(language.lorebookWorkspace.bardAnalysisRecommendedApplied)
+        }
+        catch (cause) {
+            if (sequence === replanSequence) error = planningError(cause)
+        }
+        finally {
+            if (sequence === replanSequence) planning = false
+        }
     }
 
     async function replanCurrentRun(runtimeSettings: BardLoreSettings) {
@@ -421,6 +499,7 @@
                 tokenize,
                 run.languageSnapshot ?? 'bilingual',
                 'ko',
+                run.instructionPresetSnapshot ?? createDefaultBardLoreInstructionPreset(),
             )
             if (sequence !== replanSequence) return
             const rebuilt = replanned.batches.map((batch) => ({
@@ -440,7 +519,7 @@
             })
         }
         catch (cause) {
-            if (sequence === replanSequence) error = cause instanceof Error ? cause.message : String(cause)
+            if (sequence === replanSequence) error = planningError(cause)
         }
         finally {
             if (sequence === replanSequence) planning = false
@@ -549,6 +628,7 @@
                         next.settingsSnapshot.router.filterFacetKeys,
                         next.languageSnapshot ?? 'bilingual',
                         'ko',
+                        next.instructionPresetSnapshot ?? createDefaultBardLoreInstructionPreset(),
                     )
                     let parsed
                     try {
@@ -653,6 +733,7 @@
                 createUuid,
                 undefined,
                 plannedLanguage,
+                activeInstructionPreset,
             ),
             replaceLinks: qualityRepair,
         }
@@ -825,6 +906,11 @@
     {#snippet description()}{language.lorebookWorkspace.bardAnalysisDialogDescription}{/snippet}
     {#snippet headerActions()}
         <div class="analysis-header-actions">
+            <button type="button" data-bard-lore-analysis-prompt-presets disabled={analyzing}
+                onclick={() => promptPresetOpen = true}>
+                <SolarIcon src={editIcon} name="pen-2-bold" size="1rem" />
+                <span>{language.risuBardGrimoirePrompt.openPreset}</span>
+            </button>
             <button type="button" data-bard-lore-analysis-save-default disabled={analyzing}
                 use:tooltip={language.lorebookWorkspace.bardAnalysisSaveDefaultHelp} onclick={saveSettingsAsDefault}>
                 <SolarIcon src={disketteIcon} name="diskette-bold" size="1rem" />
@@ -839,7 +925,7 @@
     {/snippet}
 
     <div class="analysis-workbench" bind:this={workbenchElement} data-bard-lore-analysis-workbench>
-        <div class="settings-pane">
+        <div class="settings-pane" bind:this={settingsPaneElement}>
             <section class="analysis-settings" aria-label={language.lorebookWorkspace.bardAnalysisSettings}>
                 <div class="section-heading"><div><strong>{language.lorebookWorkspace.bardAnalysisSettings}</strong></div></div>
                 <div class="settings-grid">
@@ -860,6 +946,18 @@
                 </div>
                 {#if currentRun}<p class="notice">{language.lorebookWorkspace.bardAnalysisSettingsNextRun}</p>{/if}
             </section>
+
+            <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+            <div
+                class="settings-row-splitter"
+                data-bard-lore-analysis-settings-splitter
+                role="separator"
+                tabindex="0"
+                aria-orientation="horizontal"
+                aria-label={language.lorebookWorkspace.resizeSettings}
+                use:tooltip={language.lorebookWorkspace.resizeHint}
+                use:resizeHandle={{ start: startSettingsPaneResize, reset: resetSettingsPaneResize }}
+            ><span></span></div>
 
             {#if !currentRun}
                 <section class="planning-layout">
@@ -1019,7 +1117,7 @@
             <div class="drafts">
                 {#each bardLoreAnalysisDraftFromRun(currentRun).entries as candidate}
                     <article data-bard-lore-analysis-draft={candidate.id}>
-                        <div><strong>{entries.find((entry) => entry.id === candidate.id)?.comment || candidate.id}</strong><span>{candidate.kind}</span></div>
+                        <div><strong>{entries.find((entry) => entry.id === candidate.id)?.comment || candidate.id}</strong><span>{candidate.kind} · {candidate.activation ?? '—'}</span></div>
                         <p>{candidate.summary || language.lorebookWorkspace.bardAnalysisEmptySummary}</p>
                         <small>{candidate.tags.join(' · ')}</small>
                         {#if candidate.links.length > 0}<small>{candidate.links.map((link) => link.targetId + ' · ' + link.relation).join(', ')}</small>{/if}
@@ -1034,6 +1132,22 @@
     {#if conflicts.length > 0}<p class="error">{language.lorebookWorkspace.bardAnalysisConflicts(conflicts.length)}</p>{/if}
     <p class="close-behavior">{language.lorebookWorkspace.bardAnalysisCloseBehavior}</p>
     <ManagerResizeHandles target={dialogElement} centered />
+</ShDialog>
+
+<ShDialog
+    open={promptPresetOpen}
+    onOpenChange={handlePromptPresetOpenChange}
+    closeOnEscape
+    closeOnOutsideClick={false}
+    tier="top"
+    size="xl"
+    contentClass="grimoire-prompt-dialog"
+    bodyClass="grimoire-prompt-dialog-body"
+    closeAriaLabel={language.lorebookWorkspace.close}
+>
+    {#snippet title()}{language.risuBardGrimoirePrompt.title}{/snippet}
+    {#snippet description()}{language.risuBardGrimoirePrompt.description}{/snippet}
+    <RisuBardGrimoirePromptWorkspace compact />
 </ShDialog>
 
 <BardLoreAnalysisHelp bind:open={helpOpen} />
@@ -1063,27 +1177,34 @@
     .primary { background: var(--color-info); color: var(--color-on-info); }
     .secondary, select, input { background: var(--color-darkbg); }
     .danger { background: color-mix(in srgb, var(--color-red) 18%, transparent); color: var(--color-red); }
-    :global(.bard-analysis-dialog) { width: var(--manager-width, min(calc(100vw - 2rem), 78rem)); max-width: calc(100vw - 1rem); height: var(--manager-height, auto); max-height: calc(100dvh - 1rem); min-width: min(30rem, calc(100vw - 1rem)); min-height: min(32rem, calc(100dvh - 1rem)); overflow: hidden; }
-    :global(.bard-analysis-body) { display: grid; flex: 1; min-width: 0; min-height: 0; max-height: none; gap: .8rem; overflow-y: auto; padding-right: .2rem; }
-    :global(.bard-analysis-dialog .risu-modal-header) { padding-right: 22rem; }
+    :global(.bard-analysis-dialog) { width: var(--manager-width, min(calc(100vw - 2rem), 78rem)); max-width: calc(100vw - 1rem); height: var(--manager-height, min(90dvh, 52rem)); max-height: calc(100dvh - 1rem); min-width: min(30rem, calc(100vw - 1rem)); min-height: min(32rem, calc(100dvh - 1rem)); overflow: hidden; }
+    :global(.bard-analysis-body) { display: flex; flex: 1; min-width: 0; min-height: 0; max-height: none; flex-direction: column; gap: .55rem; overflow-y: auto; padding-right: .2rem; }
+    :global(.bard-analysis-dialog .risu-modal-header) { padding-right: 32rem; }
+    :global(.grimoire-prompt-dialog) { width: min(calc(100vw - 2rem), 68rem); height: min(86dvh, 48rem); max-height: calc(100dvh - 1rem); overflow: hidden; }
+    :global(.grimoire-prompt-dialog-body) { min-height: 0; overflow: hidden; }
     .analysis-dialog-title { display: inline-flex; align-items: center; gap: .5rem; }
     .analysis-guide-button { min-height: 1.65rem; padding: .18rem .48rem; border-color: color-mix(in srgb, var(--color-info) 45%, var(--color-darkborderc)); background: color-mix(in srgb, var(--color-info) 10%, var(--color-darkbg)); color: var(--color-info); font-size: .7rem; font-weight: 700; vertical-align: middle; }
     .analysis-guide-button:hover { border-color: var(--color-info); background: color-mix(in srgb, var(--color-info) 18%, var(--color-darkbg)); }
     .analysis-header-actions { position: absolute; top: -.35rem; right: 2rem; display: flex; gap: .4rem; }
     .analysis-header-actions button { display: flex; align-items: center; gap: .35rem; min-height: 2rem; padding: .32rem .55rem; background: var(--color-darkbg); font-size: .72rem; white-space: nowrap; }
-    .analysis-workbench { display: grid; grid-template-columns: minmax(14rem, var(--analysis-settings-width, 29rem)) .8rem minmax(18rem, 1fr); gap: 0; height: min(64vh, 44rem); min-height: 28rem; }
+    .analysis-workbench { display: grid; grid-template-columns: minmax(14rem, var(--analysis-settings-width, 29rem)) .8rem minmax(18rem, 1fr); min-height: 24rem; flex: 1; gap: 0; overflow: hidden; }
     .analysis-splitter { position: relative; width: .8rem; min-width: .8rem; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: col-resize; touch-action: none; }
     .analysis-splitter span { position: absolute; top: calc(50% - 1.5rem); left: calc(50% - 1px); width: 2px; height: 3rem; border-radius: 999px; background: var(--color-darkborderc); transition: height 120ms ease, background 120ms ease; }
     .analysis-splitter:hover, .analysis-splitter:focus-visible, .analysis-splitter:global([data-resizing]) { background: color-mix(in srgb, var(--color-borderc) 18%, transparent); outline: none; }
     .analysis-splitter:hover span, .analysis-splitter:focus-visible span, .analysis-splitter:global([data-resizing]) span { height: 4.5rem; background: var(--color-borderc); }
-    .settings-pane { display: grid; align-content: start; min-width: 0; min-height: 0; gap: 1rem; overflow-y: auto; padding-right: .25rem; }
+    .settings-pane { display: grid; grid-template-rows: minmax(10rem, var(--analysis-settings-height, 20rem)) .7rem minmax(9rem, 1fr); min-width: 0; min-height: 0; gap: 0; overflow: hidden; padding-right: .25rem; }
+    .settings-row-splitter { position: relative; min-height: .7rem; padding: 0; border: 0; background: transparent; cursor: row-resize; touch-action: none; }
+    .settings-row-splitter span { position: absolute; top: calc(50% - 1px); left: calc(50% - 1.5rem); width: 3rem; height: 2px; border-radius: 999px; background: var(--color-darkborderc); }
+    .settings-row-splitter:hover, .settings-row-splitter:focus-visible, .settings-row-splitter:global([data-resizing]) { background: color-mix(in srgb, var(--color-borderc) 18%, transparent); outline: none; }
+    .settings-row-splitter:hover span, .settings-row-splitter:focus-visible span, .settings-row-splitter:global([data-resizing]) span { width: 4.5rem; background: var(--color-borderc); }
     .planning-layout, .run-layout { display: grid; gap: .85rem; }
     .analysis-settings, .planning-layout, .run-layout, .target-preview, .failure-list, .review-section { display: grid; gap: .65rem; padding: .8rem; border: 1px solid var(--color-darkborderc); border-radius: .65rem; background: color-mix(in srgb, var(--color-selected) 12%, var(--color-darkbg)); }
+    .analysis-settings, .planning-layout, .run-layout { min-height: 0; overflow: auto; }
     .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; }
     .section-heading > div { display: grid; gap: .15rem; }
     .section-heading small { color: var(--color-textcolor2); font-size: .72rem; font-weight: 400; }
     .section-heading > span { min-width: 2rem; padding: .18rem .45rem; border-radius: 99rem; background: var(--color-selected); text-align: center; font-size: .72rem; }
-    .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+    .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .65rem; }
     .settings-grid label { display: grid; gap: .3rem; color: var(--color-textcolor2); font-size: .7rem; }
     .settings-grid input { width: 100%; font-variant-numeric: tabular-nums; }
     .setting-heading { display: flex; align-items: center; gap: .3rem; }
@@ -1144,7 +1265,8 @@
         .analysis-header-actions { position: static; order: 3; justify-content: flex-end; margin-bottom: .25rem; }
         .analysis-workbench { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
         .analysis-splitter { display: none; }
-        .settings-pane { max-height: none; overflow: visible; padding-right: 0; }
+        .settings-pane { grid-template-rows: auto auto; max-height: none; gap: .75rem; overflow: visible; padding-right: 0; }
+        .settings-row-splitter { display: none; }
         .target-preview { min-height: 25rem; }
     }
     @media (max-width: 700px) {

@@ -6,6 +6,7 @@ import type {
     BardLoreRelationRetrieval,
     BardLoreSettings,
 } from './bardLore'
+import { matchesLorebookKey } from '../process/lorebookMatching'
 
 export interface BardLoreCompiledEdge {
     sourceId: string
@@ -99,6 +100,12 @@ function includesPhrase(query: string, phrase: string): boolean {
     return phraseRanges(query, phrase).length > 0
 }
 
+// Filter vocabulary must match words, unlike permissive entity-name lookup.
+// In particular, an imported alias "여" must not filter "여행" to women.
+function includesFilterPhrase(query: string, phrase: string): boolean {
+    return matchesLorebookKey(normalize(query), normalize(phrase), 'word-boundary')
+}
+
 function coveredByPhrase(query: string, phrase: string, coveringPhrases: string[], equalLength = false): boolean {
     const ranges = phraseRanges(query, phrase)
     if (ranges.length === 0) return false
@@ -182,10 +189,12 @@ function canonicalFacetValue(facet: Pick<BardLoreFacet, 'key' | 'value'>, settin
 
 function satisfies(entry: BardLoreEntry, kinds: BardLoreKind[], constraints: BardLoreFacetConstraint[], settings: BardLoreSettings): boolean {
     if (kinds.length > 0 && !kinds.includes(entry.bard.kind)) return false
-    return constraints.every((constraint) => (entry.bard.facets ?? []).some((facet) =>
-        normalize(facet.key) === normalize(constraint.key)
-        && canonicalFacetValue(facet, settings) === canonicalFacetValue(constraint, settings),
-    ))
+    const keys = [...new Set(constraints.map((constraint) => normalize(constraint.key)))]
+    return keys.every((key) => constraints.filter((constraint) => normalize(constraint.key) === key)
+        .some((constraint) => (entry.bard.facets ?? []).some((facet) =>
+            normalize(facet.key) === key
+            && canonicalFacetValue(facet, settings) === canonicalFacetValue(constraint, settings),
+        )))
 }
 
 function graphCandidates(
@@ -244,13 +253,15 @@ export function planBardLoreQuery(
     index: BardLoreCompiledIndex,
     settings: BardLoreSettings,
     scopeAliases: string[] = [],
+    routingEvidence = '',
 ): BardLoreQueryPlan {
     const query = normalize(value)
+    const anchorQuery = normalize([value, routingEvidence].filter(Boolean).join('\n'))
     const scopeMatches = scopeAliases
-        .filter((phrase): phrase is string => typeof phrase === 'string' && includesPhrase(query, phrase))
+        .filter((phrase): phrase is string => typeof phrase === 'string' && includesPhrase(anchorQuery, phrase))
         .sort((left, right) => right.length - left.length)
     const targetKinds = (Object.keys(settings.router.kindAliases) as BardLoreKind[]).filter((kind) =>
-        settings.router.kindAliases[kind].some((phrase) => includesPhrase(query, phrase)),
+        settings.router.kindAliases[kind].some((phrase) => includesFilterPhrase(query, phrase)),
     )
     const facetMatches: Array<BardLoreFacetConstraint & { constraintKey: string; phraseKey: string }> = []
     for (const entry of index.entries) {
@@ -263,7 +274,7 @@ export function planBardLoreQuery(
             )
             const candidates = [...facetPhrases(facet), ...vocabulary ? facetPhrases(vocabulary) : []]
             for (const phrase of candidates.filter((candidate) =>
-                includesPhrase(query, candidate) && !coveredByPhrase(query, candidate, scopeMatches, true),
+                includesFilterPhrase(query, candidate) && !coveredByPhrase(query, candidate, scopeMatches, true),
             )) {
                 facetMatches.push({
                     key: facet.key,
@@ -278,7 +289,7 @@ export function planBardLoreQuery(
     for (const facet of settings.router.facetVocabulary) {
         if (!settings.router.filterFacetKeys.some((key) => normalize(key) === normalize(facet.key))) continue
         for (const phrase of facetPhrases(facet).filter((candidate) =>
-            includesPhrase(query, candidate) && !coveredByPhrase(query, candidate, scopeMatches, true),
+            includesFilterPhrase(query, candidate) && !coveredByPhrase(query, candidate, scopeMatches, true),
         )) {
             facetMatches.push({
                 key: facet.key,
@@ -311,9 +322,9 @@ export function planBardLoreQuery(
     const constraintPhrases = constraints.map((constraint) => constraint.phrase)
     for (const entry of index.entries) {
         const matches = phrases(entry)
-            .filter((phrase) => includesPhrase(query, phrase)
-                && !coveredByPhrase(query, phrase, constraintPhrases)
-                && !coveredByPhrase(query, phrase, scopeMatches, true))
+            .filter((phrase) => includesPhrase(anchorQuery, phrase)
+                && !coveredByPhrase(anchorQuery, phrase, constraintPhrases)
+                && !coveredByPhrase(anchorQuery, phrase, scopeMatches, true))
             .sort((left, right) => right.length - left.length)
         if (matches[0]) anchors.push({ entryId: entry.id, phrase: matches[0] })
     }

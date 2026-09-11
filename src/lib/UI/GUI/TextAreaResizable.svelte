@@ -4,18 +4,20 @@
     import { DBState } from 'src/ts/stores.svelte';
     import { longpress } from 'src/ts/gui/longtouch';
 
-    let textarea:HTMLElement = $state();
+    let textarea:HTMLTextAreaElement = $state();
     let previousScrollHeight = 0;
     interface Props {
         value?: string;
         handleLongPress?: any;
         onkeydown?: (event: KeyboardEvent) => void;
+        focusOnMount?: boolean;
     }
 
   let {
       value = $bindable(''),
       handleLongPress = (e:MouseEvent) => {},
       onkeydown,
+      focusOnMount = false,
   }: Props = $props();
 
     function resize() {
@@ -32,6 +34,10 @@
 
     onMount(() => {
         resize();
+        if (focusOnMount) {
+            textarea.focus();
+            textarea.setSelectionRange(value.length, value.length);
+        }
     });
 </script>
   
