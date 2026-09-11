@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { NarrativeMemoryWikiMarkdown } from './memoryWiki'
 import { buildStorySoFar } from './storySoFar'
+import { wikiWritingLocales } from './wikiWritingLanguage'
 
 type Document = NarrativeMemoryWikiMarkdown['documents'][number]
 
@@ -70,5 +71,15 @@ describe('story so far projection', () => {
 
         expect(entries[0]?.summary).toEqual(['남아 있던 사건을 표시한다.'])
     })
+
+    it.each(Object.entries(wikiWritingLocales))(
+        'reads the %s summary heading written by the wiki writer', (_locale, definition) => {
+            const entries = buildStorySoFar([event({
+                content: `## 到着\n\n### ${definition.headings.summary}\n\n- 駅に到着した。`,
+            })])
+
+            expect(entries[0]?.summary).toEqual(['駅に到着した。'])
+        }
+    )
 
 })

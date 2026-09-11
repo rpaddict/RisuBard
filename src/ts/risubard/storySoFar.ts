@@ -1,4 +1,5 @@
 import type { NarrativeMemoryWikiMarkdown } from './memoryWiki'
+import { isWikiHeadingLabel } from './wikiWritingLanguage'
 
 type MarkdownDocument = NarrativeMemoryWikiMarkdown['documents'][number]
 
@@ -19,10 +20,8 @@ function storySection(content: string): string[] {
     const lines = content.replace(/\r\n/g, '\n').split('\n')
     let headingLevel = 0
     const heading = lines.findIndex((line) => {
-        const match = /^(#{2,3})\s+(이야기 요약|확정된 사건|Story Summary|Established Events)\s*$/i.exec(
-            line.trim()
-        )
-        if (!match) return false
+        const match = /^(#{2,3})\s+(.+?)\s*$/.exec(line.trim())
+        if (!match || !isWikiHeadingLabel('summary', match[2])) return false
         headingLevel = match[1].length
         return true
     })

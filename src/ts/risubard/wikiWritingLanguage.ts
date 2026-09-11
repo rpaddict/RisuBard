@@ -3,6 +3,7 @@ import localeDefinitions from './wikiWritingLocales.json'
 interface WikiWritingLocaleDefinition {
     label: string
     languageName: string
+    indexTitle: string
     headings: {
         summary: string
         history: string
@@ -25,7 +26,9 @@ export const wikiWritingLocales = localeDefinitions satisfies Record<
 >
 
 export type WikiWritingLanguage = keyof typeof wikiWritingLocales
-type WikiHeadingKey = keyof WikiWritingLocaleDefinition['headings']
+export type WikiHeadingKey = keyof WikiWritingLocaleDefinition['headings']
+
+const LEGACY_STORY_ARC_TITLES = ['스토리 아크 지도', 'Story Arc Map'] as const
 
 export const wikiWritingLanguageOptions = Object.entries(wikiWritingLocales)
     .map(([value, locale]) => ({
@@ -49,15 +52,50 @@ function headingsByKey(): Record<WikiHeadingKey, string[]> {
         summary: [], history: [], related: [], additional: [], currentState: [],
     }
     for (const locale of Object.values(wikiWritingLocales)) {
-        for (const key of Object.keys(locale.headings) as WikiHeadingKey[]) {
-            result[key].push(locale.headings[key])
+        const definition: WikiWritingLocaleDefinition = locale
+        for (const key of Object.keys(definition.headings) as WikiHeadingKey[]) {
+            result[key].push(definition.headings[key])
         }
+        result.summary.push(...(definition.legacyHeadings ?? []))
     }
-    result.summary.push('확정된 사건', 'Established Events')
     return result
 }
 
 const localizedHeadingLabels = headingsByKey()
+
+function normalizedHeading(value: string): string {
+    return value.normalize('NFKC').toLocaleLowerCase().trim()
+}
+
+// Every program-owned label for a section, across all writing languages.
+export function isWikiHeadingLabel(key: WikiHeadingKey, value: unknown): boolean {
+    if (typeof value !== 'string') return false
+    const normalized = normalizedHeading(value)
+    return localizedHeadingLabels[key].some((label) =>
+        normalizedHeading(label) === normalized)
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Regex alternation for section-label matching; tolerates whitespace variants.
+export function wikiHeadingLabelsPattern(key: WikiHeadingKey): string {
+    return localizedHeadingLabels[key]
+        .map((label) => escapeRegExp(label).replace(/\\?\s+/g, '\\s*'))
+        .join('|')
+}
+
+const storyArcTitles: readonly string[] = [
+    ...Object.values(wikiWritingLocales).map((locale) => locale.storyArc.title),
+    ...LEGACY_STORY_ARC_TITLES,
+]
+
+export function isStoryArcTitle(value: unknown): boolean {
+    if (typeof value !== 'string') return false
+    const normalized = normalizedHeading(value)
+    return storyArcTitles.some((title) => normalizedHeading(title) === normalized)
+}
 
 export function detectWikiWritingLanguage(content: string): WikiWritingLanguage | undefined {
     const headings = content.split('\n').map((line) =>

@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { resolveMemoryWorkspace } from './risubard-memory-workspace'
 import { inquireMarkdownDocuments } from './risubard-markdown-inquiry'
-import { detectWikiWritingLanguage, localizeWikiHeadings, normalizeWikiWritingLanguage, wikiWritingHeadings, type WikiWritingLanguage } from '../../src/ts/risubard/wikiWritingLanguage'
+import { detectWikiWritingLanguage, isWikiHeadingLabel, localizeWikiHeadings, normalizeWikiWritingLanguage, wikiHeadingLabelsPattern, wikiWritingHeadings, wikiWritingLocales, type WikiWritingLanguage } from '../../src/ts/risubard/wikiWritingLanguage'
 import {
     parseCanonicalTurnReceipt,
     type CanonicalTurnReceipt,
@@ -221,11 +221,12 @@ function appendKnownDocumentLinks(
     const bullets = related.map((document) => `- [[${document.title}]]`)
         .join('\n')
     const heading = `### ${wikiWritingHeadings[normalizeWikiWritingLanguage(writingLanguage)].related}`
-    if (/^###\s+(관련 문서|Related Documents)\s*$/mi.test(content)) {
-        return content.replace(
-            /^###\s+(관련 문서|Related Documents)\s*$/mi,
-            () => `${heading}\n\n${bullets}`
-        )
+    const relatedHeading = new RegExp(
+        `^###\\s+(?:${wikiHeadingLabelsPattern('related')})\\s*$`,
+        'mi'
+    )
+    if (relatedHeading.test(content)) {
+        return content.replace(relatedHeading, () => `${heading}\n\n${bullets}`)
     }
     return `${content}\n\n${heading}\n\n${bullets}`
 }
@@ -292,13 +293,17 @@ function removeCharacterEventLinksFromRelatedDocuments(
         .map((document) => document.title.normalize('NFKC')
             .toLocaleLowerCase().trim()))
     if (eventTitles.size === 0) return content
+    const relatedHeadingPattern = new RegExp(
+        `^###\\s+(?:${wikiHeadingLabelsPattern('related')})\\s*$`,
+        'i'
+    )
     let inRelatedDocuments = false
     const filtered = content.split(/\r?\n/).filter((line) => {
         const heading = line.match(/^(#{1,6})\s+(.+?)\s*$/)
         if (heading) {
             if (heading[1].length <= 3) {
                 inRelatedDocuments = heading[1].length === 3
-                    && /^(관련 문서|Related Documents)$/i.test(heading[2].normalize('NFKC').trim())
+                    && isWikiHeadingLabel('related', heading[2])
             }
             return true
         }
@@ -309,7 +314,7 @@ function removeCharacterEventLinksFromRelatedDocuments(
             .toLocaleLowerCase().trim())
     })
     const relatedHeading = filtered.findIndex((line) =>
-        /^###\s+(관련 문서|Related Documents)\s*$/i.test(line))
+        relatedHeadingPattern.test(line))
     if (relatedHeading >= 0) {
         const nextSection = filtered.findIndex((line, index) =>
             index > relatedHeading && /^#{1,3}\s+\S/.test(line))
@@ -852,10 +857,10 @@ export function createMarkdownNarrativeWiki(
     ): Promise<void> => {
         const workspace = workspaceFor(characterId, chatId)
         const documents = await refreshDocuments(characterId, chatId)
-        const indexLanguage = writingLanguage ?? (
-            documents.some((document) => /^###\s+(Story Summary|Story History|Related Documents)\s*$/mi.test(document.content))
-                && !documents.some((document) => /^###\s+이야기 요약\s*$/m.test(document.content))
-                ? 'en' : 'ko'
+        const indexLanguage = normalizeWikiWritingLanguage(
+            writingLanguage
+            ?? documents.map((document) =>
+                detectWikiWritingLanguage(document.content)).find(Boolean)
         )
         const index = [
             '---',
@@ -863,7 +868,7 @@ export function createMarkdownNarrativeWiki(
             'status: active',
             '---',
             '',
-            indexLanguage === 'en' ? '## Narrative Wiki' : '## 서사 위키',
+            `## ${wikiWritingLocales[indexLanguage].indexTitle}`,
             '',
             ...documents.map((item) =>
                 `- [[${item.relativePath.replace(/\.md$/, '')}|${item.title}]]`

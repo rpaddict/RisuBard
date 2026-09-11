@@ -1,13 +1,7 @@
 import type { NarrativeMemoryWikiMarkdown } from './memoryWiki'
+import { isStoryArcTitle } from './wikiWritingLanguage'
 
 type WikiDocument = NarrativeMemoryWikiMarkdown['documents'][number]
-
-const STORY_ARC_TITLES = [
-    '스토리 아크 플롯',
-    'Story Arc Plot',
-    '스토리 아크 지도',
-    'Story Arc Map',
-] as const
 
 const checkpointPattern = /<!--\s*risubard-story-arc-checkpoint:\s*([A-Za-z0-9._:-]{1,200})\s*-->/gu
 const wikiLinkPattern = /\[\[([^\]#|]+)(?:#[^|\]]*)?(?:\|([^\]]+))?\]\]/gu
@@ -31,11 +25,10 @@ function normalizedTitle(value: string): string {
 export function findStoryArcDocument(
     documents: readonly WikiDocument[]
 ): WikiDocument | undefined {
-    const titles = new Set(STORY_ARC_TITLES.map(normalizedTitle))
     return documents.find((document) =>
         document.type === 'other'
         && document.status !== 'retracted'
-        && titles.has(normalizedTitle(document.title)))
+        && isStoryArcTitle(document.title))
 }
 
 function storyArcCheckpoint(content: string): string | undefined {

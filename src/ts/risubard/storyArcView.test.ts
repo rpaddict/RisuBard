@@ -6,6 +6,7 @@ import {
     findStoryArcDocument,
     storyArcDisplayMarkdown,
 } from './storyArcView'
+import { wikiWritingLocales } from './wikiWritingLanguage'
 
 type WikiDocument = NarrativeMemoryWikiMarkdown['documents'][number]
 
@@ -78,6 +79,17 @@ describe('story arc view model', () => {
             document('other.en', 'other', 'Story Arc Plot'),
         ])?.title).toBe('Story Arc Plot')
     })
+
+    it.each(Object.entries(wikiWritingLocales))(
+        'finds the %s plot the wiki writer creates', (locale, definition) => {
+            const plot = document('other.plot', 'other', definition.storyArc.title)
+            expect(findStoryArcDocument([plot])).toBe(plot)
+            expect(findStoryArcDocument([
+                document('other.other', 'other', 'Unrelated note'),
+                plot,
+            ])).toBe(plot)
+        }
+    )
 
     it('extracts unique wiki links and removes wiki markup for display', () => {
         const markdown = '[[출발]] · [[귀환|마지막 귀환]] · [[출발]]'

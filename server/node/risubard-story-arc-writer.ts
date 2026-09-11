@@ -1,4 +1,5 @@
 import {
+    isStoryArcTitle,
     wikiWritingLocales,
     type WikiWritingLanguage,
 } from '../../src/ts/risubard/wikiWritingLanguage'
@@ -13,8 +14,6 @@ export const STORY_ARC_CHECKPOINT_SIZE =
 export const STORY_ARC_MAX_MARKDOWN_CHARACTERS =
     ARC_PLOTTER_DEFAULT_SETTINGS.maxCharacters
 export const STORY_ARC_EVENT_EXCERPT_CHARACTERS = 800
-
-const LEGACY_STORY_ARC_TITLES = ['스토리 아크 지도', 'Story Arc Map'] as const
 
 const checkpointPattern = /<!--\s*risubard-story-arc-checkpoint:\s*([A-Za-z0-9._:-]{1,200})\s*-->/gu
 
@@ -42,19 +41,7 @@ export interface StoryArcUpdatePlan {
     checkpointEventId: string
 }
 
-function normalizedTitle(value: string): string {
-    return value.normalize('NFKC').toLocaleLowerCase().trim()
-}
-
-export function isStoryArcTitle(value: string): boolean {
-    const normalized = normalizedTitle(value)
-    return [
-        ...Object.values(wikiWritingLocales).map((locale) => locale.storyArc.title),
-        ...LEGACY_STORY_ARC_TITLES,
-    ]
-        .some((title) =>
-        normalizedTitle(title) === normalized)
-}
+export { isStoryArcTitle }
 
 export function isStoryArcCandidate(candidate: {
     type: string

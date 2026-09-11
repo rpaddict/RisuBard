@@ -62,6 +62,7 @@ import {
     type RisuBardCanonicalWritingStyle,
 } from '../../src/ts/risubard/risuBardSettings'
 import {
+    isWikiHeadingLabel,
     normalizeWikiWritingLanguage,
     wikiWritingHeadings,
     type WikiWritingLanguage,
@@ -90,7 +91,6 @@ import {
 
 let analysisTokenizer: Tiktoken | undefined
 
-const CHARACTER_CURRENT_STATE_HEADINGS = ['현재 상태', 'Current State'] as const
 const CHARACTER_OVERVIEW_HEADINGS = new Set([
     '개요', 'overview', '프로필', 'profile', '인물 정보', 'character profile',
 ])
@@ -100,9 +100,7 @@ function normalizeNewCharacterCurrentState(
     language: WikiWritingLanguage | undefined,
 ): CanonicalSectionPatch[] {
     if (patches.some((patch) => patch.operation === 'upsert'
-        && CHARACTER_CURRENT_STATE_HEADINGS.some((heading) =>
-            patch.heading.normalize('NFKC').toLocaleLowerCase()
-            === heading.normalize('NFKC').toLocaleLowerCase()))) {
+        && isWikiHeadingLabel('currentState', patch.heading))) {
         return patches
     }
     const overviewIndex = patches.findIndex((patch) =>
@@ -129,10 +127,7 @@ function preserveHistoricalCharacterCurrentState(
         return { patches, preserved: false }
     }
     const filtered = patches.filter((patch) =>
-        !CHARACTER_CURRENT_STATE_HEADINGS.some((heading) =>
-            patch.heading.normalize('NFKC').toLocaleLowerCase().trim()
-            === heading.normalize('NFKC').toLocaleLowerCase()
-        )
+        !isWikiHeadingLabel('currentState', patch.heading)
     )
     return {
         patches: filtered,
@@ -1355,15 +1350,13 @@ export function createMemoryAnalysisRunner(
                                 'For a new document, return every initial section needed to assemble it. Do not return an H1 or H2 title.',
                                 'If an existing target has no verified change after checking the evidence, return an empty sections array so the program skips persistence. A new document must contain at least one section.',
                                 'Use semanticUpdate as a structured coverage checklist, but verify every item against confirmedMessages before applying it.',
-                                snapshot.wikiWritingLanguage === 'en'
-                                    ? 'Prefer a compact self-contained `### Current State` section near the top of character documents when verified current facts benefit from a snapshot. Its absence is not a persistence error and never justifies a structure-only rewrite.'
-                                    : '캐릭터의 확인된 현재 사실을 한눈에 볼 필요가 있으면 문서 상단의 간결한 `### 현재 상태` 절을 권장한다. 이 절이 없어도 저장할 수 있으며, 절을 만들기 위한 구조 보완만 수행하지 않는다.',
+                                `Prefer a compact self-contained \`### ${wikiWritingHeadings[normalizeWikiWritingLanguage(snapshot.wikiWritingLanguage)].currentState}\` section near the top of character documents when verified current facts benefit from a snapshot. Its absence is not a persistence error and never justifies a structure-only rewrite.`,
                                 'Remove superseded facts from current-state sections; retain an old state only as a clearly historical transition when it remains narratively useful.',
                                 'Preserve unrelated established identity facts, relationships, knowledge, goals, possessions, constraints, and unresolved continuity unless confirmedMessages explicitly change them.',
                                 'Apply the stateChanges.after values and relevant persistentFacts, characterKnowledge, and openContinuity to the correct subject document. Do not copy another character\'s facts into this target.',
                                 'Apply only changes supported by the confirmed messages and event.',
                                 snapshot.historicalReanalysis
-                                    ? 'This is a historical correction. Correct history sections, but preserve an existing character Current State section because it may represent later events.'
+                                    ? `This is a historical correction. Correct history sections, but preserve an existing character ${wikiWritingHeadings[normalizeWikiWritingLanguage(snapshot.wikiWritingLanguage)].currentState} section because it may represent later events.`
                                     : '',
                                 hasStoryArcTarget
                                     ? storyArcRewriteInstruction(
