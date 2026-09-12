@@ -33,6 +33,8 @@
     let rootElement: HTMLElement | undefined = $state()
     let documentElement: HTMLElement | undefined = $state()
     let draggedRange: { from: number; to: number } | undefined
+    type DropTarget = { index: number; edge: 'before' | 'after'; insertAt: number }
+    let dropTarget = $state<DropTarget | undefined>()
     const labels = $derived(language.cbsEditor)
     const previewRanges = $derived.by(() => {
         let from = 0
@@ -70,7 +72,6 @@
         })
         return root
     })
-
     $effect(() => {
         const element = documentElement
         const position = scrollTop
@@ -147,11 +148,39 @@
     }
 
     function startBlockDrag(block: Block, event: DragEvent) {
-        if (!allowBlockActions) return
+        if (!allowBlockActions || (event.target instanceof Element && event.target.closest('button'))) {
+            event.preventDefault()
+            return
+        }
         event.stopPropagation()
+        dropTarget = undefined
         draggedRange = blockRange(block)
         event.dataTransfer?.setData('text/plain', documentValue.slice(draggedRange.from, draggedRange.to))
         if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+    }
+
+    function endBlockDrag() {
+        draggedRange = undefined
+        dropTarget = undefined
+    }
+
+    function findDropTarget(block: Block, event: DragEvent): DropTarget | undefined {
+        if (!draggedRange) return
+        const target = blockRange(block)
+        if (target.from >= draggedRange.from && target.to <= draggedRange.to) return
+        const rect = event.currentTarget instanceof HTMLElement
+            ? event.currentTarget.getBoundingClientRect()
+            : { top: 0, height: 0 }
+        const edge = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+        return { index: block.index, edge, insertAt: edge === 'before' ? target.from : target.to }
+    }
+
+    function dragOverBlock(block: Block, event: DragEvent) {
+        if (!draggedRange) return
+        event.preventDefault()
+        event.stopPropagation()
+        dropTarget = findDropTarget(block, event)
+        if (event.dataTransfer) event.dataTransfer.dropEffect = dropTarget ? 'move' : 'none'
     }
 
     function dropBlock(block: Block, event: DragEvent) {
@@ -159,14 +188,10 @@
         event.preventDefault()
         event.stopPropagation()
         const source = draggedRange
-        const target = blockRange(block)
-        draggedRange = undefined
-        if (target.from >= source.from && target.to <= source.to) return
-
-        const rect = event.currentTarget instanceof HTMLElement
-            ? event.currentTarget.getBoundingClientRect()
-            : { top: 0, height: 0 }
-        const insertAt = event.clientY < rect.top + rect.height / 2 ? target.from : target.to
+        const target = findDropTarget(block, event)
+        endBlockDrag()
+        if (!target) return
+        const { insertAt } = target
         const moving = documentValue.slice(source.from, source.to)
         const without = documentValue.slice(0, source.from) + documentValue.slice(source.to)
         const adjustedInsert = insertAt > source.to ? insertAt - (source.to - source.from) : insertAt
@@ -267,11 +292,16 @@
         {@const index = block.index}
         {@const part = view.parts[index]}
         {@const source = documentValue.slice(part.from, part.to)}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
             class="part"
             data-cbs-part-index={index}
             data-cbs-condition-part={part.kind === 'condition' ? '' : undefined}
         >
+            {#if dropTarget?.index === index}
+                <div class="block-drop-indicator" data-cbs-drop-position={dropTarget.edge}
+                    aria-hidden="true"></div>
+            {/if}
             {#if part.kind === 'text'}
                 {#if source.trim() || part.depth > 0 || part.from === part.to}
                     <textarea
@@ -301,13 +331,13 @@
                     class="condition-block"
                     data-cbs-block
                     open
-                    draggable={allowBlockActions}
-                    ondragstart={(event) => startBlockDrag(block, event)}
-                    ondragend={() => draggedRange = undefined}
-                    ondragover={(event) => { if (draggedRange) event.preventDefault() }}
+                    ondragover={(event) => dragOverBlock(block, event)}
                     ondrop={(event) => dropBlock(block, event)}
                 >
-                    <summary class="block-heading" aria-label={summary.text} data-cbs-condition-heading tabindex="-1">
+                    <summary class="block-heading" aria-label={summary.text} data-cbs-condition-heading tabindex="-1"
+                        draggable={allowBlockActions}
+                        ondragstart={(event) => startBlockDrag(block, event)}
+                        ondragend={endBlockDrag}>
                         {#if allowBlockActions}<GripVerticalIcon size={14} class="block-drag-handle" />{/if}
                         <span class="condition-label">{labels.condition}</span>
                         <span class="condition-expression" data-cbs-summary>{@render renderExpression(summary.expression)}</span>
@@ -386,10 +416,14 @@
     .variable-splitter { position: absolute; top: 0; bottom: 0; right: calc(var(--cbs-effective-variable-width) - .25rem); z-index: 2; width: .5rem; padding: 0; border: 0; background: transparent; cursor: col-resize; touch-action: none; }
     .variable-splitter::after { position: absolute; top: calc(50% - 1rem); height: 2rem; left: 3px; border-left: 2px solid var(--color-borderc); content: ''; }
     .variable-splitter:hover, .variable-splitter:focus-visible, .variable-splitter:global([data-resizing]) { background: color-mix(in srgb, var(--color-borderc) 45%, transparent); outline: none; }
-    .part { min-width: 0; }
+    .part { position: relative; min-width: 0; }
+    .block-drop-indicator { position: absolute; left: 0; right: 0; height: 4px; z-index: 5; border-radius: 2px; background: var(--color-primary); box-shadow: 0 0 0 1px var(--color-textcolor), 0 0 8px var(--color-primary); pointer-events: none; }
+    .block-drop-indicator[data-cbs-drop-position='before'] { top: 0; }
+    .block-drop-indicator[data-cbs-drop-position='after'] { bottom: 0; }
+    .block-drop-indicator::before { content: ''; position: absolute; left: 0; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--color-primary); border: 1px solid var(--color-textcolor); }
     .condition-block { margin: .85rem 0; border: 1px solid var(--color-borderc); border-bottom-width: 3px; border-left: 3px solid var(--color-primary); border-radius: .5rem; background: color-mix(in srgb, var(--color-primary) 5%, var(--color-darkbg)); }
-    .condition-block[draggable='true'] { cursor: grab; }
-    .condition-block[draggable='true']:active { cursor: grabbing; }
+    .block-heading[draggable='true'] { cursor: grab; user-select: none; }
+    .block-heading[draggable='true']:active { cursor: grabbing; }
     .block-heading { min-height: 2.75rem; align-items: center; padding: .5rem .75rem; background: color-mix(in srgb, var(--color-primary) 12%, var(--color-darkbg)); border-radius: .35rem; }
     .condition-block[open] > .block-heading { border-bottom: 1px solid var(--color-darkborderc); border-radius: .35rem .35rem 0 0; }
     .block-heading:hover { background: color-mix(in srgb, var(--color-primary) 20%, var(--color-darkbg)); }

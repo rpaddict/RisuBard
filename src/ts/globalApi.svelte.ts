@@ -231,6 +231,11 @@ export let saving = $state({
     state: false
 })
 
+export let externalEditMode = $state({
+    active: false,
+    busy: false,
+})
+
 /**
  * Saves the current state of the database.
  * 
@@ -353,6 +358,12 @@ export function requestImmediateSave(options?: {
     flushServer?: boolean
     rejectOnFailure?: boolean
 }) {
+    if (externalEditMode.active) {
+        if (options?.rejectOnFailure) {
+            return Promise.reject(new Error(language.externalEditModeSavePaused))
+        }
+        return Promise.resolve()
+    }
     return requestImmediateSaveImpl(options)
 }
 
@@ -360,11 +371,47 @@ export function setPatchSyncBaseline(data: Database | null) {
     patchSyncBaseline = data ? safeStructuredClone(data) as Database : null
 }
 
+export async function toggleExternalEditMode() {
+    if (externalEditMode.busy) return
+    const starting = !externalEditMode.active
+    const confirmed = await alertConfirm(starting
+        ? language.externalEditModeStartConfirm
+        : language.externalEditModeFinishConfirm)
+    if (!confirmed) return
+
+    externalEditMode.busy = true
+    try {
+        if (starting) {
+            await requestImmediateSave({ flushServer: true, rejectOnFailure: true })
+            const status = await forageStorage.startExternalEditMode()
+            externalEditMode.active = status.active
+            notifyInfo(language.externalEditModeStarted)
+            return
+        }
+
+        await forageStorage.finishExternalEditMode()
+        try { sessionStorage.setItem('risu-external-edit-reload', '1') } catch {}
+        location.reload()
+    } catch (error) {
+        notifyError(language.externalEditModeFailed, {
+            description: error instanceof Error ? error.message : String(error),
+            source: 'external-edit-mode',
+        })
+    } finally {
+        externalEditMode.busy = false
+    }
+}
+
 export async function saveDb() {
     let changed = false
     let gotChannel = false
     const sessionID = v4()
     let saveInFlight: Promise<void> | null = null
+    try {
+        externalEditMode.active = (await forageStorage.getExternalEditModeStatus()).active
+    } catch {
+        externalEditMode.active = false
+    }
     const knownChatIdsByCharacter = new Map<string, Set<string>>(
         (getDatabase()?.characters ?? [])
             .filter(character => character?.chaId)
@@ -443,6 +490,10 @@ export async function saveDb() {
         if (sessionStorage.getItem('risu-canonical-files-reload')) {
             sessionStorage.removeItem('risu-canonical-files-reload')
             setTimeout(() => notifyInfo(language.canonicalFilesChangedReload), 1500)
+        }
+        if (sessionStorage.getItem('risu-external-edit-reload')) {
+            sessionStorage.removeItem('risu-external-edit-reload')
+            setTimeout(() => notifyInfo(language.externalEditModeReloaded), 1500)
         }
     } catch { /* storage unavailable — skip the notice */ }
 
@@ -548,7 +599,7 @@ export async function saveDb() {
             void triggerSave({
                 skipBroadcast: true,
             })
-            void flushServerDbKeepalive()
+            if (!externalEditMode.active) void flushServerDbKeepalive()
         }
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') flushImmediate();
@@ -1049,6 +1100,10 @@ export async function saveDb() {
                 // Leave saved=false so the full-write path below kicks in.
             } else {
                 const patchResult = await forageStorage.patchItem('database/database.bin', patchData)
+                if (patchResult.externalEditMode) {
+                    externalEditMode.active = true
+                    return 'noop'
+                }
                 if (patchResult.canonicalFilesChanged) {
                     console.warn('[Save] Canonical entity files changed externally; discarding stale in-memory save and reloading')
                     reloadAfterExternalCanonicalChange(patchResult.etag ?? null)
@@ -1080,6 +1135,10 @@ export async function saveDb() {
                 await forageStorage.setItem('database/database.bin', dbData, currentEtag ?? undefined)
             } catch (conflictErr) {
                 if (conflictErr instanceof ConflictError) {
+                    if (conflictErr.externalEditMode) {
+                        externalEditMode.active = true
+                        return 'noop'
+                    }
                     if (conflictErr.canonicalFilesChanged) {
                         console.warn('[Save] Canonical entity files changed externally; discarding stale in-memory save and reloading')
                         reloadAfterExternalCanonicalChange(conflictErr.currentEtag)
@@ -1116,6 +1175,7 @@ export async function saveDb() {
         skipBroadcast?: boolean
         rejectOnFailure?: boolean
     }) {
+        if (externalEditMode.active) return
         if (saveInFlight) {
             return saveInFlight
         }

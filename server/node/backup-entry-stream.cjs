@@ -11,6 +11,7 @@ async function stageBackupEntries(dataSource, options) {
         totalBytes = 0,
         maxNameBytes = 64 * 1024,
         onProgress = null,
+        onStaged = null,
         onEntry,
     } = options;
     if (typeof onEntry !== 'function') throw new Error('Backup entry handler is required');
@@ -21,13 +22,14 @@ async function stageBackupEntries(dataSource, options) {
     let header = Buffer.alloc(0);
     let headerTarget = 4;
     let current = null;
+    const stagedEntries = [];
 
     async function finishEntry() {
         const finished = current;
         current = null;
         await finished.handle.sync();
         await finished.handle.close();
-        await onEntry({
+        stagedEntries.push({
             name: finished.name,
             sourcePath: finished.sourcePath,
             size: finished.size,
@@ -87,6 +89,10 @@ async function stageBackupEntries(dataSource, options) {
 
         if (current || header.length > 0) {
             throw new Error('Backup stream ended with incomplete entry');
+        }
+        if (onStaged) await onStaged({ bytesReceived, entriesCompleted });
+        for (const entry of stagedEntries) {
+            await onEntry(entry);
         }
         return { bytesReceived, entriesCompleted };
     } catch (error) {

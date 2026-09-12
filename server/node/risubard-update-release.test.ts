@@ -1,4 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
@@ -21,6 +24,16 @@ const publicStatsSource = fileURLToPath(
 const updaterDocsSource = fileURLToPath(
     new URL('../../docs/architecture/automatic-updater.md', import.meta.url)
 )
+const releaseWorkflowSource = fileURLToPath(
+    new URL('../../.github/workflows/release.yml', import.meta.url)
+)
+const windowsUpdaterSource = fileURLToPath(
+    new URL('../../scripts/portable/update.bat', import.meta.url)
+)
+const updaterRecoverySource = fileURLToPath(
+    new URL('../../scripts/updater-recovery.cjs', import.meta.url)
+)
+const require = createRequire(import.meta.url)
 const languageSources = ['en.ts', 'ko.ts', 'zh-Hant.ts'].map(name =>
     fileURLToPath(new URL(`../../src/lang/${name}`, import.meta.url))
 )
@@ -61,5 +74,45 @@ describe('RisuBard release updater target', () => {
         ].filter(Boolean)
 
         expect(offenders).toEqual([])
+    })
+
+    test('keeps Windows portable updates recoverable and runtime binaries deterministic', () => {
+        const updater = readFileSync(updaterSource, 'utf8')
+        const workflow = readFileSync(releaseWorkflowSource, 'utf8')
+
+        expect(existsSync(windowsUpdaterSource)).toBe(true)
+        const windowsUpdater = readFileSync(windowsUpdaterSource, 'utf8')
+
+        expect(updater).toContain('    assertNoOtherWindowsRuntimeProcesses();')
+        expect(updater).toContain("process.argv.includes('--rollback')")
+        expect(windowsUpdater).toContain('scripts\\updater.cjs\" --rollback')
+        expect(windowsUpdater).not.toContain('xcopy /E /I /Y \"%~dp0.update-tmp\\new-bin\\*\" \"%~dp0bin\\\" >nul')
+        expect(workflow).toContain('CLOUDFLARED_VERSION=\"2026.9.0\"')
+        expect(workflow).toContain('cp scripts/portable/update.bat portable/update.bat')
+        expect(workflow).toContain('cp scripts/updater-recovery.cjs portable/scripts/updater-recovery.cjs')
+        expect(workflow).not.toContain('cloudflared/releases/latest/download')
+    })
+
+    test('restores interrupted app files without replacing the running update launcher', () => {
+        expect(existsSync(updaterRecoverySource)).toBe(true)
+        const { rollbackInterruptedUpdate } = require(updaterRecoverySource)
+        const root = mkdtempSync(join(tmpdir(), 'risubard-updater-recovery-'))
+
+        try {
+            const backup = join(root, '.update-tmp', 'backup')
+            mkdirSync(backup, { recursive: true })
+            writeFileSync(join(root, 'package.json'), 'new app')
+            writeFileSync(join(root, 'update.bat'), 'new recovery launcher')
+            writeFileSync(join(backup, 'package.json'), 'old app')
+            writeFileSync(join(backup, 'update.bat'), 'old launcher')
+
+            rollbackInterruptedUpdate(root)
+
+            expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe('old app')
+            expect(readFileSync(join(root, 'update.bat'), 'utf8')).toBe('new recovery launcher')
+            expect(existsSync(join(root, '.update-tmp'))).toBe(false)
+        } finally {
+            rmSync(root, { recursive: true, force: true })
+        }
     })
 })

@@ -5,6 +5,10 @@
 import { Unpackr } from 'msgpackr'
 import { decodeBackup } from './decode.js'
 
+const { decodeCanonicalBackupName } = require('../../../server/node/canonical-backup-name.cjs') as {
+  decodeCanonicalBackupName: (name: string) => string | null
+}
+
 // Magic header: \0RISUSAVE\0\x07  (11 bytes, "raw" / no-compression variant)
 const MAGIC_RAW = Buffer.from([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 7])
 // Compressed variant: same prefix but byte 10 = 0x08
@@ -108,7 +112,7 @@ export interface AssetFingerprint {
 export function fingerprintAssets(bin: Buffer): AssetFingerprint[] {
   const { createHash } = require('node:crypto') as typeof import('node:crypto')
   return decodeBackup(bin)
-    .filter(e => e.name !== 'database.risudat' && !e.name.startsWith('risubard-data/'))
+    .filter(e => e.name !== 'database.risudat' && decodeCanonicalBackupName(e.name) === null)
     .map(e => ({
       name: e.name,
       hash: createHash('sha256').update(e.data).digest('hex'),

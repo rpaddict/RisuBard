@@ -11,7 +11,8 @@ const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync, execSync } = require('child_process');
+const { rollbackInterruptedUpdate } = require('./updater-recovery.cjs');
 
 const REPO = 'rpaddict/RisuBard';
 const ROOT = path.resolve(__dirname, '..');
@@ -167,6 +168,37 @@ function restoreBackupIntoRoot(backupDir, overwrite = true) {
     }
 }
 
+function assertNoOtherWindowsRuntimeProcesses() {
+    if (!isWin) return;
+
+    const script = [
+        "$target = [IO.Path]::GetFullPath($env:RISUBARD_RUNTIME_DIR).TrimEnd('\\')",
+        '$selfPid = [int]$env:RISUBARD_UPDATER_PID',
+        "$running = @(Get-Process -Name node,cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $selfPid -and $_.Path -and [IO.Path]::GetFullPath((Split-Path -Parent $_.Path)).TrimEnd('\\') -ieq $target })",
+        "if ($running.Count -gt 0) { $running | ForEach-Object { Write-Output ('{0} (PID {1})' -f $_.Path, $_.Id) }; exit 23 }",
+    ].join('; ');
+
+    try {
+        execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                RISUBARD_RUNTIME_DIR: path.join(ROOT, 'bin'),
+                RISUBARD_UPDATER_PID: String(process.pid),
+            },
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+    } catch (e) {
+        const details = String(e.stdout || '').trim();
+        if (e.status === 23) {
+            throw new Error(
+                `Another RisuBard runtime is still running. Close every RisuBard console and remote-access tunnel, then run update.bat again.${details ? `\n${details}` : ''}`
+            );
+        }
+        throw new Error(`Could not verify that RisuBard is closed. Close it and run update.bat again. (${e.message})`);
+    }
+}
+
 function listFilesRecursive(dir, baseDir = dir, files = []) {
     if (!fs.existsSync(dir)) return files;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -208,6 +240,7 @@ function areDirectoriesEquivalent(a, b) {
 async function main() {
     const current = getCurrentVersion();
     log(`Current version: ${current}`);
+    assertNoOtherWindowsRuntimeProcesses();
     log('Checking for updates...');
 
     const data = await httpsGet(`https://api.github.com/repos/${REPO}/releases/latest`);
@@ -378,4 +411,12 @@ async function main() {
     }
 }
 
-main().catch((e) => error(e.message));
+if (process.argv.includes('--rollback')) {
+    try {
+        rollbackInterruptedUpdate(ROOT, { log });
+    } catch (e) {
+        error(`Automatic rollback failed: ${e.message}`);
+    }
+} else {
+    main().catch((e) => error(e.message));
+}

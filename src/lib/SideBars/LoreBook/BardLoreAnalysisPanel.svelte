@@ -35,6 +35,7 @@
     import { orderLorebookEntriesForDisplay } from 'src/ts/lorebook/workspaceOperations'
     import {
         BardLoreAnalysisBudgetError,
+        BARD_LORE_PARTIAL_RECOVERY_ENABLED,
         applyBardLoreAnalysisDraft,
         auditBardLoreAnalysisDraft,
         auditBardLoreMetadata,
@@ -51,9 +52,11 @@
         finishBardLoreAnalysisRun,
         isBardLoreCompositeEntry,
         parseBardLoreAnalysisResponse,
+        partitionRecoveredBardLoreAnalysisBatch,
         pauseBardLoreAnalysisRun,
         planBardLoreAnalysisBatches,
         retryFailedBardLoreAnalysisBatches,
+        recoverBardLoreAnalysisResponse,
         startBardLoreAnalysisBatch,
         type BardLoreAnalysisPlan,
         type BardLoreAnalysisQualityIssue,
@@ -598,6 +601,7 @@
                 const sourceHashes = new Map(batch.map((entry) => [entry.id, fingerprintBardLoreEntry(entry)]))
                 next = startBardLoreAnalysisBatch(next, batchState.id)
                 saveRun(next)
+                let responseText = ''
                 try {
                     if (batch.length !== batchState.targetIds.length) throw new Error(language.lorebookWorkspace.bardAnalysisMissingEntry)
                     const requestBatch = async (prompt: string, schema = bardLoreAnalysisSchema) => {
@@ -620,7 +624,8 @@
                                 ? response.result
                                 : language.lorebookWorkspace.bardAnalysisRequestFailed)
                         }
-                        return response.result
+                        responseText = response.result
+                        return responseText
                     }
                     const prompt = buildBardLoreAnalysisPrompt(
                         batch,
@@ -672,6 +677,42 @@
                 catch (cause) {
                     if (nextController.signal.aborted) break
                     const message = cause instanceof Error ? cause.message : String(cause)
+                    if (BARD_LORE_PARTIAL_RECOVERY_ENABLED && isJsonProtocolFailure(message) && responseText) {
+                        const recovered = recoverBardLoreAnalysisResponse(responseText, batch, entries, sourceHashes)
+                        const qualityFailedIds = new Set(auditBardLoreAnalysisDraft(
+                            { entries: recovered.completeEntries },
+                            batch,
+                            next.settingsSnapshot,
+                        ).failedEntryIds)
+                        const qualityFailedEntries = recovered.completeEntries.filter((candidate) => qualityFailedIds.has(candidate.id))
+                        const recovery = {
+                            ...recovered,
+                            completeEntries: recovered.completeEntries.filter((candidate) => !qualityFailedIds.has(candidate.id)),
+                            incompleteEntries: [...recovered.incompleteEntries, ...qualityFailedEntries],
+                            recoveredFields: {
+                                ...recovered.recoveredFields,
+                                ...Object.fromEntries(qualityFailedEntries.map((candidate) => [
+                                    candidate.id,
+                                    ['kind', 'activation', 'aliases', 'tags', 'summary', 'facets', 'injection', 'atoms', 'links'],
+                                ])),
+                            },
+                            unresolvedTargetIds: [...new Set([
+                                ...recovered.unresolvedTargetIds,
+                                ...qualityFailedEntries.map((candidate) => candidate.id),
+                            ])],
+                        }
+                        if (recovery.completeEntries.length > 0 || recovery.incompleteEntries.length > 0) {
+                            next = partitionRecoveredBardLoreAnalysisBatch(
+                                next,
+                                batchState.id,
+                                recovery,
+                                message,
+                                createUuid,
+                            )
+                            saveRun(next)
+                            continue
+                        }
+                    }
                     if (isJsonProtocolFailure(message) && batchState.targetIds.length > 1) {
                         const midpoint = Math.ceil(batchState.targetIds.length / 2)
                         const targetGroups = [
@@ -1005,6 +1046,14 @@
                         <article class="failure-card" data-bard-lore-analysis-failure>
                             <div><strong>{language.lorebookWorkspace.bardAnalysisBatchLabel(batch.index + 1)}</strong><span>{validationErrorLabel(batch.error)}</span></div>
                             <small>{language.lorebookWorkspace.bardAnalysisFailureTargets}: {batch.targetIds.map((id) => entries.find((entry) => entry.id === id)?.comment || id).join(', ')}</small>
+                            {#each batch.candidates ?? [] as candidate}
+                                <div class="recovered-preview" data-bard-lore-analysis-recovered={candidate.id}>
+                                    <strong>{entries.find((entry) => entry.id === candidate.id)?.comment || candidate.id}</strong>
+                                    <p>{candidate.summary || language.lorebookWorkspace.bardAnalysisEmptySummary}</p>
+                                    {#if candidate.tags.length > 0}<small>{candidate.tags.join(' · ')}</small>{/if}
+                                    <small>{batch.recoveredFields?.[candidate.id]?.join(' · ')}</small>
+                                </div>
+                            {/each}
                         </article>
                     {/each}
                 </section>
@@ -1240,6 +1289,9 @@
     .failure-card { background: color-mix(in srgb, var(--color-red) 9%, var(--color-darkbg)); }
     .failure-card > div { align-items: flex-start; flex-direction: column; }
     .failure-card span { border-radius: .35rem; background: color-mix(in srgb, var(--color-red) 14%, transparent); color: var(--color-red); }
+    .recovered-preview { display: grid; align-items: start; justify-content: stretch; gap: .25rem; padding: .5rem; border: 1px solid color-mix(in srgb, var(--color-red) 28%, var(--color-darkborderc)); border-radius: .4rem; }
+    .recovered-preview > strong { color: var(--color-red); }
+    .recovered-preview > p { margin: 0; }
     .close-behavior { margin: -.1rem 0 0; color: var(--color-textcolor2); font-size: .7rem; text-align: center; }
     .field { display: grid; gap: .35rem; font-size: .78rem; font-weight: 650; }
     .notice, .status-line { margin: 0; color: var(--color-textcolor2); font-size: .78rem; line-height: 1.5; }

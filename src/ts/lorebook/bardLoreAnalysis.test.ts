@@ -18,7 +18,9 @@ import {
     failBardLoreAnalysisBatch,
     finishBardLoreAnalysisRun,
     parseBardLoreAnalysisResponse,
+    partitionRecoveredBardLoreAnalysisBatch,
     planBardLoreAnalysisBatches,
+    recoverBardLoreAnalysisResponse,
 } from './bardLoreAnalysis'
 import { createBardLoreSettings } from './bardLore'
 
@@ -166,6 +168,90 @@ describe('Bard Lore AI analysis', () => {
         expect(run.languageSnapshot).toBe('en')
         expect(run.batches.map((batch) => batch.status)).toEqual(['complete', 'failed'])
         expect(bardLoreAnalysisDraftFromRun(run).entries).toMatchObject([{ id: 'a', summary: 'saved draft' }])
+    })
+
+    it('recovers complete entries and keeps incomplete entry fields out of approval', () => {
+        const entries = [entry('a'), entry('b')]
+        const response = '{"entries":[' + [
+            JSON.stringify({
+                ref: 0,
+                kind: 'location',
+                activation: 'retrieve',
+                aliases: ['탑'],
+                tags: ['던전'],
+                summary: '완성된 탑 초안',
+                facets: [],
+                injection: 'full',
+                atoms: [],
+                links: [],
+            }),
+            JSON.stringify({
+                ref: 1,
+                kind: 'character',
+                activation: 'keyed',
+                aliases: ['기사'],
+                tags: ['인물'],
+                summary: '링크 필드가 빠진 기사 초안',
+                facets: [],
+                injection: 'full',
+                atoms: [],
+            }),
+        ].join(',')
+
+        const recovery = recoverBardLoreAnalysisResponse(response, entries, entries)
+
+        expect(recovery.completeEntries).toMatchObject([{ id: 'a', summary: '완성된 탑 초안' }])
+        expect(recovery.incompleteEntries).toMatchObject([{ id: 'b', summary: '링크 필드가 빠진 기사 초안' }])
+        expect(recovery.recoveredFields.b).toContain('summary')
+        expect(recovery.recoveredFields.b).not.toContain('links')
+        expect(recovery.unresolvedTargetIds).toEqual(['b'])
+
+        const plan = { totalInputTokens: 60, batches: [{ entries, inputTokens: 60 }] }
+        let serial = 0
+        let run = createBardLoreAnalysisRun(
+            plan,
+            'all',
+            createBardLoreSettings(),
+            () => `id-${serial++}`,
+            () => '2026-09-12T00:00:00.000Z',
+        )
+        run = partitionRecoveredBardLoreAnalysisBatch(
+            run,
+            run.batches[0].id,
+            recovery,
+            'bard-lore-analysis-invalid:invalid-json',
+            () => `recovery-${serial++}`,
+        )
+
+        expect(run.batches.map((batch) => [batch.status, batch.targetIds])).toEqual([
+            ['complete', ['a']],
+            ['failed', ['b']],
+        ])
+        expect(run.batches[1].candidates).toMatchObject([{ id: 'b', summary: '링크 필드가 빠진 기사 초안' }])
+        expect(run.batches[1].recoveredFields).toEqual({ b: expect.arrayContaining(['summary']) })
+        expect(bardLoreAnalysisDraftFromRun(run).entries.map((candidate) => candidate.id)).toEqual(['a'])
+    })
+
+    it('does not recover objects placed after the entries array', () => {
+        const entries = [entry('a'), entry('b')]
+        const complete = (ref: number, summary: string) => ({
+            ref,
+            kind: 'location',
+            activation: 'retrieve',
+            aliases: [],
+            tags: ['장소'],
+            summary,
+            facets: [],
+            injection: 'full',
+            atoms: [],
+            links: [],
+        })
+        const response = `{"entries":[${JSON.stringify(complete(0, '정상 항목'))}],"diagnostic":${JSON.stringify(complete(1, '배열 밖 객체'))}`
+
+        const recovery = recoverBardLoreAnalysisResponse(response, entries, entries)
+
+        expect(recovery.completeEntries.map((candidate) => candidate.id)).toEqual(['a'])
+        expect(recovery.unresolvedTargetIds).toEqual(['b'])
     })
 
     it('uses compact numeric references while preserving full lore text and a catalog-first cache prefix', () => {

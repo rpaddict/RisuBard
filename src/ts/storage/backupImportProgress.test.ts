@@ -13,10 +13,13 @@ describe('local backup restore progress', () => {
 
         expect(storage).toContain("msg.type === 'phase'")
         expect(storage).toContain('onProgress?.(msg.bytes, msg.totalBytes, msg.phase)')
+        expect(read('server/node/server.cjs')).toContain("onStaged: () => onPhase?.('processing')")
+        expect(backupUi).toContain("phase === 'processing'")
         expect(backupUi).toContain("phase === 'validating'")
         expect(backupUi).toContain("phase === 'publishing'")
         expect(backupUi).toContain("phase === 'finalizing'")
         expect(storage).toContain('onProgress?.(msg.bytes, msg.totalBytes, msg.phase)')
+        expect(serverBackupUi).toContain("phase === 'processing'")
         expect(serverBackupUi).toContain("phase === 'validating'")
         expect(serverBackupUi).toContain("phase === 'publishing'")
         expect(serverBackupUi).toContain("phase === 'finalizing'")

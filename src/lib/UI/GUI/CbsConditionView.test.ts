@@ -2,6 +2,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, tick, unmount } from 'svelte'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import CbsConditionView from './CbsConditionView.svelte'
 
 let mounted: ReturnType<typeof mount> | undefined
@@ -14,6 +16,15 @@ afterEach(async () => {
 })
 
 describe('CBS visual condition editor', () => {
+    it('keeps block movement free of line-level drop measurement', () => {
+        const source = readFileSync(resolve(process.cwd(), 'src/lib/UI/GUI/CbsConditionView.svelte'), 'utf8')
+        expect(source).not.toContain('textareaDropLines')
+        expect(source).not.toContain("edge: 'line'")
+        expect(source).not.toContain("edge: 'inside'")
+        expect(source).not.toContain('dragOverDocument')
+        expect(source).not.toContain('dropOnDocument')
+    })
+
     it('encloses nested branches and reveals a collapsed body when focusing a source range', async () => {
         const source = 'Before{{#when::1}}Outer{{#if 1}}Inner{{/if}}{{:else}}Otherwise{{/when}}After'
         const onInput = vi.fn()
@@ -148,14 +159,61 @@ describe('CBS visual condition editor', () => {
         await tick()
 
         const blocks = document.querySelectorAll<HTMLElement>('[data-cbs-block]')
-        expect(blocks[0].getAttribute('draggable')).toBe('true')
-        blocks[0].dispatchEvent(new Event('dragstart', { bubbles: true }))
+        expect(blocks[0].getAttribute('draggable')).not.toBe('true')
+        const heading = blocks[0].querySelector<HTMLElement>('[data-cbs-condition-heading]')!
+        expect(heading.getAttribute('draggable')).toBe('true')
+        heading.dispatchEvent(new Event('dragstart', { bubbles: true }))
+        const over = new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: 1 })
+        blocks[1].dispatchEvent(over)
+        await tick()
+        expect(over.defaultPrevented).toBe(true)
+        expect(blocks[1].parentElement!.querySelector('[data-cbs-drop-position="after"]')).not.toBeNull()
         const drop = new Event('drop', { bubbles: true, cancelable: true })
         Object.defineProperty(drop, 'clientY', { value: 1 })
         blocks[1].dispatchEvent(drop)
         await tick()
 
         expect(onInput).toHaveBeenLastCalledWith('AB{{#if 2}}Two{{/if}}{{#if 1}}One{{/if}}C')
+        expect(document.querySelector('[data-cbs-drop-position]')).toBeNull()
+    })
+
+    it('keeps body text selectable without starting a block move', async () => {
+        const onInput = vi.fn()
+        const onSelectionChange = vi.fn()
+        mounted = mount(CbsConditionView, { target: document.body, props: {
+            value: '{{#if 1}}One{{/if}}{{#if 2}}Two{{/if}}',
+            onInput, onSelectionChange, showVariableSidebar: false, allowBlockActions: true,
+        } })
+        await tick()
+        const fields = document.querySelectorAll<HTMLTextAreaElement>('[data-cbs-body]')
+        const field = [...fields].find(field => field.value === 'One')!
+        expect(field.closest('[draggable="true"]')).toBeNull()
+        field.setSelectionRange(0, 3)
+        field.dispatchEvent(new Event('select'))
+        expect(onSelectionChange).toHaveBeenLastCalledWith({ start: 9, end: 12 })
+        field.dispatchEvent(new Event('dragstart', { bubbles: true }))
+        const target = document.querySelectorAll('[data-cbs-block]')[1]
+        target.dispatchEvent(new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: 1 }))
+        target.dispatchEvent(new MouseEvent('drop', { bubbles: true, cancelable: true, clientY: 1 }))
+        await tick()
+        expect(onInput).not.toHaveBeenCalled()
+        expect(document.querySelector('[data-cbs-drop-position]')).toBeNull()
+    })
+
+    it('does not drop a block into its own descendants', async () => {
+        const onInput = vi.fn()
+        mounted = mount(CbsConditionView, { target: document.body, props: {
+            value: '{{#if 1}}Outer{{#if 2}}Inner{{/if}}Tail{{/if}}',
+            onInput, showVariableSidebar: false, allowBlockActions: true,
+        } })
+        await tick()
+        document.querySelector('[data-cbs-condition-heading]')!.dispatchEvent(new Event('dragstart', { bubbles: true }))
+        const target = document.querySelectorAll('[data-cbs-block]')[1]
+        target.dispatchEvent(new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: 1 }))
+        await tick()
+        expect(document.querySelector('[data-cbs-drop-position]')).toBeNull()
+        target.dispatchEvent(new MouseEvent('drop', { bubbles: true, cancelable: true, clientY: 1 }))
+        expect(onInput).not.toHaveBeenCalled()
     })
 
     it('focuses a visual condition heading when a revealed range is inside its expression', async () => {

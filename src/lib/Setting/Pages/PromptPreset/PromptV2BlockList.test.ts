@@ -44,7 +44,6 @@ describe('Prompt V2 block list actions', () => {
             props: {
                 items,
                 selectedIndex: 0,
-                previewValues: {},
                 onSelect: vi.fn(),
                 onAdd: vi.fn(),
                 onDuplicate: vi.fn(),
@@ -75,8 +74,10 @@ describe('Prompt V2 block list actions', () => {
     })
 
     it('places new and duplicate block actions in the list heading', async () => {
+        let bodyReads = 0
         const items: PromptItem[] = [{
-            type: 'plain', type2: 'normal', role: 'system', name: 'Block', text: 'Body',
+            type: 'plain', type2: 'normal', role: 'system', name: 'Block',
+            get text() { bodyReads++; return 'Body' },
         }]
         const onAdd = vi.fn()
         const onDuplicate = vi.fn()
@@ -85,7 +86,6 @@ describe('Prompt V2 block list actions', () => {
             props: {
                 items,
                 selectedIndex: 0,
-                previewValues: {},
                 onSelect: vi.fn(),
                 onAdd,
                 onDuplicate,
@@ -97,6 +97,7 @@ describe('Prompt V2 block list actions', () => {
         await tick()
 
         const header = document.querySelector('header')!
+        expect(bodyReads).toBe(0)
         const buttons = Array.from(header.querySelectorAll<HTMLButtonElement>('button'))
         buttons.find(button => button.textContent?.includes('새 블록') || button.textContent?.includes('New block'))!.click()
         buttons.find(button => button.textContent?.includes('블록 복제') || button.textContent?.includes('Duplicate block'))!.click()

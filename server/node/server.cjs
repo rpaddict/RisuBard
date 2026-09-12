@@ -39,7 +39,9 @@ const { openServerBrowser } = require('./open-server-browser.cjs');
 const { releaseToUpdateInfo } = require('./release-update.cjs');
 const { createChatContentPage } = require('./chat-content-page.cjs');
 const { stageBackupEntries } = require('./backup-entry-stream.cjs');
+const { encodeCanonicalBackupName, decodeCanonicalBackupName } = require('./canonical-backup-name.cjs');
 const { createCanonicalProjectionSync } = require('./canonical-projection-sync.cjs');
+const { createExternalEditSession } = require('./external-edit-session.cjs');
 const {
     collectDatabaseAssetReferences,
     collectNestedAssetReferences,
@@ -931,6 +933,7 @@ const canonicalProjectionSync = createCanonicalProjectionSync({
         kvSet(CANONICAL_PROJECTION_REVISION_KEY, Buffer.from(`${revision}\n`, 'utf8'))
     },
 })
+let externalEditSession
 let canonicalProjectionReady = existsSync(path.join(savePath, 'index', 'sidebar.json'))
 function persistCanonicalProjection(databaseObject, observationContext = {}) {
     const startedAt = performance.now()
@@ -938,6 +941,11 @@ function persistCanonicalProjection(databaseObject, observationContext = {}) {
     const trigger = observationContext.trigger || 'unspecified'
     let errorStage = 'external-change-check'
     try {
+        if (externalEditSession?.isActive()) {
+            const error = new Error('Canonical projection is paused for external editing')
+            error.code = 'EXTERNAL_EDIT_MODE'
+            throw error
+        }
         if (canonicalProjectionSync.hasExternalChanges()) {
             const error = new Error('Canonical entity files changed outside RisuBard before projection save')
             error.code = 'CANONICAL_FILES_CHANGED'
@@ -986,6 +994,12 @@ function adoptExternallyChangedCanonicalProjection() {
     logger.info('[CanonicalProjection] Adopted externally edited canonical entity files')
     return { etag: dbEtag, revision: changed.revision }
 }
+
+externalEditSession = createExternalEditSession({
+    flush: flushPendingDb,
+    getRevision: () => userDataRepository.getProjectionRevision(),
+    adopt: adoptExternallyChangedCanonicalProjection,
+})
 
 // Server-side backup directory (outside save/ to avoid bloating updater copies).
 // Configurable at runtime via the kv key `config/server-backup-path`. When the
@@ -2124,7 +2138,6 @@ function encodeBackupEntry(name, data) {
     return Buffer.concat([nameLength, encodedName, dataLength, data]);
 }
 
-const CANONICAL_BACKUP_PREFIX = 'risubard-data/';
 const CANONICAL_BACKUP_DIRECTORIES = [
     'settings', 'secrets', 'presets', 'modules', 'personas', 'lorebooks',
     'characters', 'index', 'risubard', 'trash', 'logs', 'request-logs',
@@ -2149,8 +2162,11 @@ async function listCanonicalBackupEntries() {
                 entries.push({
                     kind: 'canonical',
                     sourcePath,
-                    backupName: `${CANONICAL_BACKUP_PREFIX}${portable}`,
-                    sortKey: `${CANONICAL_BACKUP_PREFIX}${portable}`,
+                    // Legacy importers reject unknown slash-delimited namespaces.
+                    // A flat reversible name lets it retain and re-export this
+                    // RisuBard-only file without interpreting it.
+                    backupName: encodeCanonicalBackupName(portable),
+                    sortKey: `risubard-data/${portable}`,
                     size: stat.size,
                 });
             }
@@ -2480,6 +2496,7 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
             totalBytes,
             maxNameBytes: BACKUP_ENTRY_NAME_MAX_BYTES,
             onProgress,
+            onStaged: () => onPhase?.('processing'),
             onEntry: async ({ name, sourcePath }) => {
                 if (seenEntryNames.has(name)) {
                     throw new Error(`Duplicate backup entry: ${name}`);
@@ -2488,11 +2505,12 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
 
                 const inlayRaw = parseInlayBackupName(name);
                 const inlaySidecar = parseInlaySidecarBackupName(name);
+                const canonicalPortable = decodeCanonicalBackupName(name);
 
                 if (name === 'encryption.risudat') {
                     encryptionMetadataPath = sourcePath;
-                } else if (name.startsWith(CANONICAL_BACKUP_PREFIX)) {
-                    const portable = name.slice(CANONICAL_BACKUP_PREFIX.length);
+                } else if (canonicalPortable !== null) {
+                    const portable = canonicalPortable;
                     if (!portable || portable.includes('\\') || portable.startsWith('/')
                         || portable.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
                         throw new Error(`Invalid canonical backup entry name: ${name}`);
@@ -3279,6 +3297,35 @@ app.get('/api/session/lock-status', async (req, res) => {
     res.json({ state: sessionLock.peek(typeof id === 'string' ? id : '') })
 })
 
+app.get('/api/external-edit/status', async (req, res) => {
+    if (!await checkAuth(req, res)) return
+    res.json(externalEditSession.status())
+})
+
+app.post('/api/external-edit/start', async (req, res, next) => {
+    if (!await checkAuth(req, res)) return
+    if (!checkActiveSession(req, res)) return
+    try {
+        await queueStorageOperation(async () => {
+            res.json(await externalEditSession.start())
+        })
+    } catch (error) {
+        next(error)
+    }
+})
+
+app.post('/api/external-edit/finish', async (req, res, next) => {
+    if (!await checkAuth(req, res)) return
+    if (!checkActiveSession(req, res)) return
+    try {
+        await queueStorageOperation(async () => {
+            res.json(await externalEditSession.finish())
+        })
+    } catch (error) {
+        next(error)
+    }
+})
+
 // ── Session cookie issuance (F-0) ──────────────────────────────────────────
 // Called once after JWT auth succeeds. Issues a long-lived cookie so that
 // <img src="/api/asset/..."> requests can be authenticated without JS.
@@ -3570,6 +3617,14 @@ function sendCanonicalProjectionConflict(res, adopted) {
     });
 }
 
+function sendExternalEditModeLocked(res) {
+    res.status(409).send({
+        error: 'Browser saving is paused for external file editing',
+        code: 'EXTERNAL_EDIT_MODE',
+        externalEditMode: true,
+    });
+}
+
 app.get('/api/read', async (req, res, next) => {
     if(!await checkAuth(req, res)){
         return;
@@ -3587,7 +3642,7 @@ app.get('/api/read', async (req, res, next) => {
     try {
         const key = Buffer.from(filePath, 'hex').toString('utf-8');
         // Flush pending patches before reading database.bin
-        if (key === 'database/database.bin') {
+        if (key === 'database/database.bin' && !externalEditSession.isActive()) {
             await flushPendingDb();
         }
         let value = await readStorageItemPayload(key);
@@ -3806,6 +3861,10 @@ app.post('/api/write', async (req, res, next) => {
             const key = Buffer.from(filePath, 'hex').toString('utf-8');
 
             if (key === 'database/database.bin') {
+                if (externalEditSession.isActive()) {
+                    sendExternalEditModeLocked(res);
+                    return;
+                }
                 const adopted = adoptExternallyChangedCanonicalProjection();
                 if (adopted) {
                     sendCanonicalProjectionConflict(res, adopted);
@@ -3983,6 +4042,10 @@ app.post('/api/write', async (req, res, next) => {
 app.post('/api/db/flush', sessionAuthMiddleware, async (req, res, next) => {
     try {
         await queueStorageOperation(async () => {
+            if (externalEditSession.isActive()) {
+                res.send({ success: true, paused: true, etag: dbEtag ?? undefined });
+                return;
+            }
             await flushPendingDb();
             res.send({
                 success: true,
@@ -4022,6 +4085,10 @@ app.post('/api/patch', async (req, res, next) => {
             const decodedKey = Buffer.from(filePath, 'hex').toString('utf-8');
 
             if (decodedKey === 'database/database.bin') {
+                if (externalEditSession.isActive()) {
+                    sendExternalEditModeLocked(res);
+                    return;
+                }
                 const adopted = adoptExternallyChangedCanonicalProjection();
                 if (adopted) {
                     sendCanonicalProjectionConflict(res, adopted);
@@ -4366,11 +4433,10 @@ app.get('/api/backup/export/settings-estimate', async (req, res, next) => {
 app.get('/api/backup/export', async (req, res, next) => {
     if(!await checkAuth(req, res)){ return; }
     try {
-        // ?target=upstream excludes NodeOnly-only inlay namespaces (inlay/,
-        // inlay_sidecar/, inlay_meta/). Their entry names contain a slash,
-        // which upstream RisuAI's import treats as a path under assets/ and
-        // fails with ENOENT. The export becomes lossy on inlay images but
-        // imports cleanly into upstream.
+        // ?target=upstream is the lossy original-RisuAI format: it excludes
+        // inlays plus RisuBard's canonical BardWiki/manuscript files. Ordinary
+        // exports keep those canonical files under reversible flat names, so
+        // Other compatible importers can retain them without understanding them.
         const target = req.query.target === 'upstream' ? 'upstream' : 'nodeonly';
         // ?mode=settings drops characters, chats and inlay images — see
         // buildSettingsOnlyPlan above. &moduleAssets=0 additionally leaves out
@@ -5169,6 +5235,10 @@ app.post('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
     if (!checkActiveSession(req, res)) return;
     try {
         await queueStorageOperation(async () => {
+            if (externalEditSession.isActive()) {
+                sendExternalEditModeLocked(res);
+                return;
+            }
             const chaId = req.params.chaId;
             const chatIndex = parseInt(req.params.chatIndex, 10);
             const expectedChatId = req.headers['x-chat-id'];

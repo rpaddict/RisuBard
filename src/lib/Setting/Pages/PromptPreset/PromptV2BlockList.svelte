@@ -15,17 +15,14 @@
     import type { PromptItem } from 'src/ts/process/prompt'
     import {
         countPromptV2BodyMatches,
-        evaluatePromptV2Activation,
         getPromptV2TextSource,
         parsePromptV2Text,
     } from 'src/ts/promptV2'
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
-    import { findTextareaMatch } from 'src/ts/gui/textareaSearch'
 
     let {
         items,
         selectedIndex,
-        previewValues,
         onSelect,
         onAdd,
         onDuplicate,
@@ -37,7 +34,6 @@
     }: {
         items: PromptItem[]
         selectedIndex: number
-        previewValues: Record<string, string>
         onSelect: (index: number) => void
         onAdd: () => void
         onDuplicate: () => void
@@ -50,15 +46,15 @@
 
     let search = $state('')
     let replacement = $state('')
-    const canFind = $derived(!!items[selectedIndex]
-        && !!findTextareaMatch(blockState(items[selectedIndex]).body, search))
-    const selectedMatchCount = $derived(items[selectedIndex]
+    const hasSearch = $derived(search.trim().length > 0)
+    const selectedMatchCount = $derived(hasSearch && items[selectedIndex]
         ? countPromptV2BodyMatches(items[selectedIndex], search)
         : 0)
-    const totalMatchCount = $derived(items.reduce(
+    const canFind = $derived(selectedMatchCount > 0)
+    const totalMatchCount = $derived(hasSearch ? items.reduce(
         (total, item) => total + countPromptV2BodyMatches(item, search),
         0,
-    ))
+    ) : 0)
 
     function blockName(item: PromptItem): string {
         if (item.name?.trim()) return item.name.trim()
@@ -77,18 +73,9 @@
         return item.type
     }
 
-    function blockState(item: PromptItem) {
+    function blockBody(item: PromptItem) {
         const text = getPromptV2TextSource(item)
-        if (!text) return { label: language.promptV2.always, tone: 'neutral', body: '' }
-        const parsed = parsePromptV2Text(text.source)
-        if (!parsed.editable) return { label: language.promptV2.manual, tone: 'manual', body: parsed.body }
-        if (!parsed.activation) return { label: language.promptV2.always, tone: 'neutral', body: parsed.body }
-        const active = evaluatePromptV2Activation(parsed.activation, previewValues)
-        return {
-            label: active ? language.promptV2.active : language.promptV2.inactive,
-            tone: active ? 'active' : 'inactive',
-            body: parsed.body,
-        }
+        return text ? parsePromptV2Text(text.source).body : ''
     }
 
     const visibleItems = $derived.by(() => {
@@ -98,13 +85,13 @@
                 item,
                 index,
                 name: blockName(item),
-                state: blockState(item),
-                matchCount: countPromptV2BodyMatches(item, search),
+                body: query ? blockBody(item) : '',
+                matchCount: query ? countPromptV2BodyMatches(item, search) : 0,
             }))
-            .filter(({ name, item, state }) => !query
+            .filter(({ name, item, body }) => !query
                 || name.toLocaleLowerCase().includes(query)
                 || item.type.toLocaleLowerCase().includes(query)
-                || state.body.toLocaleLowerCase().includes(query))
+                || body.toLocaleLowerCase().includes(query))
     })
 </script>
 
@@ -192,9 +179,9 @@
         </div>
     </header>
 
-    <div class="min-h-0 grow overflow-y-auto p-2" role="listbox" aria-label={language.promptV2.blockList}>
+    <div class="min-h-0 grow overflow-y-auto p-[.35rem]" role="listbox" aria-label={language.promptV2.blockList}>
         {#if visibleItems.length > 0}
-            <div class="flex flex-col gap-1.5">
+            <div class="flex flex-col">
                 {#each visibleItems as row (row.item)}
                     <button
                         type="button"
@@ -204,29 +191,16 @@
                         role="option"
                         onclick={() => onSelect(row.index)}
                     >
-                        <div class="min-w-0 grow">
-                            <div class="flex items-center gap-2">
-                                <span class="truncate text-sm font-medium">{row.name}</span>
-                                <span class="state-badge state-badge--{row.state.tone}">{row.state.label}</span>
-                                {#if row.matchCount > 0}
-                                    <span class="match-badge">{language.promptV2.matchCount(row.matchCount)}</span>
-                                {/if}
-                            </div>
-                            <div class="mt-1 flex items-center gap-2 text-[11px] text-textcolor2">
-                                <span class="uppercase tracking-wide">{row.item.type}</span>
-                                {#if row.state.body}
-                                    <span aria-hidden="true">·</span>
-                                    <span
-                                        class="prompt-preview-text truncate"
-                                        class:prompt-preview-text--active={row.state.tone === 'active'}
-                                        class:prompt-preview-text--inactive={row.state.tone === 'inactive'}
-                                    >{row.state.body.replace(/\s+/g, ' ').trim()}</span>
-                                {/if}
-                            </div>
+                        <div class="flex min-w-0 grow items-center gap-2">
+                            <span class="truncate" title={row.name}>{row.name}</span>
+                            {#if row.matchCount > 0}
+                                <span class="match-badge">{language.promptV2.matchCount(row.matchCount)}</span>
+                            {/if}
                         </div>
                         <div class="row-actions flex shrink-0 items-center gap-0.5">
                             <ShButton
                                 size="icon-xs"
+                                className="size-6"
                                 variant="ghost"
                                 disabled={row.index === 0}
                                 onclick={(event) => { event.stopPropagation(); onMove(row.index, -1) }}
@@ -235,6 +209,7 @@
                             ><ArrowUpIcon /></ShButton>
                             <ShButton
                                 size="icon-xs"
+                                className="size-6"
                                 variant="ghost"
                                 disabled={row.index === items.length - 1}
                                 onclick={(event) => { event.stopPropagation(); onMove(row.index, 1) }}
@@ -243,6 +218,7 @@
                             ><ArrowDownIcon /></ShButton>
                             <ShButton
                                 size="icon-xs"
+                                className="size-6"
                                 variant="ghost"
                                 onclick={(event) => { event.stopPropagation(); onRemove(row.index) }}
                                 title={language.promptV2.deleteBlock}
@@ -265,50 +241,28 @@
     .prompt-v2-list-row {
         display: flex;
         width: 100%;
-        min-height: 4rem;
         align-items: center;
         gap: .5rem;
-        border: 1px solid transparent;
-        border-radius: .65rem;
-        padding: .65rem .55rem .65rem .75rem;
+        border-radius: .45rem;
+        padding: .55rem .6rem;
         text-align: left;
-        transition: background-color 160ms ease, border-color 160ms ease;
+        transition: background-color 160ms ease;
     }
 
-    .prompt-v2-list-row:hover {
-        border-color: var(--color-darkborderc);
-        background: color-mix(in srgb, var(--color-selected) 28%, transparent);
+    .prompt-v2-list-row:hover,
+    .prompt-v2-list-row--selected {
+        background: color-mix(in srgb, var(--color-selected) 34%, transparent);
     }
 
     .prompt-v2-list-row:focus-visible {
-        border-color: var(--color-borderc);
         outline: 2px solid color-mix(in srgb, var(--color-borderc) 50%, transparent);
         outline-offset: 1px;
-    }
-
-    .prompt-v2-list-row--selected {
-        border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-darkborderc));
-        background: color-mix(in srgb, var(--color-primary) 11%, transparent);
     }
 
     .row-actions { opacity: .5; }
     .prompt-v2-list-row:hover .row-actions,
     .prompt-v2-list-row:focus-within .row-actions,
     .prompt-v2-list-row--selected .row-actions { opacity: 1; }
-
-    .state-badge {
-        flex-shrink: 0;
-        border: 1px solid var(--color-darkborderc);
-        border-radius: 999px;
-        padding: .08rem .42rem;
-        font-size: .64rem;
-        line-height: 1.25;
-        color: var(--color-textcolor2);
-        background: var(--color-darkbutton);
-    }
-    .state-badge--active { border-color: var(--color-success-border); color: var(--color-success); background: var(--color-success-bg); }
-    .state-badge--inactive { opacity: .72; }
-    .state-badge--manual { border-color: var(--color-warning-border); color: var(--color-warning); background: var(--color-warning-bg); }
 
     .replacement-row {
         display: grid;
@@ -327,7 +281,4 @@
     .match-count { min-width: 1.05rem; padding: .08rem .28rem; text-align: center; }
     .match-badge { padding: .08rem .38rem; }
 
-    .prompt-preview-text { transition: color 160ms ease, opacity 160ms ease; }
-    .prompt-preview-text--active { color: var(--color-info); opacity: 1; }
-    .prompt-preview-text--inactive { color: var(--color-textcolor2); opacity: .42; }
 </style>

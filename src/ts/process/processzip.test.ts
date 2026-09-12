@@ -84,4 +84,19 @@ describe('CharXImporter asset persistence', () => {
         expect(Object.keys(importer.assets)).toHaveLength(728)
     }, 30_000)
 
+    it('imports animation assets larger than 50 MiB', async () => {
+        const animation = new Uint8Array(64 * 1024 * 1024)
+        const archive = fflate.zipSync({
+            'card.json': new TextEncoder().encode('{}'),
+            'assets/animation.webp': animation,
+        }, { level: 6 })
+        const importer = new CharXImporter()
+
+        await importer.parse(archive)
+        await importer.done()
+
+        expect(importer.excludedFiles).not.toContain('assets/animation.webp')
+        expect(importer.assets['assets/animation.webp']).toBe('single-write')
+    }, 30_000)
+
 })

@@ -178,6 +178,29 @@ describe('createRequestLogScope', () => {
         expect(entry.status).toBe(429)
     })
 
+    it('records request metadata when an SDK calls fetch with a Request object', async () => {
+        const scope = createRequestLogScope({ category: 'llm', source: 'main' })
+        const wrapped = scope.wrap(async () => jsonResponse('{}'))
+        const request = new Request('https://api.example.com/v1/chat', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-sdk': 'true' },
+            body: '{"messages":[{"role":"user","content":"hello"}]}',
+        })
+
+        await (await wrapped(request)).text()
+        await scope.close()
+
+        const [entry] = posted[0]
+        expect(entry.url).toBe('https://api.example.com/v1/chat')
+        expect(entry.method).toBe('POST')
+        expect(JSON.parse(entry.requestHeaders)).toMatchObject({
+            'content-type': 'application/json',
+            'x-sdk': 'true',
+        })
+        expect(entry.requestBody).toBe('{"messages":[{"role":"user","content":"hello"}]}')
+        expect(request.bodyUsed).toBe(false)
+    })
+
     it('records a safe provider error summary for failed JSON responses', async () => {
         const scope = createRequestLogScope({ category: 'llm', source: 'memory' })
         const wrapped = scope.wrap(async () => jsonResponse(JSON.stringify({

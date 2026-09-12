@@ -4,16 +4,28 @@
   interface Props {
     onClick?: any;
     additionalStyle?: string | Promise<string>;
+    ariaLabel?: string;
+    title?: string;
+    pressed?: boolean;
+    disabled?: boolean;
     children?: import('svelte').Snippet;
   }
 
-  let { onClick = () => {}, additionalStyle = "", children }: Props = $props();
+  let {
+    onClick = () => {},
+    additionalStyle = "",
+    ariaLabel,
+    title,
+    pressed,
+    disabled = false,
+    children,
+  }: Props = $props();
 </script>
 
 {#await additionalStyle}
-  <button onclick={onClick} class="ico">{@render children?.()}</button>
+  <button onclick={onClick} class="ico" class:active={pressed} {disabled} aria-label={ariaLabel} aria-pressed={pressed} {title}>{@render children?.()}</button>
 {:then as}
-  <button onclick={onClick} class="ico" style={as}>{@render children?.()}</button>
+  <button onclick={onClick} class="ico" class:active={pressed} {disabled} aria-label={ariaLabel} aria-pressed={pressed} {title} style={as}>{@render children?.()}</button>
 {/await}
 
 <style>
@@ -42,5 +54,15 @@
 
   .ico:hover {
     background-color: var(--risu-theme-primary);
+  }
+
+  .ico.active {
+    background-color: var(--color-warning);
+    color: var(--color-on-warning);
+  }
+
+  .ico:disabled {
+    cursor: wait;
+    opacity: 0.65;
   }
 </style>

@@ -1765,9 +1765,9 @@ export const languageKorean = {
   translationResponseSize: "번역 응답 크기",
   webdeeplwarn: "이 옵션은 웹에서는 제대로 작동하지 않을 수 있습니다.",
   saveBackupLocal: "로컬 백업 저장",
-  saveBackupForUpstream: "원본 리스용 백업 내보내기",
+  saveBackupForUpstream: "원본 RisuAI용 호환 백업 내보내기",
   saveBackupForUpstreamConfirm:
-    "이 백업은 원본 RisuAI(웹·Tauri)로 데이터를 옮기기 위한 용도입니다. 인레이 이미지는 entry 이름 형식이 원본 RisuAI 임포트와 호환되지 않아 제외됩니다. 그 외 데이터(데이터베이스, 캐릭터 에셋, 콜드 스토리지)는 포함됩니다.\n\n포켓리스 사이의 데이터 이동에는 일반 로컬 백업을 사용하세요.\n\n계속하시겠습니까?",
+    "이 백업은 원본 RisuAI(웹·Tauri)로 데이터를 옮기기 위한 용도입니다. 인레이 이미지와 BardWiki·원고 같은 RisuBard 전용 파일은 제외됩니다. 그 외 데이터(데이터베이스, 캐릭터 에셋, 콜드 스토리지)는 포함됩니다.\n\nPocketRisu(포켓리스) 또는 다른 RisuBard 설치본으로 옮길 때는 일반 전체 백업을 사용하세요.\n\n계속하시겠습니까?",
   loadBackupLocal: "로컬 백업 불러오기",
   topP: "Top P",
   genTimes: "생성 횟수",
@@ -1953,6 +1953,18 @@ export const languageKorean = {
     "다른 기기에서 사용되어 최신 상태로 새로고침했어요.",
   canonicalFilesChangedReload:
     "외부 파일 편집을 감지해 더 최신인 파일을 유지하고 새로고침했어요.",
+  externalEditModeStart: "외부 파일 편집 시작",
+  externalEditModeFinish: "외부 편집 종료 및 다시 불러오기",
+  externalEditModeStartConfirm:
+    "현재 변경 사항을 저장한 뒤 브라우저 저장을 일시 중지합니다. 외부 편집을 마칠 때까지 RisuBard에서 내용을 편집하거나 생성하지 마세요.\n\n외부 파일 편집을 시작할까요?",
+  externalEditModeFinishConfirm:
+    "외부에서 수정한 파일을 검증한 뒤 다시 불러옵니다. 잘못된 파일이 있으면 수정할 수 있도록 저장 중지 상태를 유지합니다.\n\n외부 편집을 종료하고 다시 불러올까요?",
+  externalEditModeStarted:
+    "브라우저 저장을 일시 중지했습니다. 작업이 끝나면 모래시계 버튼을 다시 누르세요.",
+  externalEditModeReloaded:
+    "외부 파일 편집을 종료하고 최신 파일을 다시 불러왔어요.",
+  externalEditModeFailed: "외부 편집 모드를 변경하지 못했습니다.",
+  externalEditModeSavePaused: "외부 파일 편집을 위해 브라우저 저장이 일시 중지되어 있습니다.",
   addCharacter: "캐릭터 추가",
   importFromRealm: "RisuRealm에서 고르기",
   importFromRealmDesc:

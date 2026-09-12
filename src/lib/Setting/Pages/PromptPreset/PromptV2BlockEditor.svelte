@@ -70,6 +70,7 @@
     let bodyField: HTMLTextAreaElement | undefined = $state()
     let bodyFieldFocused = $state(false)
     let nameField: HTMLInputElement | undefined = $state()
+    let visualBodyElement: HTMLElement | undefined = $state()
     let visualBodyField: { focusSelection: (start: number, end: number) => void } | undefined = $state()
     let editorMode = $state<PromptV2EditorMode>(loadPromptV2EditorMode())
     let activationDialogOpen = $state(false)
@@ -334,8 +335,32 @@
         }
     }
 
+    type BodyScrollPosition = { top: number; ratio?: number }
+
+    function captureBodyScroll(element: HTMLElement | undefined): BodyScrollPosition {
+        const top = element?.scrollTop ?? currentScrollTop
+        if (!element) return { top }
+        const maximum = element.scrollHeight - element.clientHeight
+        return maximum > 0 ? { top, ratio: Math.max(0, Math.min(1, top / maximum)) } : { top }
+    }
+
+    function restoreBodyScroll(element: HTMLElement | undefined, position: BodyScrollPosition) {
+        if (!element) return
+        const maximum = element.scrollHeight - element.clientHeight
+        const top = position.ratio !== undefined && maximum > 0
+            ? position.ratio * maximum
+            : position.top
+        element.scrollTop = top
+        currentScrollTop = top
+        if (bodyPreviewElement) bodyPreviewElement.scrollTop = top
+        onScrollTopChange(top)
+    }
+
     async function setEditorMode(mode: PromptV2EditorMode) {
         if (mode === editorMode) return
+        const scrollPosition = captureBodyScroll(editorMode === 'source'
+            ? bodyField
+            : visualBodyElement?.querySelector<HTMLElement>('[data-cbs-document]'))
         if (bodyField) bodySelection = { start: bodyField.selectionStart, end: bodyField.selectionEnd }
         if (editorMode === 'visual') flushPendingText()
         editorMode = mode
@@ -347,6 +372,9 @@
         } else {
             visualBodyField?.focusSelection(bodySelection.start, bodySelection.end)
         }
+        restoreBodyScroll(mode === 'source'
+            ? bodyField
+            : visualBodyElement?.querySelector<HTMLElement>('[data-cbs-document]'), scrollPosition)
     }
 
     function updateBodySelection(selection?: { start: number; end: number }) {
@@ -814,7 +842,7 @@
                         </div>
                     </ShDialog>
                     {#if editorMode === 'visual'}
-                        <div class="prompt-body-visual" use:persistElementHeight={'prompt-v2-body'}>
+                        <div class="prompt-body-visual" bind:this={visualBodyElement} use:persistElementHeight={'prompt-v2-body'}>
                             <CbsConditionView
                                 bind:this={visualBodyField}
                                 value={parsedText.body}

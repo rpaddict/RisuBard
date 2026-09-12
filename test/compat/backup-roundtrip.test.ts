@@ -17,6 +17,11 @@ import { normalizeBackup, fingerprintAssets } from './helpers/normalize.js'
 import { encodeBackup } from './helpers/encode.js'
 import { decodeBackup } from './helpers/decode.js'
 
+const { encodeCanonicalBackupName, decodeCanonicalBackupName } = require('../../server/node/canonical-backup-name.cjs') as {
+  encodeCanonicalBackupName: (portablePath: string) => string
+  decodeCanonicalBackupName: (name: string) => string | null
+}
+
 // Track servers so we can clean them all up even if a test fails.
 const servers: ServerHandle[] = []
 afterAll(async () => {
@@ -168,12 +173,12 @@ describe('canonical file-tree round-trip', () => {
 
     const full = await sourceClient.exportBackup()
     const fullNames = decodeBackup(full).map(entry => entry.name)
-    expect(fullNames).toContain(`risubard-data/${wikiRelative.split(path.sep).join('/')}`)
-    expect(fullNames).toContain('risubard-data/index/sidebar.json')
+    expect(fullNames).toContain(encodeCanonicalBackupName(wikiRelative.split(path.sep).join('/')))
+    expect(fullNames).toContain(encodeCanonicalBackupName('index/sidebar.json'))
     expect(fullNames.some(name => name.endsWith('.sha256'))).toBe(false)
 
     const upstream = Buffer.from(await (await sourceClient.fetch('/api/backup/export?target=upstream')).arrayBuffer())
-    expect(decodeBackup(upstream).some(entry => entry.name.startsWith('risubard-data/'))).toBe(false)
+    expect(decodeBackup(upstream).some(entry => decodeCanonicalBackupName(entry.name) !== null)).toBe(false)
 
     const destination = await spawnServer()
     servers.push(destination)
@@ -300,7 +305,7 @@ describe('content-type compatibility', () => {
 
 type NdjsonEvent =
   | { type: 'progress'; bytes: number; totalBytes: number }
-  | { type: 'phase'; phase: 'validating' | 'publishing' | 'finalizing' }
+  | { type: 'phase'; phase: 'processing' | 'validating' | 'publishing' | 'finalizing' }
   | { type: 'heartbeat' }
   | { type: 'done'; ok: boolean; assetsRestored?: number; coldStorageFailed?: number }
   | { type: 'error'; message: string }
@@ -511,6 +516,7 @@ describe('ndjson streaming import', () => {
     const ndjson = await importViaNdjson(client, seed)
     expect(ndjson.done?.ok).toBe(true)
     expect(ndjson.phases.map(event => event.phase)).toEqual([
+      'processing',
       'validating',
       'publishing',
       'finalizing',

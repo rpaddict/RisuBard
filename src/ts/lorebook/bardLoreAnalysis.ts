@@ -33,6 +33,16 @@ export interface BardLoreAnalysisDraft {
     entries: BardLoreAnalysisCandidate[]
 }
 
+export interface BardLoreAnalysisRecovery {
+    completeEntries: BardLoreAnalysisCandidate[]
+    incompleteEntries: BardLoreAnalysisCandidate[]
+    recoveredFields: Record<string, string[]>
+    unresolvedTargetIds: string[]
+}
+
+// Operational rollback: set this to false to restore the previous all-or-nothing batch path.
+export const BARD_LORE_PARTIAL_RECOVERY_ENABLED = true
+
 export interface BardLoreAnalysisApplyResult {
     entries: BardLoreEntry[]
     appliedIds: string[]
@@ -514,6 +524,7 @@ export function completeBardLoreAnalysisBatch(
         ...batch,
         status: 'complete',
         candidates: safeStructuredClone(candidates),
+        recoveredFields: undefined,
         error: undefined,
     }))
 }
@@ -552,7 +563,7 @@ export function retryFailedBardLoreAnalysisBatches(run: BardLoreAnalysisRun): Ba
         status: 'running',
         updatedAt: new Date().toISOString(),
         batches: run.batches.map((batch) => batch.status === 'failed'
-            ? { ...safeStructuredClone(batch), status: 'pending', error: undefined }
+            ? { ...safeStructuredClone(batch), status: 'pending', candidates: undefined, recoveredFields: undefined, error: undefined }
             : safeStructuredClone(batch)),
     }
 }
@@ -824,6 +835,208 @@ export function parseBardLoreAnalysisResponse(
     }
     if (seen.size !== expected.size || [...expected.keys()].some((ref) => ref === undefined || !seen.has(ref))) return invalid('missing-targets')
     return { entries: candidates }
+}
+
+const recoverableResponseFields = [
+    'kind', 'activation', 'aliases', 'tags', 'summary', 'facets', 'injection', 'atoms', 'links',
+] as const
+
+function extractResponseEntryValues(response: string): unknown[] {
+    const parsed = parseResponseJson(response)
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as Record<string, unknown>).entries)) {
+        return (parsed as { entries: unknown[] }).entries
+    }
+    const match = /"entries"\s*:\s*\[/.exec(response)
+    if (!match) return []
+    const values: unknown[] = []
+    let start = -1
+    let depth = 0
+    let arrayDepth = 1
+    let quoted = false
+    let escaped = false
+    for (let index = match.index + match[0].length; index < response.length; index += 1) {
+        const character = response[index]
+        if (quoted) {
+            if (escaped) escaped = false
+            else if (character === '\\') escaped = true
+            else if (character === '"') quoted = false
+            continue
+        }
+        if (character === '"') {
+            quoted = true
+            continue
+        }
+        if (character === '[') {
+            arrayDepth += 1
+            continue
+        }
+        if (character === ']') {
+            arrayDepth -= 1
+            if (arrayDepth === 0 && depth === 0) break
+            continue
+        }
+        if (character === '{') {
+            if (depth === 0) start = index
+            depth += 1
+            continue
+        }
+        if (character !== '}' || depth === 0) continue
+        depth -= 1
+        if (depth !== 0 || start < 0) continue
+        try {
+            values.push(JSON.parse(response.slice(start, index + 1)))
+        }
+        catch {}
+        start = -1
+    }
+    return values
+}
+
+function fallbackResponseEntry(entry: BardLoreEntry, ref: number, catalog: BardLoreEntry[]): Record<string, unknown> {
+    const refs = new Map(catalog.map((candidate, index) => [candidate.id, index]))
+    return {
+        ref,
+        kind: entry.bard.kind,
+        activation: entry.bard.activation === 'never' ? 'retrieve' : entry.bard.activation,
+        aliases: entry.bard.aliases,
+        tags: entry.bard.tags,
+        summary: entry.bard.summary,
+        facets: entry.bard.facets,
+        injection: entry.bard.injection,
+        atoms: [],
+        links: entry.bard.links.flatMap((link) => {
+            const targetRef = refs.get(link.targetId)
+            return targetRef === undefined ? [] : [{
+                targetRef,
+                relation: link.relation,
+                retrieval: link.retrieval,
+            }]
+        }),
+    }
+}
+
+export function recoverBardLoreAnalysisResponse(
+    response: string,
+    expectedEntries: BardLoreEntry[],
+    catalog: BardLoreEntry[],
+    sourceHashes: Map<string, string> = new Map(
+        expectedEntries.map((entry) => [entry.id, fingerprintBardLoreEntry(entry)]),
+    ),
+): BardLoreAnalysisRecovery {
+    const catalogByRef = new Map(catalog.map((entry, ref) => [ref, entry]))
+    const expectedIds = new Set(expectedEntries.map((entry) => entry.id))
+    const completeById = new Map<string, BardLoreAnalysisCandidate>()
+    const incompleteById = new Map<string, BardLoreAnalysisCandidate>()
+    const recoveredFields: Record<string, string[]> = {}
+
+    for (const value of extractResponseEntryValues(response)) {
+        if (!value || typeof value !== 'object') continue
+        const item = value as Record<string, unknown>
+        if (typeof item.ref !== 'number' || !Number.isInteger(item.ref)) continue
+        const entry = catalogByRef.get(item.ref)
+        if (!entry || !expectedIds.has(entry.id) || completeById.has(entry.id)) continue
+        try {
+            const parsed = parseBardLoreAnalysisResponse(
+                JSON.stringify({ entries: [item] }),
+                [entry],
+                catalog,
+                sourceHashes,
+            ).entries[0]
+            completeById.set(entry.id, parsed)
+            incompleteById.delete(entry.id)
+            delete recoveredFields[entry.id]
+            continue
+        }
+        catch {}
+
+        let normalized = fallbackResponseEntry(entry, item.ref, catalog)
+        const fields: string[] = []
+        for (const field of recoverableResponseFields) {
+            if (!Object.prototype.hasOwnProperty.call(item, field)) continue
+            const trial = { ...normalized, [field]: item[field] }
+            try {
+                parseBardLoreAnalysisResponse(
+                    JSON.stringify({ entries: [trial] }),
+                    [entry],
+                    catalog,
+                    sourceHashes,
+                )
+                normalized = trial
+                fields.push(field)
+            }
+            catch {}
+        }
+        const candidate = parseBardLoreAnalysisResponse(
+            JSON.stringify({ entries: [normalized] }),
+            [entry],
+            catalog,
+            sourceHashes,
+        ).entries[0]
+        incompleteById.set(entry.id, candidate)
+        recoveredFields[entry.id] = fields
+    }
+
+    const completeEntries = expectedEntries.flatMap((entry) => {
+        const candidate = completeById.get(entry.id)
+        return candidate ? [candidate] : []
+    })
+    const incompleteEntries = expectedEntries.flatMap((entry) => {
+        const candidate = incompleteById.get(entry.id)
+        return candidate ? [candidate] : []
+    })
+    return {
+        completeEntries,
+        incompleteEntries,
+        recoveredFields,
+        unresolvedTargetIds: expectedEntries
+            .filter((entry) => !completeById.has(entry.id))
+            .map((entry) => entry.id),
+    }
+}
+
+export function partitionRecoveredBardLoreAnalysisBatch(
+    run: BardLoreAnalysisRun,
+    batchId: string,
+    recovery: BardLoreAnalysisRecovery,
+    error: string,
+    createId: () => string,
+): BardLoreAnalysisRun {
+    const source = run.batches.find((batch) => batch.id === batchId)
+    if (!source) return safeStructuredClone(run)
+    const completeIds = new Set(recovery.completeEntries.map((candidate) => candidate.id))
+    const unresolvedIds = source.targetIds.filter((id) => !completeIds.has(id))
+    const replacements: BardLoreAnalysisBatch[] = []
+    if (completeIds.size > 0) {
+        replacements.push({
+            ...safeStructuredClone(source),
+            targetIds: source.targetIds.filter((id) => completeIds.has(id)),
+            estimatedInputTokens: Math.ceil(source.estimatedInputTokens * completeIds.size / source.targetIds.length),
+            status: 'complete',
+            candidates: safeStructuredClone(recovery.completeEntries),
+            recoveredFields: undefined,
+            error: undefined,
+        })
+    }
+    if (unresolvedIds.length > 0) {
+        replacements.push({
+            ...safeStructuredClone(source),
+            id: completeIds.size > 0 ? createId() : source.id,
+            targetIds: unresolvedIds,
+            estimatedInputTokens: Math.ceil(source.estimatedInputTokens * unresolvedIds.length / source.targetIds.length),
+            status: 'failed',
+            candidates: safeStructuredClone(recovery.incompleteEntries.filter((candidate) => unresolvedIds.includes(candidate.id))),
+            recoveredFields: Object.fromEntries(unresolvedIds.flatMap((id) =>
+                recovery.recoveredFields[id] ? [[id, recovery.recoveredFields[id]]] : []
+            )),
+            error,
+        })
+    }
+    return {
+        ...safeStructuredClone(run),
+        updatedAt: new Date().toISOString(),
+        batches: run.batches.flatMap((batch) => batch.id === batchId ? replacements : [safeStructuredClone(batch)])
+            .map((batch, index) => ({ ...batch, index })),
+    }
 }
 
 function mergeLinks(current: BardLoreLink[], proposed: BardLoreLink[]): BardLoreLink[] {

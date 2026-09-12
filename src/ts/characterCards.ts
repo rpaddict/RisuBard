@@ -26,6 +26,7 @@ import { normalizeBardLoreOwnerState, type BardLoreState } from './lorebook/bard
 const EXTERNAL_HUB_URL = 'https://sv.risuai.xyz';
 const NIGHTLY_HUB_URL = 'https://nightly.sv.risuai.xyz'
 export const hubURL = '/hub-proxy';
+const MAX_EMBEDDED_ASSET_BASE64_LENGTH = Math.ceil(100 * 1024 * 1024 * 4 / 3)
 
 function formatImportBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`
@@ -850,7 +851,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
                 else if(data.assets[i].uri.startsWith('data:')){
                     //data uri
                     const b64 = data.assets[i].uri.split(',')[1]
-                    if(b64.length < 50 * 1024 * 1024){
+                    if(b64.length < MAX_EMBEDDED_ASSET_BASE64_LENGTH){
                         imgp = await saveAsset(Buffer.from(b64, 'base64'))
                     }
                     else{

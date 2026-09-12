@@ -17,6 +17,10 @@ const legacyTokens = [
             'README.md',
             'patchnote/0.8.14-arca.txt',
             'patchnote/0.9.3-arca.txt',
+            'patchnote/0.9.31.md',
+            'src/lang/en.ts',
+            'src/lang/ko.ts',
+            'src/lang/zh-Hant.ts',
         ]),
     },
 ]
@@ -37,6 +41,20 @@ function ownedFiles(): string[] {
 }
 
 describe('brand boundary', () => {
+    test('keeps the legacy product name in backup compatibility guidance', () => {
+        const legacyProductName = ['Pocket', 'Risu'].join('')
+        const compatibilityGuides = [
+            'patchnote/0.9.31.md',
+            'src/lang/en.ts',
+            'src/lang/ko.ts',
+            'src/lang/zh-Hant.ts',
+        ]
+
+        for (const path of compatibilityGuides) {
+            expect(readFileSync(path, 'utf8')).toContain(legacyProductName)
+        }
+    })
+
     test('owned paths and UTF-8 text contain no legacy brand tokens', () => {
         const violations: string[] = []
 

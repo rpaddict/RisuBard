@@ -7,7 +7,7 @@ import { hubURL } from "../characterCards";
 import { AssetImportBatcher } from "../storage/assetImportBatcher";
 
 // File size and chunk size constants
-const MAX_ASSET_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+const MAX_ASSET_SIZE_BYTES = 100 * 1024 * 1024; // 100 MiB
 const CHUNK_SIZE_BYTES = 1024 * 1024; // 1MB
 
 // HTTP status code ranges
@@ -350,7 +350,7 @@ export class CharXImporter{
         const assetIndex = file.name
         this.discoveredEntries += 1
         this.importProgress?.({ phase: 'scanning', completed: this.discoveredEntries })
-        // Only process files smaller than MAX_ASSET_SIZE_BYTES (50MB)
+        // Only process files smaller than MAX_ASSET_SIZE_BYTES (100 MiB)
         if((file.originalSize ?? 0) < MAX_ASSET_SIZE_BYTES){
             this.assetBuffers[assetIndex] = new AppendableBuffer()
             this.openFiles += 1

@@ -78,6 +78,59 @@ afterEach(async () => {
 })
 
 describe('RisuBardWikiEditor', () => {
+    it('filters the file tree on submit and selects the first matching text in the editor', async () => {
+        mounted = mount(RisuBardWikiEditor, {
+            target: document.body,
+            props: { characterId: 'character', chatId: 'chat', documents },
+        })
+        await tick()
+
+        const input = document.querySelector<HTMLInputElement>(
+            '[data-wiki-search-input]'
+        )!
+        input.value = '승리했다'
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        document.querySelector<HTMLFormElement>('[data-wiki-search-form]')!
+            .dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }))
+
+        await vi.waitFor(() => expect(
+            [...document.querySelectorAll('.file-select .document-title')]
+                .map((node) => node.textContent)
+        ).toEqual(['전투']))
+        const editor = document.querySelector<HTMLTextAreaElement>('[aria-label="Markdown"]')!
+        const matchStart = editor.value.indexOf('승리했다')
+        expect(editor.selectionStart).toBe(matchStart)
+        expect(editor.selectionEnd).toBe(matchStart + '승리했다'.length)
+    })
+
+    it('keeps health labels in the sidebar footer and highlights every preview match', async () => {
+        mounted = mount(RisuBardWikiEditor, {
+            target: document.body,
+            props: {
+                characterId: 'character', chatId: 'chat',
+                documents: [{
+                    ...documents[1],
+                    content: '# 승리 기록\n\n승리했다. 다시 승리했다.',
+                }],
+            },
+        })
+        await tick()
+
+        const fileTree = document.querySelector('[data-wiki-file-tree]')!
+        const health = document.querySelector('[data-wiki-health]')!
+        expect(fileTree.lastElementChild).toBe(health)
+
+        const input = document.querySelector<HTMLInputElement>('[data-wiki-search-input]')!
+        input.value = '승리했다'
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        document.querySelector<HTMLButtonElement>('[data-wiki-search-submit]')!.click()
+        await tick()
+        document.querySelector<HTMLInputElement>('[data-wiki-markdown-toggle]')!.click()
+        await tick()
+
+        expect(document.querySelectorAll('[data-wiki-search-highlight]')).toHaveLength(2)
+    })
+
     it('uses an explicit BARDCHAT update set instead of older automatic badges', async () => {
         mounted = mount(RisuBardWikiEditor, {
             target: document.body,

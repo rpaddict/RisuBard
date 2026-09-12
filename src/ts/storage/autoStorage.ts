@@ -71,6 +71,21 @@ export class AutoStorage{
         return this.realStorage.getWriterLockState()
     }
 
+    async getExternalEditModeStatus() {
+        await this.Init()
+        return this.realStorage.getExternalEditModeStatus()
+    }
+
+    async startExternalEditMode() {
+        await this.Init()
+        return this.realStorage.startExternalEditMode()
+    }
+
+    async finishExternalEditMode() {
+        await this.Init()
+        return this.realStorage.finishExternalEditMode()
+    }
+
     /** Get the last known ETag for database.bin */
     getDbEtag(): string | null {
         return this.realStorage._lastDbEtag

@@ -608,6 +608,78 @@ describe('BardLoreAnalysisPanel', () => {
         expect(document.body.querySelector('[data-bard-lore-analysis-draft="second"]')).not.toBeNull()
     })
 
+    it('keeps recovered entries and retries only incomplete targets', async () => {
+        const second = structuredClone(source)
+        second.id = 'second'
+        second.key = '기사'
+        second.comment = '불완전한 기사'
+        second.content = '도시의 기사'
+        second.bard.sourceLegacyId = 'second'
+        const partialResponse = '{"entries":[' + [
+            JSON.stringify({
+                ref: 0,
+                kind: 'location',
+                activation: 'retrieve',
+                aliases: [],
+                tags: ['장소'],
+                summary: '회수된 탑.',
+                links: [],
+            }),
+            JSON.stringify({
+                ref: 1,
+                kind: 'character',
+                activation: 'keyed',
+                aliases: ['기사'],
+                tags: ['인물'],
+                summary: '회수된 불완전 초안.',
+            }),
+        ].join(',')
+        requestChatData
+            .mockResolvedValueOnce({ type: 'success', result: partialResponse })
+            .mockResolvedValueOnce({
+                type: 'success',
+                result: JSON.stringify({
+                    entries: [{
+                        ref: 1,
+                        kind: 'character',
+                        activation: 'keyed',
+                        aliases: ['기사'],
+                        tags: ['인물'],
+                        summary: '완성된 기사 초안.',
+                        links: [],
+                    }],
+                }),
+            })
+        const onAnalysisRunChange = vi.fn()
+        mounted = mount(BardLoreAnalysisPanel, {
+            target: document.body.appendChild(document.createElement('div')),
+            props: {
+                entries: [source, second],
+                settings: createBardLoreSettings({ analysisBatchEntries: 2 }),
+                onChange: vi.fn(),
+                onAnalysisRunChange,
+            },
+        })
+
+        await tick()
+        document.body.querySelector<HTMLButtonElement>('[data-bard-lore-analysis-open]')!.click()
+        await vi.waitFor(() => expect(document.body.querySelector('[data-bard-lore-analysis-plan]')).not.toBeNull())
+        document.body.querySelector<HTMLButtonElement>('[data-bard-lore-analyze]')!.click()
+        await vi.waitFor(() => expect(requestChatData).toHaveBeenCalledOnce())
+        await vi.waitFor(() => expect(document.body.querySelector('[data-bard-lore-analysis-failure]')).not.toBeNull())
+
+        expect(document.body.querySelector('[data-bard-lore-analysis-name="source"]')?.classList.contains('complete')).toBe(true)
+        expect(document.body.querySelector('[data-bard-lore-analysis-name="second"]')?.classList.contains('failed')).toBe(true)
+        expect(document.body.querySelector('[data-bard-lore-analysis-recovered="second"]')?.textContent)
+            .toContain('회수된 불완전 초안')
+
+        document.body.querySelector<HTMLButtonElement>('[data-bard-lore-analysis-retry]')!.click()
+        await vi.waitFor(() => expect(requestChatData).toHaveBeenCalledTimes(2))
+        const retryTargets = JSON.parse(requestChatData.mock.calls[1][0].formated[0].content.split('\n').at(-1)).targets
+        expect(retryTargets.map(({ ref }: { ref: number }) => ref)).toEqual([1])
+        await vi.waitFor(() => expect(document.body.querySelector('[data-bard-lore-analysis-name="second"]')?.classList.contains('complete')).toBe(true))
+    })
+
     it('regenerates one invalid atomic singleton with a smaller response contract', async () => {
         requestChatData
             .mockResolvedValueOnce({ type: 'success', result: '{invalid' })

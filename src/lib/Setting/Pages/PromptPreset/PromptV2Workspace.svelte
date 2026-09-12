@@ -331,7 +331,6 @@
                     <PromptV2BlockList
                         items={promptItems}
                         {selectedIndex}
-                        {previewValues}
                         onSelect={selectBlock}
                         onAdd={addBlock}
                         onDuplicate={duplicateBlock}

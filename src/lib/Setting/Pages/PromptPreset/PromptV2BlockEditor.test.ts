@@ -113,6 +113,47 @@ describe('Prompt V2 block visual editor', () => {
         expect(onScrollTopChange).toHaveBeenLastCalledWith(164)
     })
 
+    it('preserves the relative text position when switching between source and visual modes', async () => {
+        vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockReturnValue(1000)
+        vi.spyOn(HTMLTextAreaElement.prototype, 'clientHeight', 'get').mockReturnValue(200)
+        vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function () {
+            return this.hasAttribute('data-cbs-document') ? 1800 : 0
+        })
+        vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function () {
+            return this.hasAttribute('data-cbs-document') ? 200 : 0
+        })
+        const item: PromptItem = {
+            type: 'plain', type2: 'normal', role: 'system', name: 'Block',
+            text: Array.from({ length: 80 }, (_, index) => `Line ${index}`).join('\n'),
+        }
+        mounted = mount(PromptV2BlockEditor, {
+            target: document.body,
+            props: {
+                item,
+                definitions: [],
+                previewValues: {},
+                onReplace: vi.fn(),
+                onOpenToggleSetup: vi.fn(),
+            },
+        })
+        await tick()
+
+        const source = document.querySelector<HTMLTextAreaElement>('.prompt-body-field')!
+        source.scrollTop = 400
+        source.dispatchEvent(new Event('scroll'))
+        document.querySelectorAll<HTMLButtonElement>('.editor-mode-tabs button')[1].click()
+        await tick()
+
+        const visual = document.querySelector<HTMLElement>('[data-cbs-document]')!
+        await vi.waitFor(() => expect(visual.scrollTop).toBe(800))
+        visual.scrollTop = 1200
+        visual.dispatchEvent(new Event('scroll'))
+        document.querySelectorAll<HTMLButtonElement>('.editor-mode-tabs button')[0].click()
+        await tick()
+
+        await vi.waitFor(() => expect(document.querySelector<HTMLTextAreaElement>('.prompt-body-field')!.scrollTop).toBe(600))
+    })
+
     it('debounces visual body commits and flushes the latest text on blur', async () => {
         vi.useFakeTimers()
         const item: PromptItem = {

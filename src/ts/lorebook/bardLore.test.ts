@@ -443,6 +443,50 @@ describe('upgradeLegacyLorebook', () => {
         expect(withoutBadRun?.analysisRun).toBeUndefined()
     })
 
+    it('preserves recovered field diagnostics for an incomplete persisted analysis batch', () => {
+        const state = upgradeLegacyLorebook([lore({ id: 'entry' })], () => 'unused', settings)
+        state.analysisRun = {
+            schemaVersion: 1,
+            id: 'partial-run',
+            scope: 'all',
+            targetIds: ['entry'],
+            createdAt: '2026-09-12T00:00:00.000Z',
+            updatedAt: '2026-09-12T00:00:00.000Z',
+            status: 'failed',
+            settingsSnapshot: settings,
+            overwriteExisting: false,
+            batches: [{
+                id: 'partial-batch',
+                index: 0,
+                targetIds: ['entry'],
+                estimatedInputTokens: 40,
+                status: 'failed',
+                error: 'bard-lore-analysis-invalid:invalid-json',
+                recoveredFields: { entry: ['kind', 'summary', 'tags'] },
+                candidates: [{
+                    id: 'entry',
+                    sourceHash: 'source-hash',
+                    kind: 'character',
+                    activation: 'retrieve',
+                    aliases: [],
+                    tags: ['인물'],
+                    summary: '회수된 초안',
+                    facets: [],
+                    injection: 'full',
+                    links: [],
+                    atoms: [],
+                }],
+            }],
+        }
+
+        const normalized = normalizeBardLoreState(state)
+
+        expect(normalized?.analysisRun?.batches[0].recoveredFields).toEqual({
+            entry: ['kind', 'summary', 'tags'],
+        })
+        expect(normalized?.analysisRun?.batches[0].candidates?.[0].summary).toBe('회수된 초안')
+    })
+
     it('falls back from non-finite saved settings instead of propagating them', () => {
         const normalized = createBardLoreSettings({
             contextMessages: Number.NaN,

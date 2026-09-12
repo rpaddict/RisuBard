@@ -138,6 +138,16 @@ function bodyToString(body: unknown): string | undefined {
     }
 }
 
+async function requestBodyToString(request: Request | undefined, reqInit?: RequestInit): Promise<string | undefined> {
+    if (reqInit && 'body' in reqInit) return bodyToString(reqInit.body)
+    if (!request || request.method === 'GET' || request.method === 'HEAD') return undefined
+    try {
+        return stripInlineMedia(await request.clone().text())
+    } catch {
+        return undefined
+    }
+}
+
 function providerErrorSummary(body: string): string | undefined {
     try {
         const parsed = JSON.parse(body) as unknown
@@ -409,7 +419,10 @@ export function createRequestLogScope(init: RequestLogScopeInit): RequestLogScop
 
     const wrap = (base: typeof fetch): typeof fetch => {
         return (async (input: RequestInfo | URL, reqInit?: RequestInit): Promise<Response> => {
-            const url = typeof input === 'string' ? input : input.toString()
+            const inputRequest = typeof Request !== 'undefined' && input instanceof Request
+                ? input
+                : undefined
+            const url = inputRequest?.url ?? (typeof input === 'string' ? input : input.toString())
             const started = Date.now()
             const entry: PendingEntry = {
                 timestamp: started,
@@ -422,13 +435,13 @@ export function createRequestLogScope(init: RequestLogScopeInit): RequestLogScop
                 model: init.model,
                 provider: init.provider,
                 url,
-                method: reqInit?.method ?? 'POST',
+                method: reqInit?.method ?? inputRequest?.method ?? 'POST',
                 success: false,
                 route: init.route,
                 streaming: init.streaming,
                 injectionManifest: entries.length === 0 ? injectionManifest : undefined,
-                requestHeaders: headersToString(reqInit?.headers),
-                requestBody: bodyToString(reqInit?.body),
+                requestHeaders: headersToString(reqInit?.headers ?? inputRequest?.headers),
+                requestBody: await requestBodyToString(inputRequest, reqInit),
                 clientId: getClientId(),
             }
             entries.push(entry)
@@ -476,7 +489,7 @@ export function createRequestLogScope(init: RequestLogScopeInit): RequestLogScop
             // drained continuously — an unread branch applies backpressure and
             // would stall the caller's branch.
             const [forCaller, forLog] = response.body.tee()
-            settling.push(assemble(forLog, entry, started, reqInit?.signal ?? undefined))
+            settling.push(assemble(forLog, entry, started, reqInit?.signal ?? inputRequest?.signal))
             return new Response(forCaller, {
                 status: response.status,
                 statusText: response.statusText,

@@ -332,6 +332,10 @@ export function LoadLocalBackup(){
             input.remove();
             alertWait(`Loading local Backup... (Uploading ${file.name})`);
             const result = await forageStorage.importBackup(file, (loaded, total, phase) => {
+                if (phase === 'processing') {
+                    alertWait('Loading local Backup... (Processing backup entries)')
+                    return
+                }
                 if (phase === 'validating') {
                     alertWait('Loading local Backup... (Validating backup)')
                     return

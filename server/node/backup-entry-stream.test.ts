@@ -92,10 +92,38 @@ describe('disk-backed backup entry streaming', () => {
         expect(entries[1]).not.toHaveProperty('data')
     })
 
+    it('finishes receiving the backup before processing staged entries', async () => {
+        const { stageBackupEntries } = require('./backup-entry-stream.cjs')
+        const stagingDir = tempRoot()
+        const encoded = Buffer.concat([
+            encodeEntry('large-animation.webp', Buffer.alloc(1024 * 1024, 0x5a)),
+            encodeEntry('database.risudat', Buffer.from('db')),
+        ])
+        let sourceFullyRead = false
+        const source = (async function* () {
+            yield* chunks(encoded, [4096])
+            sourceFullyRead = true
+        })()
+        const processingStartedAfterUpload: boolean[] = []
+
+        await stageBackupEntries(source, {
+            stagingDir,
+            maxNameBytes: 1024,
+            onEntry: async () => {
+                processingStartedAfterUpload.push(sourceFullyRead)
+            },
+        })
+
+        expect(processingStartedAfterUpload).toEqual([true, true])
+    })
+
     it('rejects truncated bodies without publishing a complete entry', async () => {
         const { stageBackupEntries } = require('./backup-entry-stream.cjs')
         const stagingDir = tempRoot()
-        const encoded = encodeEntry('asset.bin', Buffer.from('complete-body'))
+        const encoded = Buffer.concat([
+            encodeEntry('complete.bin', Buffer.from('complete-body')),
+            encodeEntry('truncated.bin', Buffer.from('truncated-body')),
+        ])
         const entries: unknown[] = []
 
         await expect(stageBackupEntries(chunks(encoded.subarray(0, -1), [3]), {

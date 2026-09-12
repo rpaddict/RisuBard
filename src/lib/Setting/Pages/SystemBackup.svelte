@@ -92,15 +92,6 @@
     </div>
     <p class="text-textcolor2 text-sm leading-relaxed mb-4">{language.migrationDesc}</p>
 
-    <div class="flex flex-col gap-2">
-        <Button onclick={downloadForUpstream} className="w-full">
-            {language.saveBackupForUpstream}
-        </Button>
-        <Button onclick={restoreFromLocalFile} className="w-full">
-            {language.migrationLoadUpstreamBackup}
-        </Button>
-    </div>
-
     <div class="mt-4">
         <ShAccordion name={language.migrationSaveFolderAccordion} variant="card">
             <p class="text-textcolor2 text-sm leading-relaxed mb-3">{language.migrationSaveFolderDesc}</p>
@@ -119,6 +110,7 @@
         <ShAccordion name={language.migrationLegacyAccordion} variant="card">
             <p class="text-textcolor2 text-sm leading-relaxed mb-3">{language.migrationLegacyDesc}</p>
             <div class="flex flex-col gap-2">
+                <Button onclick={downloadForUpstream} className="w-full">{language.saveBackupForUpstream}</Button>
                 <Button onclick={downloadPartial} className="w-full">{language.savePartialLocalBackup}</Button>
                 <Button onclick={exportAsDataset} className="w-full">{language.exportAsDataset}</Button>
             </div>

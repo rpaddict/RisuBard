@@ -4,6 +4,22 @@ import { describe, expect, test } from 'vitest'
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 describe('Prompt V2 workspace contract', () => {
+    test('keeps the block list title-only and as compact as the wiki editor', () => {
+        const list = read('./PromptV2BlockList.svelte')
+
+        expect(list).not.toContain('prompt-preview-text')
+        expect(list).not.toContain('state-badge')
+        expect(list).not.toContain('min-height: 4rem')
+        expect(list).not.toContain('gap-1.5')
+        expect(list).toContain('padding: .55rem .6rem')
+        expect(list).toContain('{row.name}</span>')
+        expect(list).toContain('body.toLocaleLowerCase().includes(query)')
+        expect(list).toContain("body: query ? blockBody(item) : ''")
+        expect(list).not.toContain('evaluatePromptV2Activation')
+        expect(list).toContain('onMove(row.index, -1)')
+        expect(list).toContain('onRemove(row.index)')
+    })
+
     test('is inserted immediately after the legacy Prompt tab without replacing it', () => {
         const settings = read('../PromptPresetSettings.svelte')
 
@@ -31,6 +47,8 @@ describe('Prompt V2 workspace contract', () => {
         const preview = read('./PromptV2TogglePreview.svelte')
 
         expect(workspace).toContain('data-prompt-v2-workspace')
+        expect(workspace).not.toContain('PromptV2RetainedPane')
+        expect(workspace).toContain("{#if mode === 'prompts'}")
         expect(workspace).toContain('data-prompt-v2-block-list')
         expect(workspace).toContain('data-prompt-v2-editor')
         expect(workspace).toContain('data-prompt-v2-toggle-preview')

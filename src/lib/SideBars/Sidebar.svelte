@@ -62,6 +62,7 @@
     import QuickSettingsGui from "../Others/QuickSettingsGUI.svelte";
   import PluginDefinedIcon from "../Others/PluginDefinedIcon.svelte";
   import CharacterVaultDialog from "./CharacterVaultDialog.svelte";
+  import ExternalEditModeButton from './ExternalEditModeButton.svelte';
   import ShButton from "../UI/GUI/ShButton.svelte";
   import ShDialog from "../UI/GUI/ShDialog.svelte";
   import SolarBoldIcon from '../UI/Icons/SolarBoldIcon.svelte';
@@ -847,6 +848,9 @@
           >
         {/each}
       {/if}
+      <div class="mt-2 h-px w-10 bg-selected shrink-0"></div>
+      <div class="mt-2"></div>
+      <ExternalEditModeButton />
     </div>
     {/if}
   </div>
@@ -1317,6 +1321,9 @@
           >
         {/each}
       {/if}
+      <div class="mt-2 h-px w-10 bg-selected shrink-0"></div>
+      <div class="mt-2"></div>
+      <ExternalEditModeButton />
     </div>
     {/if}
   </div>

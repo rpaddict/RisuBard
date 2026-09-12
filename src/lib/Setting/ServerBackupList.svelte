@@ -49,6 +49,10 @@
         alertWait(language.serverBackupRestoring);
         try {
             const result = await forageStorage.restoreServerBackup(backup.filename, (bytes, totalBytes, phase) => {
+                if (phase === 'processing') {
+                    alertWait(`${language.serverBackupRestoring} (Processing backup entries)`);
+                    return;
+                }
                 if (phase === 'validating') {
                     alertWait(`${language.serverBackupRestoring} (Validating backup)`);
                     return;

@@ -40,11 +40,18 @@ function isUserActive(): boolean {
 export class ConflictError extends Error {
     currentEtag: string | null
     canonicalFilesChanged: boolean
-    constructor(message: string, currentEtag: string | null, canonicalFilesChanged = false) {
+    externalEditMode: boolean
+    constructor(
+        message: string,
+        currentEtag: string | null,
+        canonicalFilesChanged = false,
+        externalEditMode = false,
+    ) {
         super(message)
         this.name = 'ConflictError'
         this.currentEtag = currentEtag
         this.canonicalFilesChanged = canonicalFilesChanged
+        this.externalEditMode = externalEditMode
     }
 }
 
@@ -65,6 +72,15 @@ export interface PatchItemResult {
     chatGuardRejected?: boolean
     /** Set when file-native canonical entities changed outside RisuBard. */
     canonicalFilesChanged?: boolean
+    /** Set while browser persistence is paused for external canonical-file editing. */
+    externalEditMode?: boolean
+}
+
+export interface ExternalEditModeStatus {
+    active: boolean
+    baselineRevision?: string | null
+    adopted?: boolean
+    revision?: string | null
 }
 
 export interface ExportBackupOptions {
@@ -87,7 +103,7 @@ export interface SettingsBackupEstimate {
     moduleAssets: { count: number, bytes: number, moduleCount: number }
 }
 
-export type BackupImportPhase = 'validating' | 'publishing' | 'finalizing'
+export type BackupImportPhase = 'processing' | 'validating' | 'publishing' | 'finalizing'
 
 export class NodeStorage{
     private static readonly BULK_WRITE_CLIENT_BATCH = 200
@@ -269,6 +285,7 @@ export class NodeStorage{
                 data.error,
                 data.currentEtag ?? null,
                 isCanonicalFilesChangedResponse(data),
+                data.code === 'EXTERNAL_EDIT_MODE' || data.externalEditMode === true,
             )
         }
         if(da.status < 200 || da.status >= 300){
@@ -350,6 +367,7 @@ export class NodeStorage{
                 data.error,
                 data.currentEtag ?? null,
                 isCanonicalFilesChangedResponse(data),
+                data.code === 'EXTERNAL_EDIT_MODE' || data.externalEditMode === true,
             )
         }
         if(da.status < 200 || da.status >= 300){
@@ -427,6 +445,27 @@ export class NodeStorage{
         }
     }
 
+    private async externalEditRequest(path: string, method: 'GET' | 'POST'): Promise<ExternalEditModeStatus> {
+        const response = await this.authFetch(path, { method })
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}))
+            throw new Error(data?.error || `External edit request failed (${response.status})`)
+        }
+        return await response.json()
+    }
+
+    async getExternalEditModeStatus(): Promise<ExternalEditModeStatus> {
+        return await this.externalEditRequest('/api/external-edit/status', 'GET')
+    }
+
+    async startExternalEditMode(): Promise<ExternalEditModeStatus> {
+        return await this.externalEditRequest('/api/external-edit/start', 'POST')
+    }
+
+    async finishExternalEditMode(): Promise<ExternalEditModeStatus> {
+        return await this.externalEditRequest('/api/external-edit/finish', 'POST')
+    }
+
     async patchItem(key: string, patchData: { patch: any[], expectedHash: string }): Promise<PatchItemResult> {
         const da = await this.authFetch('/api/patch', {
             method: "POST",
@@ -454,6 +493,7 @@ export class NodeStorage{
                 etag: currentEtag,
                 chatGuardRejected: rejectedByChatGuard,
                 canonicalFilesChanged: isCanonicalFilesChangedResponse(data),
+                externalEditMode: data.code === 'EXTERNAL_EDIT_MODE' || data.externalEditMode === true,
             }
         }
         if (da.status < 200 || da.status >= 300) {

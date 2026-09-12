@@ -85,6 +85,7 @@ export interface BardLoreAnalysisBatch {
     estimatedInputTokens: number
     status: 'pending' | 'running' | 'complete' | 'failed'
     candidates?: BardLoreAnalysisCandidate[]
+    recoveredFields?: Record<string, string[]>
     error?: string
 }
 
@@ -488,6 +489,15 @@ function normalizeBardLoreAnalysisRun(
             || !['pending', 'running', 'complete', 'failed'].includes(batch.status as string)
             || (batch.error !== undefined && typeof batch.error !== 'string')
         ) return undefined
+        let recoveredFields: Record<string, string[]> | undefined
+        if (batch.recoveredFields !== undefined) {
+            if (!batch.recoveredFields || typeof batch.recoveredFields !== 'object' || Array.isArray(batch.recoveredFields)) return undefined
+            recoveredFields = {}
+            for (const [id, fields] of Object.entries(batch.recoveredFields as Record<string, unknown>)) {
+                if (!batch.targetIds.includes(id) || !Array.isArray(fields) || !fields.every((field) => typeof field === 'string')) return undefined
+                recoveredFields[id] = cleanStrings(fields as string[])
+            }
+        }
         let candidates: BardLoreAnalysisCandidate[] | undefined
         if (batch.candidates !== undefined) {
             if (!Array.isArray(batch.candidates)) return undefined
@@ -606,6 +616,7 @@ function normalizeBardLoreAnalysisRun(
             estimatedInputTokens: Math.max(0, Math.floor(batch.estimatedInputTokens)),
             status: batch.status === 'running' ? 'pending' : batch.status as BardLoreAnalysisBatch['status'],
             ...(candidates ? { candidates } : {}),
+            ...(recoveredFields ? { recoveredFields } : {}),
             ...(batch.error ? { error: batch.error as string } : {}),
         })
     }
@@ -793,10 +804,17 @@ function reconcileAnalysisRun(
                 } : {}),
             }]
         })
+        const recoveredFields = batch.recoveredFields
+            ? Object.fromEntries(Object.entries(batch.recoveredFields).flatMap(([id, fields]) => {
+                const mappedId = mapId(id)
+                return batchTargets.has(mappedId) ? [[mappedId, safeStructuredClone(fields)]] : []
+            }))
+            : undefined
         return [{
             ...safeStructuredClone(batch),
             targetIds: batchTargetIds,
             ...(candidates ? { candidates } : {}),
+            ...(recoveredFields ? { recoveredFields } : {}),
         }]
     })
     return {
