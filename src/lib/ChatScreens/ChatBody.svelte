@@ -100,9 +100,10 @@
                     }, 10)
 
                     // State change of `translated` triggers markParsing again,
-                    // causing redundant translation attempts
+                    // causing redundant translation attempts. Return the raw
+                    // message so the {#await} block never resolves undefined.
                     if (lastTranslated !== translateText) {
-                        return;
+                        return data
                     }
                 } catch (error) {
                     console.error(error)
