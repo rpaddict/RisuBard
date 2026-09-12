@@ -571,6 +571,41 @@ describe('Markdown narrative wiki', () => {
         expect(created.links).toEqual(['첫 만남'])
     })
 
+    test('merges related documents and labels the index in the Japanese locale', async () => {
+        const root = await fs.mkdtemp(join(tmpdir(), 'risubard-md-wiki-'))
+        temporaryDirectories.push(root)
+        const wiki = createMarkdownNarrativeWiki(root)
+        const scope = {
+            characterId: 'character', chatId: 'chat',
+            sourceMessageIds: ['turn-ja'], writingLanguage: 'ja' as const,
+        }
+        await wiki.saveManualDocument({
+            ...scope, type: 'character', title: 'アリス',
+            markdown: '## アリス\n\n旅行者。',
+        })
+
+        const canon = await wiki.saveCanonicalDocument({
+            ...scope, type: 'location', title: '駅',
+            markdown: '## 駅\n\nアリスが到着した。',
+        })
+
+        expect(canon.content).toContain('### 関連文書')
+        expect(canon.content).toContain('- [[アリス]]')
+        expect(canon.content).not.toMatch(/[가-힣]/)
+
+        const updated = await wiki.saveCanonicalDocument({
+            ...scope, documentId: canon.id, type: 'location', title: '駅',
+            markdown: '## 駅\n\n### 関連文書\n\n- [[アリス]]\n\nアリスが再び到着した。',
+        })
+
+        expect(updated.content.match(/^### 関連文書$/gm)).toHaveLength(1)
+        expect(updated.content).toContain('- [[アリス]]')
+        expect(await fs.readFile(
+            resolveMarkdownWikiWorkspace(root, 'character', 'chat').indexFile,
+            'utf8'
+        )).toContain('## 物語ウィキ')
+    })
+
     test('resolves only an existing document ID to its absolute wiki file', async () => {
         const root = await fs.mkdtemp(join(tmpdir(), 'risubard-md-wiki-'))
         temporaryDirectories.push(root)

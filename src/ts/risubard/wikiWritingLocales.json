@@ -2,6 +2,7 @@
   "ko": {
     "label": "한국어",
     "languageName": "Korean",
+    "indexTitle": "서사 위키",
     "headings": { "summary": "이야기 요약", "history": "작중 행적", "related": "관련 문서", "additional": "추가 분석", "currentState": "현재 상태" },
     "storyArc": { "title": "스토리 아크 플롯", "overview": "아크 개요", "turningPoints": "주요 전환점", "openThreads": "미해결 줄기" },
     "legacyHeadings": ["확정된 사건"]
@@ -9,6 +10,7 @@
   "en": {
     "label": "English",
     "languageName": "English",
+    "indexTitle": "Narrative Wiki",
     "headings": { "summary": "Story Summary", "history": "Story History", "related": "Related Documents", "additional": "Additional Analysis", "currentState": "Current State" },
     "storyArc": { "title": "Story Arc Plot", "overview": "Arc Overview", "turningPoints": "Major Turning Points", "openThreads": "Open Threads" },
     "legacyHeadings": ["Established Events"]
@@ -16,18 +18,21 @@
   "ja": {
     "label": "日本語",
     "languageName": "Japanese",
+    "indexTitle": "物語ウィキ",
     "headings": { "summary": "物語の要約", "history": "作中の履歴", "related": "関連文書", "additional": "追加分析", "currentState": "現在の状態" },
     "storyArc": { "title": "ストーリーアークプロット", "overview": "アーク概要", "turningPoints": "主要な転換点", "openThreads": "未解決の糸口" }
   },
   "zh-Hans": {
     "label": "简体中文",
     "languageName": "Simplified Chinese",
+    "indexTitle": "叙事维基",
     "headings": { "summary": "故事摘要", "history": "剧情历程", "related": "相关文档", "additional": "补充分析", "currentState": "当前状态" },
     "storyArc": { "title": "故事篇章情节", "overview": "篇章概览", "turningPoints": "主要转折点", "openThreads": "未解决线索" }
   },
   "zh-Hant": {
     "label": "繁體中文",
     "languageName": "Traditional Chinese",
+    "indexTitle": "敘事維基",
     "headings": { "summary": "故事概要", "history": "劇情歷程", "related": "相關文件", "additional": "補充分析", "currentState": "當前狀態" },
     "storyArc": { "title": "故事篇章情節", "overview": "篇章概覽", "turningPoints": "主要轉折點", "openThreads": "未解決線索" }
   }
