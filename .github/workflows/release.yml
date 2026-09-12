@@ -1,10 +1,16 @@
 name: Create GitHub Release with Portable Packages
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer version to release without the v prefix
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -12,9 +18,41 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release-version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Validate release metadata
+        id: release-version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Releases must run from main, got $GITHUB_REF" >&2
+            exit 1
+          fi
+          if [[ ! "$REQUESTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must use X.Y.Z format: $REQUESTED_VERSION" >&2
+            exit 1
+          fi
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PACKAGE_VERSION" != "$REQUESTED_VERSION" ]; then
+            echo "package.json is $PACKAGE_VERSION, requested $REQUESTED_VERSION" >&2
+            exit 1
+          fi
+          NOTES="patchnote/${PACKAGE_VERSION}.md"
+          if [ ! -s "$NOTES" ] || ! grep -Fxq "# RisuBard v${PACKAGE_VERSION}" "$NOTES"; then
+            echo "Missing or invalid release notes: $NOTES" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v${PACKAGE_VERSION}" >/dev/null 2>&1; then
+            echo "Tag already exists: v${PACKAGE_VERSION}" >&2
+            exit 1
+          fi
+          echo "version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -123,16 +161,6 @@ jobs:
           cat "$LOG_FILE"
           exit 1
 
-      - name: Extract version
-        id: version
-        shell: bash
-        run: |
-          if [[ "$GITHUB_REF_NAME" == v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-          else
-            echo "version=$(node -e "console.log(require('./portable/package.json').version)")" >> $GITHUB_OUTPUT
-          fi
-
       - name: Download Node.js binary (Windows)
         if: matrix.platform == 'win'
         shell: bash
@@ -215,7 +243,7 @@ jobs:
         if: matrix.platform == 'macos'
         shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ needs.build.outputs.version }}"
           APP="portable/RisuBard.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
           ICONSET="$(mktemp -d)/AppIcon.iconset"
@@ -318,7 +346,7 @@ jobs:
         if: matrix.platform == 'win'
         shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ needs.build.outputs.version }}"
           NAME="RisuBard-v${VERSION}-win-x64"
           cd portable
           7z a -tzip "../${NAME}.zip" .
@@ -327,7 +355,7 @@ jobs:
         if: matrix.platform != 'win'
         shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ needs.build.outputs.version }}"
           NAME="RisuBard-v${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
           mv portable "$NAME"
           tar -czf "${NAME}.tar.gz" "$NAME"
@@ -341,21 +369,39 @@ jobs:
           retention-days: 1
 
   release:
-    needs: portable
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - build
+      - portable
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout release notes
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            patchnote
+
       - name: Download all portable artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: portable-*
           merge-multiple: true
 
+      - name: Create release tag
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${VERSION}" "$GITHUB_SHA" -m "RisuBard v${VERSION}"
+          git push origin "v${VERSION}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "RisuBard ${{ github.ref_name }}"
-          generate_release_notes: true
+          tag_name: v${{ needs.build.outputs.version }}
+          name: "RisuBard v${{ needs.build.outputs.version }}"
+          target_commitish: ${{ github.sha }}
+          body_path: patchnote/${{ needs.build.outputs.version }}.md
           draft: true
           files: RisuBard-*

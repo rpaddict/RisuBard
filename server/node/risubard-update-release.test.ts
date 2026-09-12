@@ -93,6 +93,22 @@ describe('RisuBard release updater target', () => {
         expect(workflow).not.toContain('cloudflared/releases/latest/download')
     })
 
+    test('validates a requested version before creating its release tag', () => {
+        const workflow = readFileSync(releaseWorkflowSource, 'utf8').replace(/\r\n/g, '\n')
+
+        expect(workflow).toContain('workflow_dispatch:\n    inputs:\n      version:')
+        expect(workflow).not.toContain("push:\n    tags:\n      - 'v*'")
+        expect(workflow).toContain('if [ "$GITHUB_REF" != "refs/heads/main" ]')
+        expect(workflow).toContain('PACKAGE_VERSION="$(node -p')
+        expect(workflow).toContain('patchnote/${PACKAGE_VERSION}.md')
+        expect(workflow).toContain('run: pnpm verify:release')
+        expect(workflow).toContain('git tag -a "v${VERSION}" "$GITHUB_SHA"')
+        expect(workflow).toContain('git push origin "v${VERSION}"')
+        expect(workflow).toContain('target_commitish: ${{ github.sha }}')
+        expect(workflow).toContain('body_path: patchnote/${{ needs.build.outputs.version }}.md')
+        expect(workflow).toContain('tag_name: v${{ needs.build.outputs.version }}')
+    })
+
     test('restores interrupted app files without replacing the running update launcher', () => {
         expect(existsSync(updaterRecoverySource)).toBe(true)
         const { rollbackInterruptedUpdate } = require(updaterRecoverySource)
