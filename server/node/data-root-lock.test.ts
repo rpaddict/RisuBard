@@ -71,6 +71,7 @@ describe('data-root process lock', () => {
         expect(existsSync(sentinel)).toBe(false)
         holder.kill('SIGTERM')
         await new Promise<void>(resolveExit => holder.once('exit', () => resolveExit()))
+        expect(existsSync(join(root, '.risubard-server.lock'))).toBe(false)
     })
 
     test('reclaims a lock left by a dead process', () => {

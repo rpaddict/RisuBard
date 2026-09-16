@@ -102,15 +102,28 @@ function acquireDataRootLock(dataRoot) {
     }
 
     let released = false;
+    const signalHandlers = new Map();
     const release = () => {
         if (released) return;
         released = true;
         process.removeListener('exit', release);
+        for (const [signal, handler] of signalHandlers) {
+            process.removeListener(signal, handler);
+        }
 
         const currentOwner = readOwner(lockPath);
         if (currentOwner?.token !== token) return;
         fs.rmSync(lockPath, { recursive: true, force: true });
     };
+
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+        const handler = () => {
+            release();
+            process.kill(process.pid, signal);
+        };
+        signalHandlers.set(signal, handler);
+        process.once(signal, handler);
+    }
 
     process.once('exit', release);
     return { lockPath, owner, release };

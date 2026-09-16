@@ -52,6 +52,6 @@ COPY --from=builder /app/dist ./dist
 ENV NODE_ENV=production
 EXPOSE 7777
 
-CMD ["pnpm", "runserver"]
+CMD ["node", "server/node/server.cjs"]
 
 # ------------------------------------------------------------------------------------------

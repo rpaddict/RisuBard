@@ -59,6 +59,8 @@ describe('release artifact contract', () => {
         expect(dockerfile).toMatch(
             /^COPY --from=builder \/app\/src\/ts\/risubard \.\/src\/ts\/risubard$/m,
         )
+        expect(dockerfile).toContain('CMD ["node", "server/node/server.cjs"]')
+        expect(dockerfile).not.toContain('CMD ["pnpm", "runserver"]')
     })
 
     it('publishes only RisuBard artifacts and container images', () => {
