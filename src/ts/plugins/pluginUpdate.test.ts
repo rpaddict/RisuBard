@@ -32,7 +32,7 @@ describe('plugin updater', () => {
         expect(importerSource).toContain('await requestImmediateSave({ flushServer: true, rejectOnFailure: true })')
         expect(importerSource).not.toContain('await requestImmediateSave({ forceFullWrite: true, rejectOnFailure: true })')
         expect(saveSource).toContain('if (options?.flushServer && supportsPatchSync)')
-        expect(saveSource).toContain('await flushServerDbNow()')
+        expect(saveSource).toContain("await flushServerDbNow(false, options.flushServer === 'canonical')")
         expect(importerSource).toMatch(/catch \(error\) \{[\s\S]*?if \(argu\.isUpdate\) throw error/)
     })
 
