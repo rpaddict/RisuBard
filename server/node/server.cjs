@@ -271,16 +271,18 @@ function flushPendingDb() {
 // Call only from an operation that already owns the storage queue.
 async function flushPendingDbWithinQueue(options = {}) {
     if (await adoptSettledExternalProjection()) return;
+    const trigger = options.deferCompatibility === true ? 'canonical-flush' : 'flush';
     if (saveTimers[DB_HEX_KEY]) {
         clearTimeout(saveTimers[DB_HEX_KEY]);
         delete saveTimers[DB_HEX_KEY];
         if (dbCache[DB_HEX_KEY]) {
-            await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin', 'flush', {
+            await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin', trigger, {
                 directCollection: directWriteTracker.take(DB_HEX_KEY),
+                deferCompatibility: options.deferCompatibility === true,
             });
         } else if (fullChatStore && fullChatStore.size > 0) {
             // No stripped cache but chat store has data — merge and persist directly
-            await persistChatStoreWithoutCache('flush', { directCollection: directWriteTracker.take(DB_HEX_KEY) });
+            await persistChatStoreWithoutCache(trigger, { directCollection: directWriteTracker.take(DB_HEX_KEY) });
         }
         maybeCollectUnreferencedObjects();
     }
@@ -854,9 +856,9 @@ async function persistDbCacheWithChats(filePath, decodedKey, trigger = 'unknown'
         }
 
         const deferCompatibility = decodedKey === 'database/database.bin'
-            && ['chat-debounce', 'patch-debounce'].includes(trigger)
+            && (observationContext.deferCompatibility === true || (['chat-debounce', 'patch-debounce'].includes(trigger)
             && (observationContext.directCollection?.kind === 'chatState'
-                || ['botPresets', 'botPresetState'].includes(observationContext.directCollection))
+                || ['botPresets', 'botPresetState'].includes(observationContext.directCollection))))
             && canonicalProjectionReady && compatibilityCache.canDefer();
         if (!deferCompatibility) {
             errorStage = 'encode';
@@ -4403,7 +4405,10 @@ app.post('/api/db/flush', sessionAuthMiddleware, async (req, res, next) => {
                 res.send({ success: true, paused: true, etag: dbEtag ?? undefined });
                 return;
             }
-            await flushPendingDbWithinQueue();
+            // Interactive saves acknowledge durable canonical files. Legacy
+            // readers and ordinary flushes still materialize the complete DB.
+            const canonicalOnly = req.query.mode === 'canonical';
+            await flushPendingDbWithinQueue(canonicalOnly ? { materialize: false, deferCompatibility: true } : {});
             res.send({
                 success: true,
                 etag: dbEtag ?? undefined

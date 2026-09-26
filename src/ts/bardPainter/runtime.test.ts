@@ -622,7 +622,7 @@ it('clears only the current painter conversation and excludes it from the next p
     expect(await session.clearConversation()).toBe(true)
     expect(session.data).toEqual({ ...before, conversation: [] })
     expect(other.conversation).toHaveLength(1)
-    expect(mocks.save).toHaveBeenCalledWith({ flushServer: true, rejectOnFailure: true })
+    expect(mocks.save).toHaveBeenCalledWith({ flushServer: 'canonical', rejectOnFailure: true })
     expect(mocks.request).not.toHaveBeenCalled()
     expect(new PainterSession('bot', chat.id).data.conversation).toEqual([])
     mocks.request.mockResolvedValue({ type: 'success', result: JSON.stringify({ rendering: '', scene: 'new scene', negative: '', subjects: [] }) })

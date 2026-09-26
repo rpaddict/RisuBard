@@ -1,5 +1,7 @@
 <script lang="ts">
     import BardPainterPromptInput from './BardPainterPromptInput.svelte'
+    import { Trash2 } from '@lucide/svelte'
+    import { tooltip } from 'src/ts/gui/tooltip'
     import { Buffer } from 'buffer'
     import { untrack } from 'svelte'
     import { getPainterSession } from 'src/ts/bardPainter/runtime.svelte'
@@ -33,7 +35,7 @@
         if (await current.applyImagePreset(imageChoice === null ? null : imageChoiceIndex!) && current === session) imageChoice = undefined
     }
     let resetBlocked = $derived(blocked || session.chat.isStreaming)
-    let toolMode = $state<'style' | 'characters' | 'settings' | null>(null)
+    let toolMode = $state<'style' | 'characters' | 'settings' | 'fragments' | null>(null)
     let confirmScene = $state(false)
     let confirmFresh = $state(false)
     let confirmDiscard = $state(false)
@@ -163,13 +165,28 @@
     <section class="draft" aria-label="프롬프트 초안">
         <div class="section-title"><h3><span class="step">2</span>프롬프트 초안</h3><div class="actions"><button type="button" disabled={blocked || copying || !data.draft} onclick={() => void copyPrompt()}>원문 카피</button>{#if data.previousDraft}<button type="button" disabled={blocked} onclick={() => session.restoreDraft()}>이전 초안으로</button>{/if}</div></div>
         {#if data.draft}
-            <section class="card" aria-label="메인 프롬프트">
+            <details class="card"><summary use:tooltip={'화풍은 상단의 화풍 프리셋에서 설정합니다.'}>화풍</summary>
+                <pre>{[session.style.artist, session.style.rendering, data.draft.rendering].filter(Boolean).join('\n') || '설정된 화풍이 없습니다.'}</pre>
+                <h4>네거티브 프롬프트</h4>
+                <pre>{[session.style.negative, data.draft.negative].filter(Boolean).join('\n') || '설정된 네거티브 프롬프트가 없습니다.'}</pre>
+            </details>
+            <details class="card" open aria-label="메인 프롬프트"><summary>메인 블록</summary>
                 <fieldset disabled={blocked}>
-                    <label>메인 블록<BardPainterPromptInput rows={4} spellcheck="false" bind:value={data.draft.scene} onblur={save} aria-label="메인 프롬프트"></BardPainterPromptInput></label>
-                    <details><summary>화풍과 추가 표현</summary><p class="hint">화풍은 상단의 화풍 프리셋에서 설정합니다.</p><pre>{[session.style.artist, session.style.rendering].filter(Boolean).join('\n')}</pre><label>장면 표현 보완<BardPainterPromptInput rows={2} bind:value={data.draft.rendering} onblur={save}></BardPainterPromptInput></label></details>
-                    <details><summary>네거티브 프롬프트</summary><label>이번 장면에서 제외할 요소<BardPainterPromptInput rows={2} bind:value={data.draft.negative} onblur={save}></BardPainterPromptInput></label></details>
+                    <BardPainterPromptInput rows={4} spellcheck="false" bind:value={data.draft.scene} onblur={save} aria-label="메인 프롬프트" />
+                    <section class="fragments" aria-label="표현 조각">
+                        <div class="section-title"><h4><button type="button" class="section-help" use:tooltip={'관리에서 저장한 표현 조각을 추가하세요. AI가 초안을 작성하거나 개선해도 표현 조각은 그대로 유지됩니다.'}>표현 조각</button></h4><button type="button" onclick={() => toolMode = 'fragments'}>관리</button></div>
+                        {#each data.draft.fragments ?? [] as fragment, index (fragment.id)}
+                            <div class="fragment">
+                                <details class="fragment-content">
+                                    <summary>{fragment.name}</summary>
+                                    <BardPainterPromptInput rows={2} spellcheck="false" bind:value={fragment.prompt} onblur={save} aria-label={`표현 조각 ${fragment.name}`} />
+                                </details>
+                                <button type="button" class="remove-fragment" title="표현 조각 제거" aria-label={`표현 조각 ${fragment.name} 제거`} onclick={() => { data.draft?.fragments?.splice(index, 1); save() }}><Trash2 size={16} /></button>
+                            </div>
+                        {/each}
+                    </section>
                 </fieldset>
-            </section>
+            </details>
             <div class="subjects" aria-label="인물과 사물 블록">
                 {#each data.draft.subjects as subject, index (subject.id)}
                     <BardPainterSubject {subject} {session} {index} total={data.draft.subjects.length} disabled={blocked} onMove={direction => moveSubject(index, direction)} onRemove={() => { data.draft?.subjects.splice(index, 1); save() }} />
@@ -236,6 +253,16 @@
     .image-preset button { flex-shrink: 0; }
     summary { cursor: pointer; min-height: 2.75rem; padding: .65rem 0; color: var(--color-textcolor2); }
     details { border-top: 1px solid var(--color-darkborderc); }
+    .card > summary { padding-top: 0; color: var(--color-textcolor); font-weight: 600; }
+    .card:not([open]) > summary { padding-bottom: 0; min-height: 1.5rem; }
+    .fragments { display: flex; flex-direction: column; gap: .6rem; border-top: 1px solid var(--color-darkborderc); padding-top: .7rem; }
+    .section-help { border: 0; padding: 0; min-height: 2.75rem; font: inherit; cursor: help; }
+    .section-help:hover:not(:disabled) { background: transparent; }
+    .fragment { display: flex; align-items: flex-start; gap: .5rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .35rem .5rem; }
+    .fragment-content { flex: 1; min-width: 0; border: 0; }
+    .fragment-content > summary { color: var(--color-textcolor); overflow-wrap: anywhere; }
+    .fragment-content[open] { padding-bottom: .25rem; }
+    .remove-fragment { display: grid; place-items: center; flex-shrink: 0; min-width: 2.75rem; }
     button { min-height: 2.75rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .5rem .75rem; font-size: .85rem; overflow-wrap: anywhere; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
     button:disabled { opacity: .5; cursor: not-allowed; }

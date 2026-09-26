@@ -18,6 +18,7 @@ vi.mock('../util', async (importOriginal) => ({ ...await importOriginal<typeof i
 vi.mock('../model/modellist', () => ({ getModelInfo: vi.fn() }))
 vi.mock('src/lang', () => ({ language: {} }))
 import { PainterSession } from './runtime.svelte'
+import { buildPainterImageRequest, formatPainterPromptText } from './prompt'
 
 beforeEach(() => {
     vi.resetAllMocks()
@@ -37,6 +38,48 @@ beforeEach(() => {
     })
     mocks.request.mockResolvedValue({ type: 'success', result: JSON.stringify({ rendering: '', scene: 'indoors', negative: '', subjects: [] }) })
     mocks.save.mockResolvedValue(undefined)
+    mocks.db.bardPainterFragments = []
+})
+
+it('keeps editable fragment copies through refinement, fresh drafts and restoration and sends them to images', async () => {
+    const session = new PainterSession('bot', 'chat')
+    const id = await session.saveFragment({ id: '', name: '빛', prompt: '1.3::rim light::' })
+    expect(id).toBeTruthy()
+    await session.prepare()
+    expect(await session.addFragment(id!)).toBe(true)
+    session.data.draft!.fragments![0].prompt = '  1.5::rim light::\nsoft glow  '
+    mocks.request.mockResolvedValue({ type: 'success', result: JSON.stringify({ rendering: '', scene: 'indoors', negative: '', subjects: [], fragments: [{ id: 'injected', name: 'AI', prompt: 'changed' }] }) })
+    for (const fresh of [false, true]) {
+        expect(await session.prepare(undefined, { fresh })).toBe(true)
+        expect(session.data.draft!.fragments![0].prompt).toBe('  1.5::rim light::\nsoft glow  ')
+        const payload = JSON.parse(mocks.request.mock.calls.at(-1)[0].formated[1].content)
+        expect(payload.expressionFragments).toEqual(['  1.5::rim light::\nsoft glow  '])
+        expect(payload.draft?.fragments).toBeUndefined()
+    }
+    session.data.draft!.fragments![0].prompt = '2::rim light::'
+    await session.restoreDraft()
+    expect(session.data.draft!.fragments![0].prompt).toBe('2::rim light::')
+    expect(session.fragments[0].prompt).toBe('1.3::rim light::')
+    const request = buildPainterImageRequest(session.data.draft!, session.style, session.settings, 42)
+    expect(request.input).toContain('2::rim light::')
+    expect(request.parameters.v4_prompt.caption.base_caption).toContain('2::rim light::')
+    expect(formatPainterPromptText(session.data.draft!, session.style)).toContain('2::rim light::')
+    await session.removeFragment(id!)
+    expect(session.fragments).toEqual([])
+    expect(session.data.draft!.fragments![0].prompt).toBe('2::rim light::')
+})
+
+it('saves, duplicates and rolls back fragment library changes on persistence failure', async () => {
+    const session = new PainterSession('bot', 'chat')
+    const id = await session.saveFragment({ id: '', name: '빛', prompt: 'glow' })
+    await session.saveFragment({ id: id!, name: '빛', prompt: 'rim light' })
+    const copyId = await session.saveFragment({ id: id!, name: '빛 복사', prompt: 'rim light' }, true)
+    expect(copyId).not.toBe(id)
+    expect(new PainterSession('bot', 'chat').fragments.map(item => item.prompt)).toEqual(['rim light', 'rim light'])
+    mocks.save.mockRejectedValueOnce(new Error('disk full'))
+    expect(await session.removeFragment(id!)).toBe(false)
+    expect(session.fragments).toHaveLength(2)
+    expect(session.state.error).toContain('disk full')
 })
 
 it('applies an isolated snapshot to prompt creation and refinement without changing chat toggles', async () => {

@@ -2,12 +2,11 @@
     import { alertConfirm, notifyError, notifySuccess } from '../../ts/alert'
     import { language } from '../../lang'
     import {
-        changeToPreset,
+        selectChatPromptPreset,
         copyPreset,
         downloadPreset,
         importPreset,
-        saveCurrentPreset,
-        withStableActivePreset,
+        deleteBotPreset,
     } from '../../ts/storage/database.svelte'
     import { v4 as uuidv4 } from 'uuid'
     import { DBState, presetSelectActiveId, presetSelectCallback, settingsOpen } from 'src/ts/stores.svelte'
@@ -90,7 +89,7 @@
             presetSelectActiveId.set(null)
             cb(i)
         } else {
-            changeToPreset(i)
+            selectChatPromptPreset(i)
         }
         close()
     }
@@ -148,7 +147,7 @@
                             for (const preset of DBState.db.botPresets) {
                                 if (typeof preset.id === 'string' && !previousIds.has(preset.id)) assignPresetToFolder(preset.id, selectedFolderId)
                             }
-                            changeToPreset(after - 1)
+                            selectChatPromptPreset(after - 1)
                             notifySuccess(language.presetImported)
                         }
                     }}><HardDriveUploadIcon/></ShButton>
@@ -193,7 +192,7 @@
                                 if (after > before) {
                                     const copiedPresetId = DBState.db.botPresets.at(-1)?.id
                                     if (typeof copiedPresetId === 'string') assignPresetToFolder(copiedPresetId, selectedPresetFolder)
-                                    changeToPreset(after - 1)
+                                    selectChatPromptPreset(after - 1)
                                     notifySuccess(language.presetDuplicated)
                                 }
                             }}><CopyIcon/></ShButton>
@@ -208,16 +207,9 @@
                                     notifyError(language.errors.onlyOnePreset)
                                     return
                                 }
-                                if (!await alertConfirm(`${language.removeConfirm}${preset.name}`)) return
-                                saveCurrentPreset()
-                                const removingActive = i === DBState.db.botPresetsId
-                                withStableActivePreset(() => {
-                                    const botPresets = DBState.db.botPresets
-                                    botPresets.splice(i, 1)
-                                    DBState.db.botPresets = botPresets
-                                })
-                                if (removingActive) changeToPreset(0, false)
-                                notifySuccess(language.presetDeleted)
+                                const presetId = preset.id
+                                if (!presetId || !await alertConfirm(`${language.removeConfirm}${preset.name}`)) return
+                                if (deleteBotPreset(presetId)) notifySuccess(language.presetDeleted)
                             }}><TrashIcon/></ShButton>
                         </div>
                     </div>

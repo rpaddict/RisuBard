@@ -43,7 +43,7 @@ function createProjectionShadow(options = {}) {
         }
 
         const startedAt = now();
-        if (candidate.allowSampling && ['chat-debounce', 'patch-debounce'].includes(candidate.trigger)
+        if (candidate.allowSampling && ['chat-debounce', 'patch-debounce', 'canonical-flush'].includes(candidate.trigger)
             && options.canSkip?.() === true && startedAt - lastMatchAt < (options.minIntervalMs || 0)) {
             record({ kind: 'projection-shadow', trigger: candidate.trigger, outcome: 'skipped',
                 errorStage: 'sample-interval', plannedFiles: candidate.plannedFiles });

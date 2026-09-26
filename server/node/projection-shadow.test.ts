@@ -45,7 +45,7 @@ afterEach(() => {
 })
 
 describe('S1 projection shadow', () => {
-    it('samples only verified debounce saves and checks immediately after mismatch or loss of eligibility', async () => {
+    it.each(['patch-debounce', 'canonical-flush'])('samples verified %s saves and checks immediately after mismatch or loss of eligibility', async (sampledTrigger) => {
         let time = 0, reads = 0, eligible = true
         const tasks: Array<() => Promise<void>> = [], rows: any[] = []
         const shadow = createProjectionShadow({
@@ -54,7 +54,7 @@ describe('S1 projection shadow', () => {
             observation: { record: (row: any) => rows.push(row) },
             scheduleTask: (task: () => Promise<void>) => tasks.push(task),
         })
-        const save = async (trigger = 'patch-debounce', language = 'ko') => {
+        const save = async (trigger = sampledTrigger, language = 'ko') => {
             shadow.schedule({ database: { language }, trigger }); await tasks.shift()!()
         }
         await save(); time = 1000; await save()
@@ -64,6 +64,10 @@ describe('S1 projection shadow', () => {
         await save('flush', 'en'); expect(reads).toBe(3)
         await save(); expect(reads).toBe(4)
         eligible = false; await save(); expect(reads).toBe(5)
+        eligible = true
+        shadow.schedule({ database: { language: 'ko' }, trigger: sampledTrigger, allowSampling: false })
+        await tasks.shift()!()
+        expect(reads).toBe(6)
     })
     it('reports match, mismatch and read failure to the P1 eligibility gate', async () => {
         let read: () => any = () => ({ language: 'ko' })

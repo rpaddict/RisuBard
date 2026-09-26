@@ -10,7 +10,7 @@ vi.mock('../stores.svelte', () => {
     const noopStore = { subscribe: () => () => {}, set: () => {}, update: () => {} }
     return {
         DBState: state,
-        selectedCharID: noopStore,
+        selectedCharID: { ...noopStore, subscribe: (run: (value: number) => void) => { run(0); return () => {} } },
         selIdState: { selId: -1 },
     }
 })
@@ -40,6 +40,9 @@ const {
     getBotPresetById,
     getBotPresetIndexById,
     changeToPreset,
+    selectChatPromptPreset,
+    deleteBotPreset,
+    loadChatBindings,
     setActiveBotPresetById,
     saveCurrentPreset,
     syncActiveBotPresetFromMirror,
@@ -63,6 +66,153 @@ beforeEach(() => {
         ],
         botPresetsId: 1,
     }
+})
+
+describe('prompt preset lifecycle', () => {
+    function setup(activeIndex = 0) {
+        const presets = ['old', 'next', 'third'].map((id) => ({
+            ...createBotPresetTemplate(), id, name: id,
+            mainPrompt: `${id}-prompt`,
+            customPromptTemplateToggle: `${id}=Toggle`,
+            moduleIntergration: `${id}-module`,
+        }))
+        const chat = {
+            bindedBotPreset: presets[activeIndex].id,
+            useLocallySetGlobalVariables: true,
+            GLGlobalVariables: { toggle_saved: '1' },
+            togglePresetBaseline: { name: 'Saved toggles', values: { toggle_saved: '1' } },
+        }
+        DBState.db = {
+            ...structuredClone(presets[activeIndex]), NAIsettings: {},
+            botPresets: presets, botPresetsId: activeIndex,
+            characters: [{ chatPage: 0, chats: [chat, { bindedBotPreset: 'third' }] }],
+        }
+        return chat
+    }
+
+    test.each([0, 1, 2])('applies the replacement after deleting active index %i without saving old values into it', (index) => {
+        setup(index)
+        // Exercise the original deletion sequence as well as the shared API below.
+        saveCurrentPreset()
+        withStableActivePreset(() => { DBState.db.botPresets.splice(index, 1) })
+        changeToPreset(0, false)
+        const expected = index === 0 ? 'next' : 'old'
+        expect(DBState.db.mainPrompt).toBe(`${expected}-prompt`)
+        expect(DBState.db.customPromptTemplateToggle).toBe(`${expected}=Toggle`)
+        expect(DBState.db.moduleIntergration).toBe(`${expected}-module`)
+        syncActiveBotPresetFromMirror()
+        expect(DBState.db.botPresets[0].moduleIntergration).toBe(`${expected}-module`)
+        expect(DBState.db.botPresets[0].mainPrompt).toBe(`${expected}-prompt`)
+    })
+
+    test('deletes by stable ID and clears loaded bindings while preserving independent pinned toggle values', () => {
+        const chat = setup()
+        DBState.db.characters.push({ chats: [{ bindedBotPreset: 'old' }, { _placeholder: true, id: 'lazy' }] })
+        expect(deleteBotPreset('old')).toBe(true)
+        expect(DBState.db.botPresets.map((p: any) => p.id)).toEqual(['next', 'third'])
+        expect(DBState.db.moduleIntergration).toBe('next-module')
+        expect(chat.bindedBotPreset).toBe('')
+        expect(DBState.db.characters[1].chats[0].bindedBotPreset).toBe('')
+        expect(DBState.db.characters[0].chats[1].bindedBotPreset).toBe('third')
+        expect(DBState.db.characters[1].chats[1]).toEqual({ _placeholder: true, id: 'lazy' })
+        expect(chat.GLGlobalVariables).toEqual({ toggle_saved: '1' })
+        expect(chat.togglePresetBaseline.name).toBe('Saved toggles')
+        syncActiveBotPresetFromMirror()
+        expect(DBState.db.botPresets[0].moduleIntergration).toBe('next-module')
+    })
+
+    test('deleting a non-active preset preserves active identity and unsaved edits', () => {
+        setup(2)
+        DBState.db.mainPrompt = 'edited third'
+        expect(deleteBotPreset('old')).toBe(true)
+        expect(getActiveBotPresetId()).toBe('third')
+        expect(DBState.db.mainPrompt).toBe('edited third')
+        expect(getActiveBotPreset()?.mainPrompt).toBe('edited third')
+        expect(DBState.db.moduleIntergration).toBe('third-module')
+    })
+
+    test('refuses missing or last remaining preset deletion without changing state', () => {
+        setup()
+        expect(deleteBotPreset('missing')).toBe(false)
+        deleteBotPreset('next')
+        deleteBotPreset('third')
+        const before = structuredClone(DBState.db)
+        expect(deleteBotPreset('old')).toBe(false)
+        expect(DBState.db).toEqual(before)
+    })
+
+    test('explicit selection updates the current binding and runtime without changing another chat', () => {
+        const chat = setup()
+        selectChatPromptPreset(1)
+        expect(chat.bindedBotPreset).toBe('next')
+        expect(DBState.db.moduleIntergration).toBe('next-module')
+        expect(DBState.db.customPromptTemplateToggle).toBe('next=Toggle')
+        expect(DBState.db.characters[0].chats[1].bindedBotPreset).toBe('third')
+        expect(chat.GLGlobalVariables).toEqual({ toggle_saved: '1' })
+    })
+
+    test('explicit selection of the already active preset still updates an older chat binding', () => {
+        const chat = setup()
+        chat.bindedBotPreset = 'third'
+        selectChatPromptPreset(0)
+        expect(chat.bindedBotPreset).toBe('old')
+    })
+
+    test('keeps unbound chats unbound and automatic preset changes do not rewrite bindings', () => {
+        const chat = setup()
+        changeToPreset(1)
+        expect(chat.bindedBotPreset).toBe('old')
+        chat.bindedBotPreset = ''
+        selectChatPromptPreset(2)
+        expect(chat.bindedBotPreset).toBe('')
+        expect(DBState.db.moduleIntergration).toBe('third-module')
+    })
+
+    test.each([-1, 99, 0.5, NaN])('ignores invalid selection %s without saving or changing bindings', (index) => {
+        setup()
+        const before = structuredClone(DBState.db)
+        expect(() => changeToPreset(index)).not.toThrow()
+        expect(() => selectChatPromptPreset(index)).not.toThrow()
+        expect(DBState.db).toEqual(before)
+    })
+
+    test('switching to a preset without module integration or toggles clears the previous values', () => {
+        setup()
+        delete DBState.db.botPresets[1].moduleIntergration
+        delete DBState.db.botPresets[1].customPromptTemplateToggle
+        changeToPreset(1)
+        expect(DBState.db.moduleIntergration).toBe('')
+        expect(DBState.db.customPromptTemplateToggle).toBe('')
+    })
+
+    test('entering a bound chat applies its preset without mounting the sidebar', () => {
+        const chat = setup()
+        DBState.db.characters[0].chatPage = 1
+        const other = DBState.db.characters[0].chats[1]
+        loadChatBindings(other)
+        expect(getActiveBotPresetId()).toBe('third')
+        expect(DBState.db.moduleIntergration).toBe('third-module')
+        DBState.db.characters[0].chatPage = 0
+        loadChatBindings(chat as any)
+        expect(getActiveBotPresetId()).toBe('old')
+        expect(DBState.db.moduleIntergration).toBe('old-module')
+    })
+
+    test('clears a deleted binding on lazy chat entry even when toggle binding is disabled', () => {
+        const chat = setup()
+        chat.bindedBotPreset = 'deleted'
+        DBState.db.disableToggleBinding = true
+        loadChatBindings(chat as any)
+        expect(chat.bindedBotPreset).toBe('')
+        expect(getActiveBotPresetId()).toBe('old')
+        expect(chat.GLGlobalVariables).toEqual({ toggle_saved: '1' })
+    })
+
+    test('does not restore a binding from a chat placeholder', () => {
+        setup()
+        loadChatBindings({ _placeholder: true, bindedBotPreset: 'third' } as any)
+        expect(getActiveBotPresetId()).toBe('old')
+    })
 })
 
 describe('createBotPresetTemplate', () => {

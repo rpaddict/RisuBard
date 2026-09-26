@@ -19,10 +19,11 @@ import { ensureChatHydrated } from '../storage/chatStorage'
 import { resolvePersonaById } from '../personaScopes'
 import { createPainterSettings, painterGenerationSettings, type PainterSettings } from './types'
 import { painterImageToggleScope, painterPromptDatabase, painterPromptPreset } from './imagePreset'
+import type { PainterFragment } from './types'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 const errorText = (cause: unknown) => cause instanceof Error ? cause.message : String(cause)
-const persist = () => requestImmediateSave({ flushServer: true, rejectOnFailure: true })
+const persist = () => requestImmediateSave({ flushServer: 'canonical', rejectOnFailure: true })
 type PresetWrite = <T, K extends keyof T>(owner: T, key: K, value: T[K]) => void
 let presetMutationInProgress = false
 const normalizedName = (name: string) => name.trim().toLocaleLowerCase()
@@ -79,6 +80,7 @@ export class PainterSession {
     get data() { return this.chat.bardPainter ??= createPainterChatData(this.defaultStyle.id) }
     get bot() { return this.character.bardPainter ??= { identities: [], outfits: [] } }
     get styles() { return [...PAINTER_STYLES, ...(DBState.db.bardPainterStyles ?? [])] }
+    get fragments() { return DBState.db.bardPainterFragments ?? [] }
     get defaultStyle() { return this.styles.find(item => item.id === DBState.db.bardPainterDefaultStyleId) ?? PAINTER_STYLES[0] }
     get style() { return this.styles.find((item) => item.id === this.data.settings.styleId) ?? this.defaultStyle }
     get promptPreset() { return painterPromptPreset(DBState.db, this.chat) }
@@ -350,7 +352,7 @@ export class PainterSession {
             const requestCharacter = { ...this.character, chatPage: this.character.chats.indexOf(this.chat) }
             const userName = resolvePersonaById(DBState.db, this.character, this.chat.bindedPersona)?.persona.name ?? DBState.db.username ?? 'User'
             const formated = buildPainterMessages({ anchor: target, settings, style, sources, userName,
-                identities: clone(this.bot.identities), draft, outfits: clone([...this.data.outfits, ...this.bot.outfits]),
+                identities: clone(this.bot.identities), draft, fragments: previousDraft?.fragments, outfits: clone([...this.data.outfits, ...this.bot.outfits]),
                 conversation: sameScene && !options.fresh ? clone((this.data.conversation ?? []).slice(-12)) : [] })
             const response = await requestChatData({ formated, currentChar: requestCharacter, bias: {},
                 useStreaming: false, noMultiGen: true, tools: [], maxTokens: 4096, temperature: 0.3,
@@ -364,6 +366,7 @@ export class PainterSession {
                 : subjects
             // Reconciliation otherwise restores omitted locked blocks, including the viewer.
             next.subjects = reconcilePainterSubjects(visibleSubjects(next.subjects), this.bot, visibleSubjects(draft?.subjects ?? []))
+            if (previousDraft?.fragments) next.fragments = clone(previousDraft.fragments)
             this.data.draft = next
             this.data.previousDraft = sameScene ? previousDraft : undefined
             const history = sameScene && !options.fresh ? this.data.conversation ?? [] : []
@@ -400,6 +403,8 @@ export class PainterSession {
         await this.action(async () => {
             const prior = { draft: this.data.draft ? clone(this.data.draft) : undefined, previousDraft: clone(this.data.previousDraft!), conversation: this.data.conversation ? clone(this.data.conversation) : undefined }
             this.data.draft = clone(this.data.previousDraft!)
+            if (prior.draft?.fragments) this.data.draft.fragments = clone(prior.draft.fragments)
+            else delete this.data.draft.fragments
             this.data.previousDraft = undefined
             this.data.conversation = [...(this.data.conversation ?? []), { id: v4(), role: 'assistant' as const, text: '이전 초안으로 되돌렸습니다.' }].slice(-12)
             try { await persist() }
@@ -655,6 +660,32 @@ export class PainterSession {
             const next = movedPreset(this.bot.identities, id, direction)
             if (!next) return
             write(this.bot, 'identities', next)
+            return true
+        })) === true
+    }
+    async saveFragment(fragment: PainterFragment, asNew = false): Promise<string | undefined> {
+        return this.presetAction('표현 조각을 저장했습니다.', write => {
+            const custom = { id: asNew || !fragment.id ? v4() : fragment.id, name: fragment.name.trim(), prompt: fragment.prompt }
+            uniquePresetName(custom.name, this.fragments, custom.id)
+            if (!custom.prompt.trim()) throw new Error('표현 조각의 프롬프트를 입력해 주세요.')
+            const existing = this.fragments
+            write(DBState.db, 'bardPainterFragments', existing.some(item => item.id === custom.id)
+                ? existing.map(item => item.id === custom.id ? custom : item) : [...existing, custom])
+            return custom.id
+        })
+    }
+    async removeFragment(id: string): Promise<boolean> {
+        return (await this.presetAction('표현 조각을 삭제했습니다.', write => {
+            if (!this.fragments.some(item => item.id === id)) return
+            write(DBState.db, 'bardPainterFragments', this.fragments.filter(item => item.id !== id))
+            return true
+        })) === true
+    }
+    async addFragment(id: string): Promise<boolean> {
+        return (await this.presetAction('현재 초안에 표현 조각을 추가했습니다.', write => {
+            const fragment = this.fragments.find(item => item.id === id)
+            if (!fragment || !this.data.draft) return
+            write(this.data.draft, 'fragments', [...(this.data.draft.fragments ?? []), { ...clone(fragment), id: v4() }])
             return true
         })) === true
     }

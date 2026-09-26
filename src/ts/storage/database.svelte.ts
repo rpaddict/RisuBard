@@ -1395,6 +1395,23 @@ export function loadTogglesFromChat(
     chat.savedToggleValues = undefined
 }
 
+/** Restore chat-owned settings on entry, independently of sidebar visibility. */
+export function loadChatBindings(chat: Chat): void {
+    // A late hydration must not change the preset of a different active chat.
+    const current = getCurrentChat()
+    if (!chat || chat._placeholder || !current || current._placeholder) return
+    if (chat.id ? chat.id !== current.id : chat !== current) return
+    // Hydration returns a raw object; mutate the current reactive slot instead.
+    chat = current
+    const db = getDatabase()
+    if (chat.bindedBotPreset && Array.isArray(db.botPresets)) {
+        const index = getBotPresetIndexById(chat.bindedBotPreset)
+        if (index < 0) chat.bindedBotPreset = ''
+        else changeToPreset(index)
+    }
+    loadTogglesFromChat(chat)
+}
+
 // ─────────────────────────────────────────────────────────────────────
 
 export interface DynamicOutput {
@@ -1560,6 +1577,7 @@ export interface Database{
     personaBuilderPromptPresets?:PersonaBuilderPromptPreset[]
     loreBuilderPromptPresets?:LoreBuilderPromptPreset[]
     bardPainterStyles?: import('../bardPainter/types').PainterStyle[]
+    bardPainterFragments?: import('../bardPainter/types').PainterFragment[]
     bardPainterDefaultStyleId?: string
     bardPainterSettings?: import('../bardPainter/types').PainterGenerationSettings
     personaBuilderStylePromptPresetId?:string
@@ -3246,9 +3264,42 @@ export function copyPreset(id:number){
     db.botPresets.push(newPres)
 }
 
+/** Explicit UI selection follows an existing chat binding; automatic switches do not. */
+export function selectChatPromptPreset(index: number): void {
+    const db = getDatabase()
+    if (!Number.isInteger(index) || !db.botPresets[index]) return
+    const chat = getCurrentChat()
+    if (chat?.bindedBotPreset && !chat._placeholder) {
+        db.botPresets[index].id ||= uuidv4()
+        chat.bindedBotPreset = db.botPresets[index].id
+    }
+    changeToPreset(index)
+}
+
+/** Resolve the ID after confirmation so concurrent selection/reordering is harmless. */
+export function deleteBotPreset(presetId: string): boolean {
+    const db = getDatabase()
+    const index = getBotPresetIndexById(presetId)
+    if (index < 0 || db.botPresets.length <= 1) return false
+    saveCurrentPreset()
+    const removingActive = index === db.botPresetsId
+    withStableActivePreset(() => { db.botPresets.splice(index, 1) })
+    for (const character of db.characters ?? []) {
+        for (const chat of character.chats ?? []) {
+            if (chat.bindedBotPreset === presetId) chat.bindedBotPreset = ''
+        }
+    }
+    // Placeholders are left alone; loadChatBindings clears missing IDs on entry.
+    if (removingActive) changeToPreset(0, false)
+    return true
+}
+
 export function changeToPreset(id =0, savecurrent = true){
     let db = getDatabase()
-    if(id === db.botPresetsId){
+    if(!Number.isInteger(id) || !db.botPresets[id]) return
+    // Deletion can reuse the same array index for a different preset. In that
+    // case the caller explicitly skips saving the old mirror and must reload.
+    if(id === db.botPresetsId && savecurrent){
         return
     }
     if(savecurrent){

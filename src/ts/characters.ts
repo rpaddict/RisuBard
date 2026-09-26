@@ -1,5 +1,5 @@
 import { get, writable } from "svelte/store";
-import { saveImage, setDatabase, type character, type Chat, defaultSdDataFunc, type loreBook, getDatabase, getCharacterByIndex, setCharacterByIndex, getCurrentChat, loadTogglesFromChat, normalizeChat, newChatModelDefaults } from "./storage/database.svelte";
+import { saveImage, setDatabase, type character, type Chat, defaultSdDataFunc, type loreBook, getDatabase, getCharacterByIndex, setCharacterByIndex, getCurrentChat, loadChatBindings, normalizeChat, newChatModelDefaults } from "./storage/database.svelte";
 import { ensureChatHydrated } from "./storage/chatStorage";
 import { loadingActivity } from './gui/loadingActivity';
 import { alertAddCharacter, alertConfirm, alertError, alertSelect, alertStore, alertWait, notifySuccess, notifyInfo } from "./alert";
@@ -932,7 +932,7 @@ export function changeChar(index: number, arg:{
                     const currentChar = getDatabase().characters[capturedIndex]
                     const activeChatId = currentChar?.chats?.[currentChar.chatPage]?.id
                     if(hydrated && get(selectedCharID) === capturedIndex && activeChatId === capturedChatId) {
-                        loadTogglesFromChat(hydrated)
+                        loadChatBindings(hydrated)
                     }
                 }).catch((e) => {
                     console.error('[selectCharacter] hydration failed:', e)
@@ -941,7 +941,7 @@ export function changeChar(index: number, arg:{
                 })
             }
         } else {
-            loadTogglesFromChat(chat)
+            loadChatBindings(chat)
         }
     }
 }

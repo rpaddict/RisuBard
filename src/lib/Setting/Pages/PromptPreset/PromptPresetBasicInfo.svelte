@@ -4,12 +4,11 @@
     import { DBState } from "src/ts/stores.svelte";
     import { alertConfirm, notifyError, notifySuccess } from "src/ts/alert";
     import {
-        changeToPreset,
+        selectChatPromptPreset,
         copyPreset,
         downloadPreset,
         importPreset,
-        saveCurrentPreset,
-        withStableActivePreset,
+        deleteBotPreset,
     } from "src/ts/storage/database.svelte";
     import { selectSingleFile } from "src/ts/util";
     import { findHttpUrlAtOffset } from "src/ts/setting/promptPresetSettingsData.svelte";
@@ -28,7 +27,7 @@
     const activeIndex = $derived(DBState.db.botPresets.findIndex((preset) => preset === activePreset || preset.id === activePreset?.id));
 
     function selectImportedOrDuplicated(index: number) {
-        changeToPreset(index);
+        selectChatPromptPreset(index);
     }
 
     async function uploadIcon() {
@@ -91,24 +90,13 @@
             notifyError(language.errors.onlyOnePreset);
             return;
         }
-        const presetName = DBState.db.botPresets[activeIndex]?.name ?? '';
+        const presetId = activePreset?.id;
+        if (!presetId) return;
+        const presetName = activePreset?.name ?? '';
         const ok = await alertConfirm(`${language.presetDeleteConfirm}\n${presetName}`);
         if (!ok) return;
 
-        // Flush in-flight edits into the active preset BEFORE mutating the array
-        // (mirrors botpreset.svelte:217-235 deletion handling).
-        saveCurrentPreset();
-        const removing = activeIndex;
-        const removingActive = removing === DBState.db.botPresetsId;
-        withStableActivePreset(() => {
-            const presets = DBState.db.botPresets;
-            presets.splice(removing, 1);
-            DBState.db.botPresets = presets;
-        });
-        if (removingActive) {
-            changeToPreset(0, false);
-        }
-        notifySuccess(language.presetDeleted);
+        if (deleteBotPreset(presetId)) notifySuccess(language.presetDeleted);
     }
 </script>
 

@@ -52,11 +52,13 @@ export function createPluginStructuredOutput(
     context?: { provider: string; purpose?: string },
 ): PluginProviderStructuredOutput | undefined {
     if (!schema) return undefined
-    // PageFold Gemini rejects the analysis schema on both Google routes.
+    // PageFold Gemini analysis uses prompt-schema compatibility mode. Match the
+    // provider family, including legacy google-gemini IDs, independently of the
+    // model version, route suffix, or profile number.
     // requestPlugin still supplies the schema prompt and structured_output flag;
     // BardWiki keeps validating the returned JSON before saving it.
     if (context?.purpose === 'bardwiki-analysis'
-        && /^pagefold-gemini-.+-(?:vertex|openrouter)-\d+$/.test(context.provider)) {
+        && /^pagefold-(?:google-)?gemini-.+/.test(context.provider)) {
         return undefined
     }
     return {

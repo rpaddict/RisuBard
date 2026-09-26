@@ -24,11 +24,19 @@ export interface PainterSubject {
     prompt?: string
 }
 
+export interface PainterFragment {
+    id: string
+    name: string
+    prompt: string
+}
+
 export interface PainterDraft {
     rendering: string
     scene: string
     negative: string
     subjects: PainterSubject[]
+    /** User-owned copies; never populated from model output. */
+    fragments?: PainterFragment[]
 }
 
 export interface PainterStyle {

@@ -3,12 +3,13 @@
     import type { getPainterSession } from 'src/ts/bardPainter/runtime.svelte'
     import ManagerResizeHandles from 'src/lib/UI/GUI/ManagerResizeHandles.svelte'
     import BardPainterStyles from './BardPainterStyles.svelte'
+    import BardPainterFragments from './BardPainterFragments.svelte'
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte'
     import BardPainterPresets from './BardPainterPresets.svelte'
     import BardPainterReference from './BardPainterReference.svelte'
     let { session, mode, onClose, disabled = false }: {
         session: ReturnType<typeof getPainterSession>
-        mode: 'style' | 'characters' | 'settings' | null
+        mode: 'style' | 'characters' | 'settings' | 'fragments' | null
         onClose: () => void
         disabled?: boolean
     } = $props()
@@ -18,7 +19,7 @@
     let dialogElement = $state<HTMLElement | null>(null)
     let dirty = $state(false), confirmClose = $state(false)
     let locked = $derived(disabled)
-    let dialogTitle = $derived(mode === 'style' ? '화풍 프리셋' : mode === 'characters' ? '캐릭터 프리셋' : '생성 설정')
+    let dialogTitle = $derived(mode === 'style' ? '화풍 프리셋' : mode === 'characters' ? '캐릭터 프리셋' : mode === 'fragments' ? '표현 조각 관리' : '생성 설정')
     $effect(() => { mode; session; dirty = false; confirmClose = false })
     function requestClose() {
         if (mode !== 'settings' && session.state.status === 'saving') return
@@ -56,6 +57,8 @@
                 <BardPainterStyles {session} disabled={locked} onDirtyChange={value => dirty = value} />
             {:else if mode === 'characters'}
                 <BardPainterPresets {session} disabled={locked} expanded={true} onDirtyChange={value => dirty = value} />
+            {:else if mode === 'fragments'}
+                <BardPainterFragments {session} disabled={locked} onDirtyChange={value => dirty = value} />
             {:else if mode === 'settings'}
                 <fieldset disabled={locked}>
                     <div class="actions" aria-label="생성 설정 적용 범위">

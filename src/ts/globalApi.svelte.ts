@@ -3,7 +3,7 @@ import { v4 as uuidv4, v4 } from 'uuid';
 import { tick } from "svelte";
 import { get } from "svelte/store";
 import streamSaver from 'streamsaver';
-import { setDatabase, type Database, defaultSdDataFunc, getDatabase, appVer, nodeOnlyVer, getCurrentCharacter, loadTogglesFromChat, syncActiveBotPresetFromMirror, syncActiveThemePresetFromMirror } from "./storage/database.svelte";
+import { setDatabase, type Database, defaultSdDataFunc, getDatabase, appVer, nodeOnlyVer, getCurrentCharacter, loadChatBindings, syncActiveBotPresetFromMirror, syncActiveThemePresetFromMirror } from "./storage/database.svelte";
 import { checkRisuUpdate } from "./update";
 import { MobileGUI, botMakerMode, selectedCharID, loadedStore, DBState, LoadingStatusState, selIdState, ReloadGUIPointer, bodyIntercepterStore, loadingOverlayStore, chatDeselected } from "./stores.svelte";
 import { loadPlugins } from "./plugins/plugins.svelte";
@@ -260,7 +260,7 @@ export let requiresFullEncoderReload = $state({
 
 let requestImmediateSaveImpl: ((options?: {
     forceFullWrite?: boolean
-    flushServer?: boolean
+    flushServer?: boolean | 'canonical'
     rejectOnFailure?: boolean
 }) => Promise<void> | void) = () => {}
 let patchSyncBaseline: Database | null = null
@@ -368,7 +368,7 @@ export function previewPersistFailureToast() {
 
 export function requestImmediateSave(options?: {
     forceFullWrite?: boolean
-    flushServer?: boolean
+    flushServer?: boolean | 'canonical'
     rejectOnFailure?: boolean
 }) {
     return requestImmediateSaveImpl(options)
@@ -681,8 +681,8 @@ export async function saveDb() {
         return toSave
     }
 
-    async function flushServerDbNow(keepalive = false) {
-        const response = await fetch('/api/db/flush', {
+    async function flushServerDbNow(keepalive = false, canonicalOnly = false) {
+        const response = await fetch(canonicalOnly ? '/api/db/flush?mode=canonical' : '/api/db/flush', {
             method: 'POST',
             keepalive,
             credentials: 'same-origin'
@@ -1381,6 +1381,7 @@ export async function saveDb() {
         forceFullWrite?: boolean
         skipBroadcast?: boolean
         rejectOnFailure?: boolean
+        refresh?: boolean
     }) {
         if (!saveRuntime.isActive()) return
         while (saveInFlight) {
@@ -1393,7 +1394,7 @@ export async function saveDb() {
             return
         }
 
-        if (!hasTrackedChanges(changeTracker) && !options?.forceFullWrite && !forceFullWriteOnRetry) {
+        if (!hasTrackedChanges(changeTracker) && !options?.forceFullWrite && !forceFullWriteOnRetry && !options?.refresh) {
             return
         }
 
@@ -1402,6 +1403,7 @@ export async function saveDb() {
             let toSave: toSaveType | null = null
             try {
                 await syncLiveFilesNow()
+                if (!hasTrackedChanges(changeTracker) && !options?.forceFullWrite && !forceFullWriteOnRetry) return
                 toSave = takeTrackedChanges()
                 const result = await persistTrackedChanges(toSave, {
                     ...options,
@@ -1474,13 +1476,13 @@ export async function saveDb() {
         }
         changed = true
         await tick()
-        await refreshThisRuntime()
         await triggerSave({
             forceFullWrite: options?.forceFullWrite,
             rejectOnFailure: options?.rejectOnFailure,
+            refresh: true,
         })
         if (options?.flushServer && supportsPatchSync) {
-            await flushServerDbNow()
+            await flushServerDbNow(false, options.flushServer === 'canonical')
         }
     }
 
@@ -1659,6 +1661,10 @@ function addFetchLogInGlobalFetch(response: any, success: boolean, url: string, 
     if (!arg.logCategory) return
     const stringify = (value: unknown) => {
         try {
+            // Raw image responses must not expand every byte into synchronous JSON.
+            if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+                return `[${value.constructor.name}: ${value.byteLength} bytes]`
+            }
             return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
         } catch {
             return `${value}`
@@ -3019,14 +3025,14 @@ export function changeChatTo(IdOrIndex: string | number) {
             }})
             void ensureChatHydrated(char.chats, capturedIndex, char.chaId).then((hydrated) => {
                 if(cancelled) return
-                if(hydrated && char.chatPage === capturedIndex) loadTogglesFromChat(hydrated)
+                if(hydrated && char.chatPage === capturedIndex) loadChatBindings(hydrated)
             }).catch((e) => {
                 console.error('[changeChatTo] hydration failed:', e)
             }).finally(() => {
                 if(!cancelled) loadingOverlayStore.set({ active: false, text: '', onCancel: null })
             })
         } else {
-            loadTogglesFromChat(newChat)
+            loadChatBindings(newChat)
         }
     }
     ReloadGUIPointer.set(Math.random())

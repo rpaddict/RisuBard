@@ -55,6 +55,33 @@ beforeEach(() => {
 afterEach(() => { component?.$destroy(); component = undefined; document.body.replaceChildren() })
 
 describe('BardPainter workspace', () => {
+    test('places style before a collapsible main block and allows editing and removing fragments', async () => {
+        runtime.current.data.draft = { ...draft(), fragments: [{ id: 'light', name: '빛', prompt: 'rim light' }] }
+        runtime.current.style.negative = 'blur'
+        mount(); await tick()
+        const section = document.querySelector('[aria-label="프롬프트 초안"]')!
+        const details = section.querySelectorAll('details')
+        expect(details[0].querySelector('summary')?.textContent).toBe('화풍')
+        expect(details[0].textContent).toContain('blur')
+        expect(details[1].querySelector('summary')?.textContent).toBe('메인 블록')
+        expect(details[1].open).toBe(true)
+        expect(section.textContent).not.toContain('AI가 초안을 작성하거나 개선해도')
+        const help = button('표현 조각')
+        help.dispatchEvent(new MouseEvent('mouseenter'))
+        await vi.waitFor(() => expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('AI가 초안을 작성하거나 개선해도'))
+        help.dispatchEvent(new MouseEvent('mouseleave'))
+        const field = section.querySelector<HTMLTextAreaElement>('[aria-label="표현 조각 빛"]')!
+        const fragment = field.closest('details')!
+        expect(fragment.open).toBe(false)
+        fragment.querySelector('summary')!.click(); await tick()
+        expect(fragment.open).toBe(true)
+        field.value = 'soft glow'; field.dispatchEvent(new Event('input', { bubbles: true })); await tick()
+        expect(runtime.current.data.draft.fragments[0].prompt).toBe('soft glow')
+        fragment.querySelector('summary')!.click(); await tick()
+        expect(fragment.open).toBe(false)
+        section.querySelector<HTMLButtonElement>('[aria-label="표현 조각 빛 제거"]')!.click(); await tick()
+        expect(runtime.current.data.draft.fragments).toEqual([])
+    })
     test('shows the effective image orientation and active style beside generation settings', async () => {
         mount(); await tick()
         const summary = () => document.querySelector('[aria-label="현재 이미지 형식과 화풍"]')

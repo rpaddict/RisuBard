@@ -30,6 +30,10 @@ describe('plugin provider structured output contract', () => {
     })
 
     test.each([
+        'pagefold-gemini-3.7-flash',
+        'pagefold-google-gemini-3.7-flash',
+        'pagefold-gemini-3.8-flash-openrouter',
+        'pagefold-gemini-3.8-flash-vertex',
         'pagefold-gemini-3.8-flash-vertex-1',
         'pagefold-gemini-3.8-flash-openrouter-1',
         'pagefold-gemini-3.8-flash-openrouter-2',
@@ -43,11 +47,15 @@ describe('plugin provider structured output contract', () => {
     })
 
     test.each([
+        ['pagefold-gemini-3.7-flash', 'chat-response'],
+        ['pagefold-gemini-3.7-flash', 'bardwiki-canonical-update'],
+        ['pagefold-google-gemini-3.7-flash', 'bardwiki-canonical-update'],
         ['pagefold-gemini-3.8-flash-vertex-1', 'chat-response'],
         ['pagefold-gemini-3.8-flash-openrouter-1', 'bardwiki-canonical-update'],
         ['pagefold-gemini-3.8-flash-vertex-1', undefined],
         ['pagefold-claude-sonnet-openrouter-1', 'bardwiki-analysis'],
         ['another-gemini-vertex-1', 'bardwiki-analysis'],
+        ['gemini-3.7-flash', 'bardwiki-analysis'],
     ])('retains native schema for unaffected requests: %s / %s', async (provider, purpose) => {
         const { createPluginStructuredOutput } = await import('./providerStructuredOutput')
         const schema = { type: 'object', properties: { title: { type: 'string' } } }
