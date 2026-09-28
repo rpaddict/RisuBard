@@ -1364,9 +1364,14 @@
         :global(.bard-analysis-dialog) { overflow-y: auto; }
         :global(.bard-analysis-dialog .risu-modal-header) { padding-right: 2.5rem; }
         .analysis-header-actions { position: static; order: 3; justify-content: flex-end; margin-bottom: .25rem; }
-        .analysis-workbench { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
+        /* flex: 1 이면 모달 본문이 배분한 높이에 묶인다(height: auto 로는 풀리지 않는다).
+           세로로 쌓이는 폭에서는 내용만큼 늘어나고 본문이 스크롤하는 편이 맞다. */
+        .analysis-workbench { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; flex: none; }
         .analysis-splitter { display: none; }
         .settings-pane { grid-template-rows: auto auto; max-height: none; gap: .75rem; overflow: visible; padding-right: 0; }
+        /* 스플리터가 없는 폭에서는 칸을 줄일 이유가 없다. min-height: 0 을 남겨 두면
+           최소 크기가 0 이 되어 두 상자가 제목 줄만 남기고 찌그러진다. */
+        .analysis-settings, .planning-layout, .run-layout { min-height: auto; overflow: visible; }
         .settings-row-splitter { display: none; }
         .target-preview { min-height: 25rem; }
     }
