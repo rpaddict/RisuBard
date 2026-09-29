@@ -22,6 +22,14 @@ export interface AlertConfirmOptions {
     tier?: ShDialogTier
 }
 
+/**
+ * `alert` tier 다이얼로그 안에서 알림을 띄울 때는 `tier: 'top'` 을 준다.
+ * 같은 tier 면 나중에 마운트된 쪽이 이기는데, 보통 알림이 먼저 있으므로 알림이 깔린다.
+ */
+export interface AlertNormalOptions {
+    tier?: ShDialogTier
+}
+
 export interface alertData{
     type: 'error'|'normal'|'none'|'ask'|'wait'|'selectChar'
             |'input'|'wait2'|'markdown'|'select'|'login'
@@ -135,10 +143,11 @@ export async function waitAlert(){
     }
 }
 
-export function alertNormal(msg:string){
+export function alertNormal(msg:string, options: AlertNormalOptions = {}){
     alertStoreImported.set({
         'type': 'normal',
-        'msg': msg
+        'msg': msg,
+        'tier': options.tier
     })
 }
 
