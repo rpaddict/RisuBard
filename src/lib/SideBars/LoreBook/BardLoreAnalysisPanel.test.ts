@@ -480,7 +480,8 @@ describe('BardLoreAnalysisPanel', () => {
         const help = document.body.querySelector<HTMLButtonElement>('[data-bard-lore-analysis-help="analysisLinkedDepth"]')!
         expect(label.title).toContain('1')
         help.click()
-        expect(alertNormalMock).toHaveBeenCalledWith(expect.stringContaining('1'))
+        // 이 모달은 tier="alert" 로 열리므로 도움말도 같은 tier 면 모달 밑에 깔린다. 'top' 이어야 한다.
+        expect(alertNormalMock).toHaveBeenCalledWith(expect.stringContaining('1'), { tier: 'top' })
         expect(document.body.querySelector('[data-bard-lore-analysis-name="source"]')?.classList.contains('complete')).toBe(true)
         expect(document.body.querySelector('[data-bard-lore-analysis-name="failed"]')?.classList.contains('failed')).toBe(true)
     })

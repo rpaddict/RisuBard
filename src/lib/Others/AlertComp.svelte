@@ -686,6 +686,7 @@
 
 <ShDialog
     open={$alertStore.type === 'normal'}
+    tier={$alertStore.tier ?? 'alert'}
     onOpenChange={(v) => {
         if (!v && $alertStore.type === 'normal') {
             alertStore.set({ type: 'none', msg: '' })

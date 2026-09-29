@@ -1016,7 +1016,7 @@
                                 <span data-bard-lore-analysis-label={key} title={analysisSettingHelp(key)} use:tooltip={analysisSettingHelp(key)}>{analysisSettingLabel(key)}</span>
                                 <button type="button" class="help-button" data-bard-lore-analysis-help={key}
                                     aria-label={analysisSettingHelp(key)} use:tooltip={analysisSettingHelp(key)}
-                                    onclick={() => alertNormal(analysisSettingHelp(key))}>?</button>
+                                    onclick={() => alertNormal(analysisSettingHelp(key), { tier: 'top' })}>?</button>
                             </span>
                             <input type="number" min="0" step={key === 'analysisTemperature' ? '0.05' : '1'} value={workingSettings[key]}
                                 data-bard-lore-analysis-setting={key}
