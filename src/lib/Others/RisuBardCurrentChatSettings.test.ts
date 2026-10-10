@@ -35,7 +35,7 @@ function chatWithLongMessages(): Chat {
 
 describe('RisuBardCurrentChatSettings', () => {
     test.each([
-        ['bardwiki-maximum-tokens', 'risuBardInquiryMaximumTokenBudget', '6000', '6570'],
+        ['bardwiki-maximum-tokens', 'risuBardInquiryMaximumTokenBudget', '7500', '8213'],
         ['bardwiki-analysis-tokens', 'risuBardAnalysisTokenLimit', '8192', '8970'],
     ] as const)('%s keeps the baseline in the input and shows its dynamic limit separately', async (id, key, base, effective) => {
         const chat = chatWithLongMessages()
@@ -77,13 +77,14 @@ describe('RisuBardCurrentChatSettings', () => {
         chat.risuBardSettings!.risuBardDynamicMemoryMode = 'recall'
         mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat, global, globalDynamicOnly: true } })
         const select = document.querySelector<HTMLSelectElement>('#bardwiki-dynamic-memory')!
-        expect(select.value).toBe('off')
-        select.value = 'economy'
+        expect(select.value).toBe('economy')
+        select.value = 'balanced'
         select.dispatchEvent(new Event('change', { bubbles: true }))
         await tick()
-        expect(global.risuBardDynamicMemoryMode).toBe('economy')
+        expect(global.risuBardDynamicMemoryMode).toBe('balanced')
         expect(chat.risuBardSettings!.risuBardDynamicMemoryMode).toBe('recall')
         expect(document.querySelector('#bardwiki-model-mode')).toBeNull()
+        expect(document.querySelector('#bardwiki-memory-budget')).toBeNull()
     })
     test('stores dynamic policy, shows computed limits and restores the baseline when disabled', async () => {
         const chat = chatWithLongMessages()
@@ -91,13 +92,18 @@ describe('RisuBardCurrentChatSettings', () => {
         const global: RisuBardChatSettings = {}
         mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat, global } })
         expect(document.querySelector('#bardwiki-dynamic-maximum')).toBeNull()
+        expect(document.querySelector('#bardwiki-dynamic-memory')).toBeNull()
+        const preset = document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!
+        preset.value = 'custom'
+        preset.dispatchEvent(new Event('change', { bubbles: true }))
+        await tick()
         const select = document.querySelector<HTMLSelectElement>('#bardwiki-dynamic-memory')!
         expect(select).not.toBeNull()
         select.value = 'balanced'
         select.dispatchEvent(new Event('change', { bubbles: true }))
         await tick()
-        expect(document.querySelector<HTMLInputElement>('#bardwiki-maximum-tokens')?.value).toBe('6000')
-        expect(document.querySelector('#bardwiki-maximum-tokens-dynamic')?.textContent).toContain('9,000')
+        expect(document.querySelector<HTMLInputElement>('#bardwiki-maximum-tokens')?.value).toBe('7500')
+        expect(document.querySelector('#bardwiki-maximum-tokens-dynamic')?.textContent).toContain('11,250')
         expect(document.querySelector<HTMLInputElement>('#bardwiki-analysis-tokens')?.value).toBe('8192')
         expect(document.querySelector('#bardwiki-analysis-tokens-dynamic')?.textContent).toContain('12,288')
         expect(document.querySelector<HTMLInputElement>('#bardwiki-history-limit')?.value).toBe('8')
@@ -106,7 +112,7 @@ describe('RisuBardCurrentChatSettings', () => {
         maximum.value = '8000'
         maximum.dispatchEvent(new Event('change', { bubbles: true }))
         await tick()
-        expect(document.querySelector<HTMLInputElement>('#bardwiki-maximum-tokens')?.value).toBe('6000')
+        expect(document.querySelector<HTMLInputElement>('#bardwiki-maximum-tokens')?.value).toBe('7500')
         expect(document.querySelector('#bardwiki-maximum-tokens-dynamic')?.textContent).toContain('8,000')
         expect(document.querySelector('[data-chat-setting-help="risuBardInquiryMaximumTokenBudget"]')?.getAttribute('data-help-text')).toContain('상한 적용')
         const help = document.querySelector<HTMLButtonElement>('[data-chat-setting-help="risuBardDynamicMemoryMode"]')!
@@ -121,7 +127,7 @@ describe('RisuBardCurrentChatSettings', () => {
         restored.dispatchEvent(new Event('change', { bubbles: true }))
         await tick()
         expect(document.querySelector('#bardwiki-dynamic-maximum')).toBeNull()
-        expect(resolveRisuBardChatSettings(global, saved.risuBardSettings).risuBardInquiryMaximumTokenBudget).toBe(6000)
+        expect(resolveRisuBardChatSettings(global, saved.risuBardSettings).risuBardInquiryMaximumTokenBudget).toBe(7500)
         expect(document.querySelector('#bardwiki-maximum-tokens-dynamic')).toBeNull()
     })
     test.each(['blur', 'Enter'])('recall analysis preserves lowered input after %s and explains the model ceiling', async (finish) => {
@@ -155,6 +161,7 @@ describe('RisuBardCurrentChatSettings', () => {
     })
     test('keeps ordinary analysis input unchanged when dynamic memory is off', async () => {
         const chat = chatWithLongMessages()
+        chat.risuBardSettings!.risuBardDynamicMemoryMode = 'off'
         mounted = mount(RisuBardCurrentChatSettings, {target: document.body, props: {chat, global: {}}})
         const input = document.querySelector<HTMLInputElement>('#bardwiki-analysis-tokens')!
         expect(input.value).toBe('8192')
@@ -231,6 +238,123 @@ describe('RisuBardCurrentChatSettings', () => {
         expect(chat.risuBardSettings).toBeUndefined()
     })
 
+    describe('memory budget preset', () => {
+        const choose = async (value: string) => {
+            const select = document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!
+            select.value = value
+            select.dispatchEvent(new Event('change', { bubbles: true }))
+            await tick()
+        }
+        const summary = () => document.querySelector('#bardwiki-memory-budget-summary')?.textContent?.trim()
+        const budgetInputs = ['#bardwiki-target-tokens', '#bardwiki-event-tokens', '#bardwiki-source-tokens', '#bardwiki-maximum-tokens']
+        const dynamicIds = ['#bardwiki-dynamic-memory', '#bardwiki-dynamic-maximum']
+
+        test('shows the standard tier summary and hides the six fields while keeping the other search fields', () => {
+            mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat: chatWithLongMessages(), global: {} } })
+            const select = document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!
+            expect([...select.options].map(option => option.textContent)).toEqual(['절약', '보통', '넉넉', '커스텀'])
+            expect(select.value).toBe('standard')
+            expect(select.closest('[data-chat-setting-field]')?.getAttribute('data-chat-setting-field')).toBe('risuBardMemoryBudgetPreset')
+            expect(summary()).toBe('검색 목표 4,000 / 사건 3,000 / 자료별 2,000 / 최대 7,500 / 동적 한도 절약형')
+            expect(summary()).not.toContain('·')
+            expect([...document.querySelectorAll('#bardwiki-memory-budget-summary .summary-part')].map(part => part.textContent))
+                .toEqual(['검색 목표 4,000', '사건 3,000', '자료별 2,000', '최대 7,500', '동적 한도 절약형'])
+            for (const selector of [...budgetInputs, ...dynamicIds]) expect(document.querySelector(selector), selector).toBeNull()
+            expect(document.querySelector('#bardwiki-timeout')).not.toBeNull()
+            expect(document.querySelector('#bardwiki-history-limit')).not.toBeNull()
+            const help = document.querySelector('[data-chat-setting-help="risuBardMemoryBudgetPreset"]')!
+            expect(help.getAttribute('aria-label')).toBe('기억 예산 도움말')
+            expect(help.getAttribute('data-help-text')).toContain('절약(검색 목표 3,000, 최대 5,500)')
+            expect(help.getAttribute('data-help-text')).toContain('커스텀')
+        })
+
+        test('writes the six tier values to the chat, keeps 커스텀 open without changing them, and tiers close it again', async () => {
+            const chat = chatWithLongMessages()
+            const global: RisuBardChatSettings = {}
+            mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat, global } })
+            await choose('generous')
+            expect(chat.risuBardSettings).toMatchObject({
+                risuBardInquiryTargetTokenBudget: 6000,
+                risuBardInquiryEventTokenBudget: 4000,
+                risuBardInquirySourceTokenBudget: 2500,
+                risuBardInquiryMaximumTokenBudget: 10500,
+                risuBardDynamicMemoryMode: 'balanced',
+                risuBardDynamicMemoryMaximumTokens: 16000,
+                risuBardResponseMessageCount: 4,
+            })
+            expect(global).toEqual({})
+            expect(document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!.value).toBe('generous')
+            expect(summary()).toBe('검색 목표 6,000 / 사건 4,000 / 자료별 2,500 / 최대 10,500 / 동적 한도 균형형')
+            expect(document.querySelector('#bardwiki-target-tokens')).toBeNull()
+
+            const before = JSON.stringify(chat.risuBardSettings)
+            await choose('custom')
+            expect(JSON.stringify(chat.risuBardSettings)).toBe(before)
+            expect(document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!.value).toBe('custom')
+            expect(summary()).toBeUndefined()
+            expect(document.querySelector<HTMLInputElement>('#bardwiki-target-tokens')!.value).toBe('6000')
+            expect(document.querySelector<HTMLInputElement>('#bardwiki-source-tokens')!.value).toBe('2500')
+            expect(document.querySelector<HTMLSelectElement>('#bardwiki-dynamic-memory')!.value).toBe('balanced')
+            expect(document.querySelector<HTMLInputElement>('#bardwiki-dynamic-maximum')!.value).toBe('16000')
+
+            const source = document.querySelector<HTMLInputElement>('#bardwiki-source-tokens')!
+            source.value = '2600'
+            source.dispatchEvent(new Event('change', { bubbles: true }))
+            await tick()
+            expect(chat.risuBardSettings!.risuBardInquirySourceTokenBudget).toBe(2600)
+            expect(document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!.value).toBe('custom')
+
+            await choose('economy')
+            expect(chat.risuBardSettings).toMatchObject({
+                risuBardInquiryTargetTokenBudget: 3000,
+                risuBardInquiryEventTokenBudget: 2000,
+                risuBardInquirySourceTokenBudget: 1500,
+                risuBardInquiryMaximumTokenBudget: 5500,
+                risuBardDynamicMemoryMode: 'economy',
+                risuBardDynamicMemoryMaximumTokens: 12000,
+            })
+            expect(summary()).toBe('검색 목표 3,000 / 사건 2,000 / 자료별 1,500 / 최대 5,500 / 동적 한도 절약형')
+            expect(document.querySelector('#bardwiki-source-tokens')).toBeNull()
+        })
+
+        test('shows the fields for values that match no tier and re-detects a saved tier on remount', async () => {
+            const chat = chatWithLongMessages()
+            chat.risuBardSettings!.risuBardInquiryTargetTokenBudget = 3500
+            mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat, global: {} } })
+            expect(document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!.value).toBe('custom')
+            expect(summary()).toBeUndefined()
+            expect(document.querySelector<HTMLInputElement>('#bardwiki-target-tokens')!.value).toBe('3500')
+            await choose('standard')
+            const saved = JSON.parse(JSON.stringify(chat))
+            await unmount(mounted)
+            mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat: saved, global: {} } })
+            expect(document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!.value).toBe('standard')
+            expect(document.querySelector('#bardwiki-target-tokens')).toBeNull()
+        })
+
+        test('lets the row wrap and shrink and wraps the summary only between label and value pairs', () => {
+            const source = readFileSync(resolve(process.cwd(), 'src/lib/Others/RisuBardCurrentChatSettings.svelte'), 'utf8')
+            expect(source).toMatch(/\.summary-part\s*\{[^}]*white-space:\s*nowrap/)
+            expect(source).not.toMatch(/\.budget-summary\s*\{[^}]*white-space:\s*nowrap/)
+            expect(source).toMatch(/\.preset-controls\s*\{[^}]*flex-wrap:\s*wrap/)
+            expect(source).toMatch(/\.preset-controls select\s*\{[^}]*max-width:/)
+            // A spanning summary inside a max-content grid track used to push the select out of the field.
+            expect(source).not.toMatch(/\.preset-field\s*\{[^}]*max-content/)
+        })
+
+        test('follows the pinned bot target and stays disabled without a chat', async () => {
+            const chat = chatWithLongMessages()
+            const character: { risuBardPinnedSettings?: RisuBardChatSettings } = { risuBardPinnedSettings: { risuBardResponseMessageCount: 4 } }
+            mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat, global: {}, character } })
+            await choose('economy')
+            expect(character.risuBardPinnedSettings).toMatchObject({ risuBardInquiryMaximumTokenBudget: 5500, risuBardDynamicMemoryMode: 'economy' })
+            expect(chat.risuBardSettings!.risuBardInquiryMaximumTokenBudget).toBeUndefined()
+            await unmount(mounted)
+            mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { global: {} } })
+            expect(document.querySelector<HTMLSelectElement>('#bardwiki-memory-budget')!.disabled).toBe(true)
+        })
+    })
+
     test('gives every visible option contextual help without step validation hints', () => {
         const chat = chatWithLongMessages()
         mounted = mount(RisuBardCurrentChatSettings, {
@@ -240,7 +364,7 @@ describe('RisuBardCurrentChatSettings', () => {
 
         const fields = [...document.querySelectorAll('[data-chat-setting-field]')]
         const helpButtons = [...document.querySelectorAll('[data-chat-setting-help]')]
-        expect(fields).toHaveLength(20)
+        expect(fields).toHaveLength(16)
         expect(document.querySelector('#bardwiki-ignore-ooc')).toBeNull()
         expect(helpButtons).toHaveLength(fields.length)
         expect(document.querySelector(

@@ -56,6 +56,31 @@ describe('narrative context prompt composition', () => {
 })
 
 describe('actual narrative inquiry prompt', () => {
+    it('sends at most 96 timeline messages, newest last', async () => {
+        let body: any
+        await loadNarrativeInquiry({ characterId: 'c', chatId: 'chat', currentInput: 'Alice',
+            timeline: { messages: Array.from({ length: 100 }, (_, index) =>
+                ({ chatId: `m${index}`, role: 'user' as const })) },
+            createAuth: async () => 'auth', fetchImpl: async (_url, options) => {
+                body = JSON.parse(String(options?.body))
+                return new Response(JSON.stringify({
+                    mode: 'v2-current', graphRevision: 0, indexRevision: 0, cacheStatus: 'current',
+                    sources: [], evidenceRequests: [],
+                    metrics: { candidateCount: 0, inspectedNodeCount: 0, inspectedEdgeCount: 0,
+                        selectedNodeCount: 0, selectedTokens: 0, hopCount: 0, auxiliaryModelCalls: 0 },
+                }))
+            },
+        })
+        expect(body.timeline.messages).toHaveLength(96)
+        expect(body.timeline.messages[0].chatId).toBe('m4')
+    })
+
+    it('tells the response model that canon summaries do not establish recency', () => {
+        const prompt = createNarrativeSourcesPrompt([
+            { id: 'a', kind: 'memory', role: 'system', content: 'x', tokens: 1 },
+        ])!
+        expect(prompt).toContain('it does not establish when they happened')
+    })
     it('transports required and automatic selection without changing the failure contract', async () => {
         for (const contextSelection of ['required', 'auto'] as const) {
             let body: Record<string, unknown> = {}

@@ -28,8 +28,10 @@ describe('RisuBard settings persistence', () => {
         expect(getDatabase().characters[0].chats[0].risuBardSettings?.risuBardDynamicMemoryMode).toBe('balanced')
         expect(getDatabase().characters[0].risuBardPinnedSettings?.risuBardDynamicMemoryMaximumTokens).toBe(20000)
         setDatabase({ ...getDatabase(), risuBardDynamicMemoryMode: 'bad', risuBardDynamicMemoryMaximumTokens: NaN } as any)
-        expect(getDatabase().risuBardDynamicMemoryMode).toBe('off')
+        expect(getDatabase().risuBardDynamicMemoryMode).toBe('economy')
         expect(getDatabase().risuBardDynamicMemoryMaximumTokens).toBe(12000)
+        setDatabase({ ...getDatabase(), risuBardDynamicMemoryMode: 'off' } as any)
+        expect(getDatabase().risuBardDynamicMemoryMode).toBe('off')
     })
     test('preserves bot-pinned wiki settings across database reloads', () => {
         setDatabase({
@@ -149,5 +151,71 @@ describe('RisuBard settings persistence', () => {
             risuBardInquiryMaximumTokenBudget: 99_999,
             risuBardInquiryTimeoutMs: expectedTimeout,
         })
+    })
+})
+
+describe('memory budget defaults migration', () => {
+    const base = () => ({
+        characters: [], formatingOrder: ['main'], loreBook: [], personas: [],
+        username: 'User', userIcon: '', userNote: '',
+    })
+    const oldDefaults = {
+        risuBardInquiryTargetTokenBudget: 2000,
+        risuBardInquiryEventTokenBudget: 2000,
+        risuBardInquirySourceTokenBudget: 2000,
+        risuBardInquiryMaximumTokenBudget: 6000,
+        risuBardDynamicMemoryMode: 'off',
+        risuBardDynamicMemoryMaximumTokens: 12000,
+    }
+    const standard = {
+        risuBardInquiryTargetTokenBudget: 4000,
+        risuBardInquiryEventTokenBudget: 3000,
+        risuBardInquirySourceTokenBudget: 2000,
+        risuBardInquiryMaximumTokenBudget: 7500,
+        risuBardDynamicMemoryMode: 'economy',
+        risuBardDynamicMemoryMaximumTokens: 12000,
+    }
+
+    test('moves untouched old defaults to the standard tier once and stamps the version', () => {
+        setDatabase({ ...base(), ...oldDefaults } as any)
+        expect(getDatabase()).toMatchObject({ ...standard, risuBardMemoryBudgetDefaultsVersion: 2 })
+        setDatabase(JSON.parse(JSON.stringify(getDatabase())))
+        expect(getDatabase()).toMatchObject({ ...standard, risuBardMemoryBudgetDefaultsVersion: 2 })
+    })
+
+    test('treats absent values as the old defaults, including a never configured database', () => {
+        setDatabase(base() as any)
+        expect(getDatabase()).toMatchObject({ ...standard, risuBardMemoryBudgetDefaultsVersion: 2 })
+        setDatabase({ ...base(), risuBardInquiryTargetTokenBudget: 2000, risuBardInquiryMaximumTokenBudget: 6000 } as any)
+        expect(getDatabase()).toMatchObject({ ...standard, risuBardMemoryBudgetDefaultsVersion: 2 })
+    })
+
+    test('leaves customized globals untouched and still stamps the version', () => {
+        setDatabase({ ...base(), ...oldDefaults, risuBardInquiryTargetTokenBudget: 3000 } as any)
+        expect(getDatabase()).toMatchObject({ ...oldDefaults, risuBardInquiryTargetTokenBudget: 3000, risuBardMemoryBudgetDefaultsVersion: 2 })
+        setDatabase({ ...base(), ...oldDefaults, risuBardDynamicMemoryMode: 'balanced' } as any)
+        expect(getDatabase()).toMatchObject({ ...oldDefaults, risuBardDynamicMemoryMode: 'balanced', risuBardMemoryBudgetDefaultsVersion: 2 })
+    })
+
+    test('does not migrate again when the version is already current, e.g. old values picked via custom', () => {
+        setDatabase({ ...base(), ...oldDefaults, risuBardMemoryBudgetDefaultsVersion: 2 } as any)
+        expect(getDatabase()).toMatchObject({ ...oldDefaults, risuBardMemoryBudgetDefaultsVersion: 2 })
+        setDatabase({ ...base(), ...oldDefaults, risuBardMemoryBudgetDefaultsVersion: 5 } as any)
+        expect(getDatabase()).toMatchObject({ ...oldDefaults, risuBardMemoryBudgetDefaultsVersion: 5 })
+        setDatabase({ ...base(), ...oldDefaults, risuBardMemoryBudgetDefaultsVersion: 1 } as any)
+        expect(getDatabase()).toMatchObject({ ...standard, risuBardMemoryBudgetDefaultsVersion: 2 })
+    })
+
+    test('never touches bot-pinned or chat-level copies', () => {
+        const pinned = { ...oldDefaults, risuBardResponseMessageCount: 5 }
+        const chatSettings = { ...oldDefaults }
+        setDatabase({
+            ...base(), ...oldDefaults,
+            characters: [{ chaId: 'migration', name: 'Migration', risuBardPinnedSettings: pinned, chats: [{ id: 'chat', message: [], risuBardSettings: chatSettings }] }],
+        } as any)
+        const database = getDatabase()
+        expect(database).toMatchObject({ ...standard, risuBardMemoryBudgetDefaultsVersion: 2 })
+        expect(database.characters[0].risuBardPinnedSettings).toEqual(pinned)
+        expect(database.characters[0].chats[0].risuBardSettings).toEqual(chatSettings)
     })
 })

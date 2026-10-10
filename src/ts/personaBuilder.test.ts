@@ -49,24 +49,28 @@ const currentCharacter = (overrides: Partial<character> = {}): character => ({
 } as character)
 
 describe('persona builder source compiler', () => {
-    test('uses only prompt-template main blocks when a template is active', () => {
-        const sources = collectPersonaBuilderSources({
-            database: database({
-                mainPrompt: 'Legacy prompt must be absent',
-                promptTemplate: [
-                    { type: 'plain', type2: 'main', role: 'system', text: 'Main A' },
-                    { type: 'jailbreak', type2: 'normal', role: 'system', text: 'Jailbreak' },
-                    { type: 'cot', type2: 'normal', role: 'system', text: 'CoT' },
-                    { type: 'plain', type2: 'globalNote', role: 'system', text: 'Global note' },
-                    { type: 'plain', type2: 'main', role: 'system', text: 'Main B' },
-                ],
-            }),
+    test('uses every text block of the active prompt preset, following jailbreak and CoT toggles', () => {
+        const template = [
+            { type: 'plain', type2: 'normal', role: 'system', text: 'Normal A' },
+            { type: 'jailbreak', type2: 'normal', role: 'system', text: 'Jailbreak' },
+            { type: 'cot', type2: 'normal', role: 'system', text: 'CoT' },
+            { type: 'plain', type2: 'globalNote', role: 'system', text: 'Global note' },
+            { type: 'chat', rangeStart: 0, rangeEnd: 'end' },
+            { type: 'plain', type2: 'main', role: 'system', text: 'Main B' },
+        ] as Database['promptTemplate']
+        const off = collectPersonaBuilderSources({
+            database: database({ mainPrompt: 'Legacy prompt must be absent', promptTemplate: template }),
             character: currentCharacter({ systemPrompt: 'Character override' }),
             moduleLorebooks: [],
         })
+        expect(off.systemPrompt).toBe('Normal A\n\nGlobal note\n\nMain B')
 
-        expect(sources.systemPrompt).toBe('Main A\n\nMain B')
-        expect(sources.systemPrompt).not.toMatch(/Legacy|Jailbreak|CoT|Global note|override/)
+        const on = collectPersonaBuilderSources({
+            database: database({ promptTemplate: template, jailbreakToggle: true, chainOfThought: true }),
+            character: currentCharacter(),
+            moduleLorebooks: [],
+        })
+        expect(on.systemPrompt).toBe('Normal A\n\nJailbreak\n\nCoT\n\nGlobal note\n\nMain B')
     })
 
     test('resolves main prompt blocks with the current chat toggle values', () => {

@@ -1,0 +1,174 @@
+{
+  "type": "risubard-wiki-prompt-preset",
+  "schemaVersion": 1,
+  "preset": {
+    "schemaVersion": 1,
+    "writingPolicyVersion": 5,
+    "id": "official-wiki-261003-v5",
+    "name": "공식기본-261003-v5",
+    "revision": 4,
+    "builtin": true,
+    "blocks": [
+      {
+        "id": "core-evidence-contract",
+        "type": "core-ref",
+        "name": "Evidence and fact boundary",
+        "target": "both",
+        "analysisMode": "all",
+        "enabled": true,
+        "readonly": true,
+        "content": "Record only facts established by accepted or confirmed narrative evidence.\nDo not promote instructions, discarded text, plans, guesses, omitted details, or temporal order into story facts or causation.\nKeep objective facts, character knowledge, and unresolved inference separate."
+      },
+      {
+        "id": "core-character-continuity-contract",
+        "type": "core-ref",
+        "name": "Character continuity contract",
+        "target": "both",
+        "analysisMode": "all",
+        "enabled": true,
+        "readonly": true,
+        "content": "Character canon maintains durable identity and current operating state. Keep scene details and acquisition history in event documents.\nPreserve established relationships and trust, knowledge, promises, injuries and meaningful possessions when the latest scene is silent about them. Silence is not completion, forgetting or evidence of change.\nOn confirmed completion, expiry or replacement, remove inactive tasks, temporary instructions and superseded state from any section. Preserve outstanding rewards, obligations and lasting consequences; task completion does not prove reward delivery. Keep useful history in saved events with exact supplied links.\nA completed encounter or revelation does not erase acquaintance or acquired knowledge. Retain who met whom and what each person learned. Group knowledge by counterpart or topic and update the existing entry rather than append each occasion of learning.\nPreserve learned identities, rules, secrets, uncertainty, mistaken beliefs and who shares each secret. Correct a belief only for holders reached by the evidence. A document link, another person's knowledge or knowing a mutual acquaintance does not establish this person's knowledge. Do not invent ignorance from absent evidence.\nUse these character section roles: Identity, Current State, Relationships and Trust, Knowledge and Secrets, Major Transitions. Write each heading exactly as the locale heading given in the canonical writing policy. Do not create empty sections or templates.\nIdentity owns identity, background, personality and abilities. Current State owns situation, goals, physical and mental condition, constraints and active tasks. Relationships and Trust owns acquaintances, relationships, trust, conflict, promises and explicit values. Knowledge and Secrets owns individual knowledge and belief boundaries, not an experience diary.\nOne primary home per fact. Preserve its holder, source, certainty and conditions there, including knowledge recorded outside Knowledge and Secrets. Elsewhere retain only a distinct consequence. Keep routine experiences in events unless they establish durable state or knowledge needed for later choices.\nRecord confirmed structured state values in the relevant subject canon. Update them only from confirmed evidence, retain existing values when they are omitted, and do not recalculate them or infer narrative meaning from them alone.\nMajor Transitions records lasting changes to state, relationships, role, goals, affiliation or constraints, not actions or scenes. A continuous scene or encounter spanning several events is one transition. When a new event continues or deepens the latest transition, revise that entry instead of appending a new one. Each entry states the resulting change with exact event links; retain independent changes without a fixed item or character quota.\nWhen replacing or merging sections, preserve unrelated still-valid state and knowledge. Return destination and deletion patches together, retaining necessary content before removing source sections. Older headings alone do not justify an update.\nMeaningful equipment remains in Identity or Current State unless the equipment module is enabled. Do not create a Related Documents section just to repeat links already present."
+      },
+      {
+        "id": "core-analysis-contract",
+        "type": "core-ref",
+        "name": "Memory analysis contract",
+        "target": "analysis",
+        "analysisMode": "normal",
+        "enabled": true,
+        "readonly": true,
+        "content": "Separate established events, state changes, character knowledge, persistent facts, unresolved continuity, and canonical update candidates.\nPreserve exact puzzle observations such as symbols, order, spatial layout, pairings, blanks, mechanisms, and attempt outcomes. Keep confirmed observations distinct from inferred rules or solutions."
+      },
+      {
+        "id": "core-historical-analysis-contract",
+        "type": "core-ref",
+        "name": "Historical turn reanalysis contract",
+        "target": "analysis",
+        "analysisMode": "historical",
+        "enabled": true,
+        "readonly": true,
+        "content": "Reanalyze the selected historical turn from its currently saved text and the supplied earlier context.\nReplace conflicting event details and recover omissions without projecting later knowledge back into the selected turn.\nCanonical updates may correct history, but must preserve a character current-state section that represents later events."
+      },
+      {
+        "id": "main-wiki-guide",
+        "type": "text",
+        "name": "Main Wiki Guide",
+        "target": "both",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": ""
+      },
+      {
+        "id": "default-puzzle-clue-tracker",
+        "type": "text",
+        "name": "Puzzle & clue tracker",
+        "target": "both",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "When a puzzle, cipher, ritual, combination, lock, or rule-based clue appears, preserve the observed elements, order, spatial layout, pairings, blanks, mechanism locations, and outcomes of attempted solutions. Keep confirmed observations separate from inferred rules or answers, and retain unresolved parts as unresolved continuity."
+      },
+      {
+        "id": "default-puzzle-response-reasoning",
+        "type": "text",
+        "name": "Puzzle relationship reasoning",
+        "target": "response",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "When retrieved evidence contains a puzzle, cipher, symbolic sequence, paired layout, or blank, reason about the relationship among the recalled elements before choosing the next action. Reveal important connections naturally in the narrative. Treat any solution not established by evidence as an inference rather than a fact."
+      },
+      {
+        "id": "default-character-equipment",
+        "type": "text",
+        "name": "장비와 소지품",
+        "target": "both",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "Equipment module: use a separate Equipment and Possessions section, headed with its exact locale heading, when supported by evidence. It owns meaningful possessions, ownership, availability, acquisition, loss and condition. Move equipment details from other sections here without duplicating them; other sections may retain only a distinct identity trait or action constraint. Never infer ownership from proximity or another character equipment. Omit empty sections."
+      },
+      {
+        "id": "default-length-compression",
+        "type": "text",
+        "name": "분량 압축",
+        "target": "both",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "Apply stronger compression by merging repeated explanations and successive steps of the same change. Follow the continuity contract to retire confirmed completed or expired state while preserving outstanding obligations and lasting consequences. Keep scene details and knowledge acquisition history in events; keep who met whom and each holder's current knowledge concise in canon. Never drop distinct still-valid facts, knowledge boundaries, attribution, conditions, relationship direction or values merely to shorten the document. When rewriting Major Transitions, also merge existing entries that describe successive steps of the same change, including entries left by earlier per-event logging. Each transition keeps its resulting change and one or two representative event links, such as the start and the decisive event; other events remain searchable without links. Impose no fixed length or item quota. Move necessary content and delete redundant source sections in the same patch batch."
+      },
+      {
+        "id": "default-evidence-scope",
+        "type": "text",
+        "name": "사실의 출처와 지속 범위",
+        "target": "both",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "Keep attribution and certainty in each event or canon sentence, not only in characterKnowledge: A reported X, B suspects X, or C witnessed X. A claim, confession, self-report or prediction is not an unqualified world fact without independent confirming evidence. Preserve who actually learned it; narrator knowledge is not shared character knowledge.\nWhen evidence corrects a belief, update only the knowledge holders supported by that evidence. Retain the former belief as history only when its existence still matters.\nAffection, intimacy, jealousy, comfort and context-bound roles do not alone establish a formal relationship, permanent hierarchy, personality change or resolved psychological problem. Preserve the observed behavior and explicit commitments; name a durable status only when the narrative establishes it through naming, agreement or equivalent unambiguous evidence.\nFirst appearance in the supplied input is not first onset in the story. Record onset, reinforcement or resolution only with evidence for that transition; leave unsupported before states unknown. Temporal sequence alone is not causation. A single outcome does not prove a universal ability, limitation or permanent effect; retain the stated scope.\nPreserve supported observations and attributed uncertainty rather than deleting the whole development because its interpretation is uncertain."
+      },
+      {
+        "id": "default-recall-detail",
+        "type": "text",
+        "name": "회수할 수 있는 사건의 구체성",
+        "target": "analysis",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "Write establishedEvents as a chronological story summary with enough concrete detail to recognize and retrieve each meaningful development on its own. Retain supported participants, action and target, distinctive objects or places, conditions, and consequences when they distinguish this event or explain a later choice. Preserve cause, response and result only where the source establishes their connection.\nDo not replace a distinctive interaction with a generic conclusion such as increased trust. Preserve what the characters actually did or said. Small gestures, recurring nicknames, jokes and relationship-specific motifs can matter even without an external plot change; include them briefly in their scene when they provide a distinctive recall cue.\nKeep one coherent development together. Separate independently meaningful decisions, revelations or consequences without fragmenting each action or padding the record count. Do not force a fixed detail quota or length increase; remove repeated description, routine action and connective prose before removing useful recall cues. Respect the existing schema and per-item limits; add no dialogue or memory fields.\nWhen keywords are available, include grounded distinctive names, objects, actions, nicknames or short recurring expressions. Keywords aid retrieval but never replace the event facts or add unsupported details.\nKeep scene detail in events. Still register or update a subject canon for independently useful durable state, knowledge, commitments, possessions or constraints, even when the event describes their origin. Store the concise current result and event link in canon instead of copying the full scene."
+      },
+      {
+        "id": "default-dialogue-recall",
+        "type": "text",
+        "name": "핵심 대사와 문맥 보존",
+        "target": "analysis",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "Retain a short exact quotation inside an establishedEvents item when its wording carries a promise, condition, boundary, refusal, acceptance or distinctive relationship-specific expression that paraphrase would lose. Emotional intensity, humor or ordinary character voice alone is not enough; not every scene needs a quote.\nIdentify the speaker, addressee when known, situation and relevant response so the quotation remains understandable alone. Keep the shortest exchange needed when a reply changes the meaning; preserve conditions and negation.\nEvery quoted passage must be an exact contiguous substring of the supplied confirmed source, with original wording and punctuation. Never reconstruct, merge separate utterances, translate or improve a quotation. If literal copying is uncertain, omit direct quotation and retain only the supported meaning as attributed paraphrase. Distinguish a character quoting someone else from an independently witnessed original utterance."
+      },
+      {
+        "id": "default-recall-response",
+        "type": "text",
+        "name": "회수한 기억의 문맥과 대사",
+        "target": "response",
+        "enabled": true,
+        "readonly": true,
+        "analysisMode": "all",
+        "content": "Use retrieved concrete actions, objects and distinctive expressions when relevant to the current scene, without forcing callbacks. Preserve the original speaker, addressee, conditions, chronology and knowledge holders. For exact past wording, prefer retrieved source text over a summary; do not present reconstructed or paraphrased dialogue as a verbatim past quote. Missing context remains uncertain. A past claim remains attributed, and a scene-local reaction does not establish a lasting relationship or state."
+      },
+      {
+        "id": "character-wiki-guide",
+        "type": "injection",
+        "name": "Character Wiki Guide Injection",
+        "target": "both",
+        "analysisMode": "all",
+        "enabled": true,
+        "readonly": true,
+        "content": "The current character Wiki Guide is inserted here at runtime for analysis and canonical writing."
+      },
+      {
+        "id": "chat-wiki-guide",
+        "type": "injection",
+        "name": "Chat Wiki Guide Injection",
+        "target": "both",
+        "analysisMode": "all",
+        "enabled": true,
+        "readonly": true,
+        "content": "The current chat Wiki Guide is inserted here at runtime after the character guide."
+      },
+      {
+        "id": "core-output-contract",
+        "type": "core-ref",
+        "name": "Structured output contract",
+        "target": "both",
+        "analysisMode": "all",
+        "enabled": true,
+        "readonly": true,
+        "content": "Return only the structured fields required by the active operation.\nThe event draft fields are schemaVersion, title, establishedEvents, stateChanges, characterKnowledge, persistentFacts, openContinuity, and canonicalUpdateCandidates.\nDo not create IDs, paths, revisions, hashes, timestamps, source IDs, or YAML frontmatter."
+      }
+    ]
+  }
+}

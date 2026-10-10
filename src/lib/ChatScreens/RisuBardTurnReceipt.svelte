@@ -31,6 +31,9 @@
     {#each receipt.warnings as warning}
         <p class="warning"><AlertTriangle size={13} />{warning}</p>
     {/each}
+    {#each receipt.notes ?? [] as note}
+        <p class="note">{note}</p>
+    {/each}
 </aside>
 
 <style>

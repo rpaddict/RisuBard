@@ -1,8 +1,9 @@
 <script lang="ts">
-    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openModelPresetList, openModelProfileBrowser, openPersonaList, openPersonaManager, personaSelectCallback, openHypaV3PresetList, openThemePresetList, MobileGUI, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, popUpEditorStore } from './ts/stores.svelte';
+    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openModelPresetList, openModelProfileBrowser, openPersonaList, openPersonaManager, personaSelectCallback, openHypaV3PresetList, openThemePresetList, MobileGUI, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, popUpEditorStore, promptAssistantOpen } from './ts/stores.svelte';
     import Sidebar from './lib/SideBars/Sidebar.svelte';
     import { DBState } from './ts/stores.svelte';
     import ChatScreen from './lib/ChatScreens/ChatScreen.svelte';
+    import RisuBardPromptAssistant from './lib/Others/RisuBardPromptAssistant.svelte';
     import AlertComp from './lib/Others/AlertComp.svelte';
     import RealmPopUp from './lib/UI/Realm/RealmPopUp.svelte';
     import GridChars from './lib/Others/GridCatalog.svelte';
@@ -68,6 +69,10 @@
         e.dataTransfer?.setData(RISU_APP_INTERNAL_DRAG_TYPE, 'true')
     }
 
+    // Lives beside both the chat and the settings screens, so the advice stays
+    // visible while editing the preset. Mounted on first open, then kept.
+    let promptAssistantMounted = $state(false)
+    $effect(() => { if ($promptAssistantOpen) promptAssistantMounted = true })
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -271,6 +276,9 @@
                 <ChatScreen />
             </div>
         {/if}
+    {/if}
+    {#if $loadedStore && promptAssistantMounted}
+        <RisuBardPromptAssistant bind:open={$promptAssistantOpen} />
     {/if}
     <AlertComp />
     {#if $showRealmInfoStore}

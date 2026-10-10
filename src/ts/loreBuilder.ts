@@ -137,23 +137,31 @@ function formatLorebooks(entries: Array<{ scopeId?: string; entry: loreBook }>):
     return { content: sources.map((source) => source.content).join('\n\n'), sources }
 }
 
-function resolveSystemPrompt(
+// 'preset' collects every text block the active prompt preset sends, following the jailbreak and CoT toggles.
+export function resolveSystemPrompt(
     database: Database,
     currentCharacter?: character | null,
     parsePrompt?: (text: string, role?: string) => string,
+    scope: 'main' | 'preset' = 'main',
 ): string {
     const parse = (text: string, role?: string) => (parsePrompt ? parsePrompt(text, role) : text).trim()
     if (Array.isArray(database.promptTemplate)) {
-        const mainBlocks: string[] = []
-        let hasMainBlock = false
+        const blocks: string[] = []
+        let hasBlock = false
         for (const item of database.promptTemplate) {
-            if (item.type === 'plain' && item.type2 === 'main' && item.text.trim()) {
-                hasMainBlock = true
-                const content = parse(item.text, item.role)
-                if (content) mainBlocks.push(content)
-            }
+            if (item.type !== 'plain' && item.type !== 'jailbreak' && item.type !== 'cot') continue
+            if (!item.text?.trim()) continue
+            if (scope === 'main' && !(item.type === 'plain' && item.type2 === 'main')) continue
+            if (item.type === 'jailbreak' && !database.jailbreakToggle) continue
+            if (item.type === 'cot' && !database.chainOfThought) continue
+            hasBlock = true
+            const text = item.type2 === 'globalNote' && currentCharacter?.replaceGlobalNote
+                ? currentCharacter.replaceGlobalNote.replaceAll('{{original}}', item.text)
+                : item.text
+            const content = parse(text, item.role)
+            if (content) blocks.push(content)
         }
-        if (hasMainBlock) return mainBlocks.join('\n\n')
+        if (hasBlock) return blocks.join('\n\n')
     }
     const main = database.mainPrompt?.trim() ?? ''
     return parse(currentCharacter?.systemPrompt?.trim()
@@ -177,6 +185,7 @@ export function collectLoreBuilderSources(input: {
     moduleLorebooks: Array<{ scopeId: string; entry: loreBook }>
     targetEntryId: string
     parsePrompt?: (text: string, role?: string) => string
+    systemPromptScope?: 'main' | 'preset'
 }): LoreBuilderSourceSnapshot {
     const characterLorebook = formatLorebooks((input.character?.globalLore ?? [])
         .filter((entry) => entry.id !== input.targetEntryId).map((entry) => ({ entry })))
@@ -189,7 +198,7 @@ export function collectLoreBuilderSources(input: {
         content: chatMessages[messageIndex].data.trim(),
     })).filter((message) => message.content)
     return {
-        systemPrompt: resolveSystemPrompt(input.database, input.character, input.parsePrompt),
+        systemPrompt: resolveSystemPrompt(input.database, input.character, input.parsePrompt, input.systemPromptScope),
         characterDescription: resolveCharacterDescription(input.character),
         characterLorebook: characterLorebook.content,
         moduleLorebook: moduleLorebook.content,

@@ -28,32 +28,33 @@ describe('dynamic memory budgets', () => {
     test('grows from the start by text length, with diminishing marginal growth', () => {
         const settings = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: 'balanced' })
         const budget = (characters: number) => resolveDynamicMemoryBudget(settings, characters).maximum
-        expect(budget(0)).toBe(6000)
-        expect(budget(1000)).toBeGreaterThan(6000)
-        expect(budget(50_000)).toBe(6570)
-        expect(budget(100_000)).toBe(7080)
+        expect(budget(0)).toBe(7500)
+        expect(budget(1000)).toBeGreaterThan(7500)
+        expect(budget(50_000)).toBe(8213)
+        expect(budget(100_000)).toBe(8850)
         expect(budget(100_000) - budget(50_000)).toBeLessThan(budget(50_000) - budget(0))
     })
-    test('defaults off and leaves saved baseline untouched across mode changes', () => {
-        const settings = resolveRisuBardChatSettings({})
-        expect(settings.risuBardDynamicMemoryMode).toBe('off')
-        expect(resolveDynamicMemoryBudget(settings, 10000)).toMatchObject({ target: 2000, events: 2000, perSource: 2000, maximum: 6000, sourceLimit: 8, candidateLimit: 64, directSeedLimit: 32 })
+    test('defaults to the standard economy policy and leaves saved baseline untouched across mode changes', () => {
+        expect(resolveRisuBardChatSettings({}).risuBardDynamicMemoryMode).toBe('economy')
+        expect(resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: 'off' }).risuBardDynamicMemoryMode).toBe('off')
+        const settings = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: 'off' })
+        expect(resolveDynamicMemoryBudget(settings, 10000)).toMatchObject({ target: 4000, events: 3000, perSource: 2000, maximum: 7500, sourceLimit: 8, candidateLimit: 64, directSeedLimit: 32 })
         const grown = resolveDynamicMemoryBudget({ ...settings, risuBardDynamicMemoryMode: 'balanced' }, 700_000)
-        expect(grown.maximum).toBe(9000)
-        expect(grown.target).toBe(3000)
-        expect(grown.events).toBe(3000)
+        expect(grown.maximum).toBe(11250)
+        expect(grown.target).toBe(6000)
+        expect(grown.events).toBe(4500)
         expect(grown.analysis).toBe(12288)
         expect(grown.perSource).toBe(2000)
-        expect(settings.risuBardInquiryMaximumTokenBudget).toBe(6000)
+        expect(settings.risuBardInquiryMaximumTokenBudget).toBe(7500)
     })
     test.each(['economy', 'balanced', 'recall'] as const)('bounds %s growth and preserves explicitly disabled historical recall', mode => {
-        const settings = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: mode, risuBardDynamicMemoryMaximumTokens: 7000, risuBardHistoricalSourceMatchLimit: 0 })
+        const settings = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: mode, risuBardDynamicMemoryMaximumTokens: 9000, risuBardHistoricalSourceMatchLimit: 0 })
         const small = resolveDynamicMemoryBudget(settings, 0)
         const large = resolveDynamicMemoryBudget(settings, 10000000)
-        expect(small.maximum).toBe(6000)
-        expect(large.maximum).toBe(7000)
-        expect(large.target).toBeLessThanOrEqual(7000)
-        expect(large.events).toBeLessThanOrEqual(7000)
+        expect(small.maximum).toBe(7500)
+        expect(large.maximum).toBe(9000)
+        expect(large.target).toBeLessThanOrEqual(9000)
+        expect(large.events).toBeLessThanOrEqual(9000)
         expect(large.sourceLimit).toBe(0)
         expect(large.candidateLimit).toBeLessThanOrEqual(256)
         expect(large.directSeedLimit).toBeLessThanOrEqual(128)
@@ -62,24 +63,24 @@ describe('dynamic memory budgets', () => {
     })
     test('a growth cap below baseline never shrinks existing budgets', () => {
         const settings = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: 'recall', risuBardDynamicMemoryMaximumTokens: 1000 })
-        expect(resolveDynamicMemoryBudget(settings, Infinity)).toMatchObject({ maximum: 6000, target: 2000, events: 2000, perSource: 2000, characterCount: 0 })
+        expect(resolveDynamicMemoryBudget(settings, Infinity)).toMatchObject({ maximum: 7500, target: 4000, events: 3000, perSource: 2000, characterCount: 0 })
     })
     test('only the four requested token settings grow; no stored value is overwritten', () => {
         const settings = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: 'balanced' })
         const effective = resolveDynamicMemorySettings(settings, [{ role: 'char', data: '가'.repeat(500_000) }])
         expect(effective).toEqual({ ...settings,
-            risuBardInquiryTargetTokenBudget: 3000,
-            risuBardInquiryEventTokenBudget: 3000,
-            risuBardInquiryMaximumTokenBudget: 9000,
+            risuBardInquiryTargetTokenBudget: 6000,
+            risuBardInquiryEventTokenBudget: 4500,
+            risuBardInquiryMaximumTokenBudget: 11250,
             risuBardAnalysisTokenLimit: 12288,
         })
         expect(settings.risuBardAnalysisTokenLimit).toBe(8192)
         expect(resolveDynamicMemoryBudget(settings, 50_000)).toMatchObject({ analysis: 8970, sourceLimit: 8, candidateLimit: 64, directSeedLimit: 32 })
-        expect(resolveDynamicMemoryBudget(settings, 5_000_000)).toMatchObject({ target: 3000, events: 3000, maximum: 9000, analysis: 12288 })
+        expect(resolveDynamicMemoryBudget(settings, 5_000_000)).toMatchObject({ target: 6000, events: 4500, maximum: 11250, analysis: 12288 })
     })
     test('effective settings skip the transcript when disabled and honor OOC exclusions when enabled', () => {
         const messages = [{ role: 'char', get data(): string { throw new Error('no scan when off') } }]
-        const off = resolveRisuBardChatSettings({})
+        const off = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: 'off' })
         expect(resolveDynamicMemorySettings(off, messages)).toBe(off)
         const settings = resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: 'balanced' })
         expect(resolveDynamicMemorySettings(settings, [{ role: 'char', data: '<!-- OOC_turn -->' + '가'.repeat(500_000) }])).toEqual(settings)

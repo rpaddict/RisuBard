@@ -20,7 +20,7 @@
         type PersonaBuilderSelections,
         type PersonaBuilderSourceSnapshot,
     } from 'src/ts/personaBuilder'
-    import { getCurrentCharacter, type character } from 'src/ts/storage/database.svelte'
+    import { getActivePromptOverlayTemplate, getCurrentCharacter, type character } from 'src/ts/storage/database.svelte'
     import { DBState } from 'src/ts/stores.svelte'
     import PersonaPromptPresetEditor from './PersonaPromptPresetEditor.svelte'
 
@@ -79,7 +79,7 @@
         const { risuChatParser } = await import('src/ts/parser/parser.svelte')
         currentCharacter = getCurrentCharacter() ?? undefined
         sources = collectPersonaBuilderSources({
-            database: DBState.db,
+            database: { ...DBState.db, promptTemplate: getActivePromptOverlayTemplate(DBState.db) ?? undefined },
             character: currentCharacter,
             moduleLorebooks: getModuleLorebooksWithSources(),
             parsePrompt: (text, role) => risuChatParser(text, { chara: currentCharacter, role }),

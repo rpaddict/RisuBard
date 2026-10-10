@@ -56,6 +56,27 @@ describe('RisuBard memory routes', () => {
         }
         expect(service.inquireNarrative).toHaveBeenCalledOnce()
     })
+    test('accepts a bounded inquiry timeline and rejects malformed entries', async () => {
+        const { registerRisuBardMemoryRoutes } = require('./risubard-memory-routes.cjs')
+        const harness = createHarness()
+        const service = { inquireNarrative: vi.fn(async () => ({ sources: [] })) }
+        registerRisuBardMemoryRoutes(harness.app, { auth: async () => true, service })
+        const route = harness.routes.get('/api/risubard/memory/inquiry')!
+        const body = { characterId: 'c', chatId: 'chat', currentInput: 'Alice',
+            timeline: { messages: [{ chatId: 'u1', role: 'user' }, { chatId: 'a1', role: 'char' }] } }
+        await route({ body }, harness.response, vi.fn())
+        expect(service.inquireNarrative).toHaveBeenCalledWith(body)
+        for (const timeline of [
+            { messages: [{ chatId: 'a1', role: 'assistant' }] },
+            { messages: [{ chatId: 'a1', role: 'char', extra: true }] },
+            { messages: Array.from({ length: 97 }, (_, index) => ({ chatId: `m${index}`, role: 'user' })) },
+            { messages: [], extra: 1 },
+        ]) {
+            await route({ body: { ...body, timeline } }, harness.response, vi.fn())
+            expect(harness.response.statusCode).toBe(400)
+        }
+        expect(service.inquireNarrative).toHaveBeenCalledOnce()
+    })
     test.each([
         ['Required wiki context exceeds token budget', 'budget-exceeded'],
         ['Required wiki context exceeds 12 documents', 'budget-exceeded'],

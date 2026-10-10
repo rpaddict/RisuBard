@@ -185,6 +185,19 @@ export function hasCanonicalSection(
         expected.has(normalizeCanonicalSectionHeading(section.text)))
 }
 
+export function readCanonicalSection(
+    markdown: string,
+    headings: readonly string[],
+): { heading: string; body: string } | undefined {
+    const expected = new Set(headings.map(normalizeCanonicalSectionHeading))
+    const prepared = prepareCanonicalMarkdown(markdown)
+    const section = parseCanonicalMarkdown(prepared).sections.find((candidate) =>
+        expected.has(normalizeCanonicalSectionHeading(candidate.text)))
+    return section
+        ? { heading: section.text, body: prepared.slice(section.line.end, section.end).trim() }
+        : undefined
+}
+
 function replacementSection(
     parsed: ParsedCanonicalMarkdown,
     heading: string,

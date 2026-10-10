@@ -21,7 +21,7 @@
         type LoreBuilderSelections,
         type LoreBuilderSourceSnapshot,
     } from 'src/ts/loreBuilder'
-    import { getCurrentCharacter, type character } from 'src/ts/storage/database.svelte'
+    import { getActivePromptOverlayTemplate, getCurrentCharacter, type character } from 'src/ts/storage/database.svelte'
     import { DBState } from 'src/ts/stores.svelte'
     import LorePromptPresetEditor from './LorePromptPresetEditor.svelte'
 
@@ -72,11 +72,12 @@
         const { risuChatParser } = await import('src/ts/parser/parser.svelte')
         currentCharacter = getCurrentCharacter() ?? undefined
         sources = collectLoreBuilderSources({
-            database: DBState.db,
+            database: { ...DBState.db, promptTemplate: getActivePromptOverlayTemplate(DBState.db) ?? undefined },
             character: currentCharacter,
             moduleLorebooks: getModuleLorebooksWithSources(),
             targetEntryId,
             parsePrompt: (text, role) => risuChatParser(text, { chara: currentCharacter, role }),
+            systemPromptScope: 'preset',
         })
         selections = loadLoreBuilderSelections() ?? {
             systemPrompt: false,

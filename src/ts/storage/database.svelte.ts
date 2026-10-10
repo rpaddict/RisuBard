@@ -62,6 +62,7 @@ import {
     normalizeRisuBardInquiryTokenBudget,
     normalizeRisuBardInquiryTimeoutMs,
 } from '../risubard/risuBardSettings';
+import { migrateLegacyMemoryBudgetDefaults } from '../risubard/memoryBudgetPreset';
 import { normalizeWikiRebootJob } from '../risubard/wikiReboot';
 import { normalizeWikiWritingLanguage } from '../risubard/wikiWritingLanguage';
 import {
@@ -976,6 +977,7 @@ export function setDatabase(data:Database){
     data.risuBardCanonicalTargetLimit = normalizeRisuBardCanonicalTargetLimit(
         data.risuBardCanonicalTargetLimit
     )
+    migrateLegacyMemoryBudgetDefaults(data)
     data.risuBardDynamicMemoryMode = normalizeRisuBardDynamicMemoryMode(data.risuBardDynamicMemoryMode)
     data.risuBardDynamicMemoryMaximumTokens = normalizeRisuBardDynamicMemoryMaximum(data.risuBardDynamicMemoryMaximumTokens)
     const chatInquiryTokenBudget = normalizeRisuBardInquiryTokenBudget(
@@ -1837,6 +1839,8 @@ export interface Database{
     risuBardInquiryMaximumTokenBudget?: number
     risuBardDynamicMemoryMode?: RisuBardDynamicMemoryMode
     risuBardDynamicMemoryMaximumTokens?: number
+    /** Set to 2 once the old memory budget defaults were migrated to the 보통 tier (see memoryBudgetPreset.ts). */
+    risuBardMemoryBudgetDefaultsVersion?: number
     risuBardInquiryTimeoutMs?: number
     risuBardHistoricalSourceMatchLimit?: number
     risuBardCanonicalWritingStyle?: import('../risubard/risuBardSettings').RisuBardCanonicalWritingStyle

@@ -179,7 +179,7 @@
     <RisuBardWikiPromptReferenceSheet bind:open={promptingHelpOpen} />
 </SettingPage>
 
-<ShDialog bind:open={choosingPreset} size="lg" closeOnEscape closeOnOutsideClick={false}>
+<ShDialog bind:open={choosingPreset} size="lg" tier="base" closeOnEscape closeOnOutsideClick={false}>
     {#snippet title()}{language.risuBardWikiPrompt.activePreset}{/snippet}
     <div class="picker-tools">
         <label class="picker-search">

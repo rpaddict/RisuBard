@@ -5,6 +5,7 @@ import type {
     loreBook,
 } from './storage/database.svelte'
 import type { RequestInjectionSource } from './status/requestStatus'
+import { resolveSystemPrompt as resolvePresetSystemPrompt } from './loreBuilder'
 
 export type PersonaBuilderPromptKind = PersonaBuilderPromptPreset['kind']
 
@@ -208,23 +209,7 @@ function resolveSystemPrompt(
     parsePrompt?: (text: string, role?: string) => string,
 ): string {
     if (!currentCharacter) return ''
-    const parse = (text: string, role?: string) => (parsePrompt ? parsePrompt(text, role) : text).trim()
-    if (Array.isArray(database.promptTemplate)) {
-        const mainBlocks: string[] = []
-        let hasMainBlock = false
-        for (const item of database.promptTemplate) {
-            if (item.type === 'plain' && item.type2 === 'main' && item.text.trim()) {
-                hasMainBlock = true
-                const content = parse(item.text, item.role)
-                if (content) mainBlocks.push(content)
-            }
-        }
-        if (hasMainBlock) return mainBlocks.join('\n\n')
-    }
-    const main = database.mainPrompt?.trim() ?? ''
-    return parse(currentCharacter.systemPrompt?.trim()
-        ? currentCharacter.systemPrompt.replaceAll('{{original}}', main).trim()
-        : main)
+    return resolvePresetSystemPrompt(database, currentCharacter, parsePrompt, 'preset')
 }
 
 function resolveCharacterDescription(currentCharacter?: character | null): string {

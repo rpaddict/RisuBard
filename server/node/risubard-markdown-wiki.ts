@@ -2389,6 +2389,7 @@ export function createMarkdownNarrativeWiki(
                 occurredAt: number
             }[]
             sourceLimit?: number
+            timeline?: { messages: readonly { chatId: string; role: 'user' | 'char' }[] }
             tokenBudget?: {
                 target: number
                 events?: number
@@ -2422,6 +2423,7 @@ export function createMarkdownNarrativeWiki(
                 ...(input.tokenBudget
                     ? { tokenBudget: input.tokenBudget }
                     : {}),
+                ...(input.timeline ? { timeline: input.timeline } : {}),
             })
         },
     }

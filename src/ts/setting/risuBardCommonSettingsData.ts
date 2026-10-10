@@ -3,6 +3,7 @@ import { MIN_CHAT_UPLOAD_CHUNK_MIB, MAX_CHAT_UPLOAD_CHUNK_MIB, normalizeChatUplo
 import { normalizeRisuBardCanonicalCustomStyle } from '../risubard/risuBardSettings'
 import { wikiWritingLanguageOptions } from '../risubard/wikiWritingLanguage'
 import { normalizeArcaChatTitleImageStyle } from '../arcaChatSaverSettings'
+import { showMemoryBudgetFields } from './memoryBudgetPresetUi.svelte'
 import {
     ARC_PLOTTER_CUSTOM_SELECTION_ID,
     ARC_PLOTTER_LIMITS,
@@ -113,10 +114,20 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         keywords: ['Bard-chan', 'reranker', 'main model', 'auxiliary model', '바드쨩', '메인 모델', '보조 모델'],
     },
     {
+        id: 'risubard.chat.memoryBudgetPreset',
+        type: 'custom',
+        componentId: 'RisuBardMemoryBudgetPreset',
+        labelKey: 'risuBardMemoryBudgetPreset',
+        helpKey: 'risuBardMemoryBudgetPreset',
+        fallbackLabel: '기억 예산',
+        keywords: ['memory budget', 'preset', 'economy', 'standard', 'generous', 'custom', '기억 예산', '프리셋', '절약', '보통', '넉넉', '커스텀', '검색 목표', '사건 검색', '자료별 검색', '검색 최대', '동적 한도'],
+    },
+    {
         id: 'risubard.chat.dynamicMemory',
         type: 'custom',
         componentId: 'RisuBardDynamicMemorySettings',
         fallbackLabel: '장기기억 동적 한도',
+        condition: showMemoryBudgetFields,
         keywords: ['dynamic memory', '장기기억', '동적 한도', '최대 허용 토큰'],
     },
     {
@@ -125,6 +136,7 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         labelKey: 'risuBardInquiryTargetTokenBudget',
         helpKey: 'risuBardInquiryTargetTokenBudget',
         bindKey: 'risuBardInquiryTargetTokenBudget',
+        condition: showMemoryBudgetFields,
         options: { min: 256, step: 256 },
         keywords: ['inquiry', 'target', 'token', '검색', '목표', '토큰'],
     },
@@ -134,6 +146,7 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         labelKey: 'risuBardInquiryEventTokenBudget',
         helpKey: 'risuBardInquiryEventTokenBudget',
         bindKey: 'risuBardInquiryEventTokenBudget',
+        condition: showMemoryBudgetFields,
         options: { min: 256, step: 256 },
         keywords: ['inquiry', 'event', 'token', '검색', '사건', '토큰'],
     },
@@ -152,6 +165,7 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         labelKey: 'risuBardInquiryMaximumTokenBudget',
         helpKey: 'risuBardInquiryMaximumTokenBudget',
         bindKey: 'risuBardInquiryMaximumTokenBudget',
+        condition: showMemoryBudgetFields,
         options: { min: 256, step: 256 },
         keywords: ['inquiry', 'maximum', 'token', '검색', '상한', '토큰'],
     },
@@ -161,6 +175,7 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         labelKey: 'risuBardInquirySourceTokenBudget',
         helpKey: 'risuBardInquirySourceTokenBudget',
         bindKey: 'risuBardInquirySourceTokenBudget',
+        condition: showMemoryBudgetFields,
         options: { min: 256, step: 256 },
         keywords: ['inquiry', 'source', 'token', '검색', '자료', '토큰'],
     },

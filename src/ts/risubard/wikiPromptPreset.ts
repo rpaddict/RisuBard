@@ -15,7 +15,7 @@ export interface WikiPromptBlock {
 
 export interface WikiPromptPreset {
     schemaVersion: 1
-    writingPolicyVersion?: 1 | 2 | 3 | 4 | 5
+    writingPolicyVersion?: 1 | 2 | 3 | 4 | 5 | 6
     id: string
     name: string
     revision: number
@@ -118,6 +118,7 @@ export const OFFICIAL_WIKI_BACKUP_ID = 'official-wiki-260922'
 export const OFFICIAL_WIKI_V2_BACKUP_ID = 'official-wiki-260922-v2'
 export const OFFICIAL_WIKI_V3_BACKUP_ID = 'official-wiki-260930'
 export const OFFICIAL_WIKI_V4_BACKUP_ID = 'official-wiki-261003'
+export const OFFICIAL_WIKI_V5_BACKUP_ID = 'official-wiki-261003-v5'
 const OPTIONAL_BLOCKS: WikiPromptBlock[] = [
     {
         id: 'default-character-equipment', type: 'text', name: '장비와 소지품',
@@ -164,6 +165,17 @@ const CURRENT_COMPRESSION = V4_COMPRESSION.replace(
     'Retain meaningful transition results and exact event links without a fixed length or item quota.',
     'When rewriting Major Transitions, also merge existing entries that describe successive steps of the same change, including entries left by earlier per-event logging. Each transition keeps its resulting change and one or two representative event links, such as the start and the decisive event; other events remain searchable without links. Impose no fixed length or item quota.'
 )
+
+// Version 6 keeps knowledge boundaries in character canon and shared world facts in one place.
+const V6_CONTINUITY = CURRENT_CONTINUITY.split('\n').map(line =>
+    line.startsWith('A completed encounter or revelation')
+        ? 'A completed encounter or revelation does not erase acquaintance or acquired knowledge. Knowledge and Secrets records knowledge boundaries that matter for later choices: secrets and who shares them, mistaken beliefs, uncertainty, what this character knows that a relevant counterpart does not, and what they notably do not know. It is not a catalogue of everything the character has seen or been told.'
+        : line.startsWith('Preserve learned identities, rules,')
+            ? 'Shared world rules, setting mechanics and place facts belong once in the relevant location or concept canon, not in every character who learned them. In a character document keep one concise entry per topic or source, such as that a person explained the town rules with a link to that canon, and revise that entry instead of appending each new detail. Preserve learned identities, secrets, uncertainty, mistaken beliefs and who shares each secret. Correct a belief only for holders reached by the evidence. A document link, another person\'s knowledge or knowing a mutual acquaintance does not establish this person\'s knowledge. Do not invent ignorance from absent evidence.'
+            : line.startsWith('Identity owns identity')
+                ? `${line} Relationships and Trust keeps one compact current entry per counterpart; how it developed belongs in events and Major Transitions, not a running chronicle of scenes. Canon never narrates a sequence of scenes, so it must not imply when a routine experience happened.`
+                : line
+).join('\n')
 
 // Version 3 adds recall detail without changing the archived writing policies.
 const RECALL_BLOCKS: WikiPromptBlock[] = [
@@ -330,7 +342,8 @@ function normalizePreset(value: unknown, idFactory: () => string): WikiPromptPre
             content: '',
         })
     }
-    const writingPolicyVersion = source.writingPolicyVersion === 5 ? 5
+    const writingPolicyVersion = source.writingPolicyVersion === 6 ? 6
+        : source.writingPolicyVersion === 5 ? 5
         : source.writingPolicyVersion === 4 ? 4
         : source.writingPolicyVersion === 3 ? 3
         : source.writingPolicyVersion === 2 ? 2 : 1
@@ -351,7 +364,8 @@ function normalizePreset(value: unknown, idFactory: () => string): WikiPromptPre
                 return {
                     ...block,
                     ...(block.id === 'core-character-continuity-contract' && writingPolicyVersion >= 2
-                        ? { content: writingPolicyVersion >= 5 ? CURRENT_CONTINUITY
+                        ? { content: writingPolicyVersion >= 6 ? V6_CONTINUITY
+                        : writingPolicyVersion >= 5 ? CURRENT_CONTINUITY
                         : writingPolicyVersion >= 4 ? V4_CONTINUITY : MODULAR_CONTINUITY } : {}),
                     ...(stored ? {
                         name: boundedText(stored.name, 80) || block.name,
@@ -451,7 +465,7 @@ function createCurrentStateWikiPromptPreset(id: string): WikiPromptPreset {
     }, () => id)
 }
 
-export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
+function createLocalizedTransitionWikiPromptPreset(id: string): WikiPromptPreset {
     const previous = createCurrentStateWikiPromptPreset(id)
     return normalizePreset({
         ...previous, writingPolicyVersion: 5, revision: 4,
@@ -460,6 +474,11 @@ export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
             : block.id === 'default-character-equipment'
                 ? { ...block, content: CURRENT_EQUIPMENT } : block),
     }, () => id)
+}
+
+export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
+    const previous = createLocalizedTransitionWikiPromptPreset(id)
+    return normalizePreset({ ...previous, writingPolicyVersion: 6, revision: 5 }, () => id)
 }
 
 function createOfficialBackup(): WikiPromptPreset {
@@ -489,18 +508,19 @@ export function normalizeWikiPromptPresetState(
             || normalized.id === OFFICIAL_WIKI_V2_BACKUP_ID
             || normalized.id === OFFICIAL_WIKI_V3_BACKUP_ID
             || normalized.id === OFFICIAL_WIKI_V4_BACKUP_ID
-            || normalized.writingPolicyVersion === 5) return normalized
+            || normalized.id === OFFICIAL_WIKI_V5_BACKUP_ID
+            || normalized.writingPolicyVersion === 6) return normalized
         const current = createDefaultWikiPromptPreset(normalized.id)
         for (const optional of OPTIONAL_BLOCKS) {
-            // Version 5 ships compression on, so earlier official selections adopt the new default.
-            if (optional.id === 'default-length-compression') continue
+            // Version 5 shipped compression on; later upgrades keep the user's choice.
+            if (optional.id === 'default-length-compression' && normalized.writingPolicyVersion < 5) continue
             const stored = normalized.blocks.find(block => block.id === optional.id)
             if (stored) current.blocks.find(block => block.id === optional.id)!.enabled = stored.enabled
         }
         return current
     })
     if (presets.length === 0) presets.push(createDefaultWikiPromptPreset(idFactory()))
-    if (!presets.some(preset => preset.builtin && preset.writingPolicyVersion === 5)) {
+    if (!presets.some(preset => preset.builtin && preset.writingPolicyVersion === 6)) {
         presets.push(createDefaultWikiPromptPreset('official-wiki-current'))
     }
     if (!presets.some(preset => preset.id === OFFICIAL_WIKI_BACKUP_ID)) {
@@ -522,6 +542,12 @@ export function normalizeWikiPromptPresetState(
         presets.push({
             ...createCurrentStateWikiPromptPreset(OFFICIAL_WIKI_V4_BACKUP_ID),
             name: '공식기본-261003',
+        })
+    }
+    if (!presets.some(preset => preset.id === OFFICIAL_WIKI_V5_BACKUP_ID)) {
+        presets.push({
+            ...createLocalizedTransitionWikiPromptPreset(OFFICIAL_WIKI_V5_BACKUP_ID),
+            name: '공식기본-261003-v5',
         })
     }
     const ids = new Set(presets.map((preset) => preset.id))

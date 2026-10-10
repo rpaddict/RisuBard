@@ -65,9 +65,12 @@
             failed,
             eventCount: receipt.eventIds.length,
             changeCount: receipt.changes.length,
-            message: receipt.warnings.join(' ') || (receipt.changes.length > 0
-                ? `정본 ${receipt.changes.length}건을 반영했습니다.`
-                : '확정 사실을 검사했으며 정본 변경은 없었습니다.'),
+            message: receipt.warnings.join(' ') || [
+                receipt.changes.length > 0
+                    ? `정본 ${receipt.changes.length}건을 반영했습니다.`
+                    : '확정 사실을 검사했으며 정본 변경은 없었습니다.',
+                ...(receipt.notes ?? []),
+            ].join(' '),
         }]
     }).reverse())
     let storedActivityEntries = $derived([

@@ -95,6 +95,7 @@ import { resolveRisuBardChatSettings } from '../risubard/risuBardSettings';
 import { resolveDynamicMemorySettings } from '../risubard/dynamicMemoryBudget';
 import { requestWithProviderOutputLimit } from '../risubard/providerOutputTokenLimit';
 import {
+    buildInquiryTimeline,
     findHistoricalSourceMatches,
     resolveHistoricalSourceMatchesById,
 } from '../risubard/historicalSourceRecall';
@@ -1720,8 +1721,13 @@ export async function sendChat(chatProcessIndex = -1,arg:{
                         await searchHistoricalSourceEmbeddings(currentInput, retrievalRecentContext, currentChat.message, historicalOptions),
                         inquirySettings.risuBardHistoricalSourceMatchLimit,
                     )
+                    const inquiryTimeline = buildInquiryTimeline(
+                        currentChat.message,
+                        normalizeNarrativeWorkingMessageLimit(inquirySettings.risuBardResponseMessageCount),
+                    )
                     const loadInquiry = (semanticMatches?: readonly WikiSemanticMatch[]) => loadNarrativeInquiry({
                         contextSelection: 'auto',
+                        timeline: inquiryTimeline,
                         characterId: currentChar.chaId,
                         chatId: narrativeSessionChatId,
                         currentInput,

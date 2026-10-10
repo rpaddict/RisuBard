@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import {
+    buildInquiryTimeline,
     findHistoricalSourceMatches,
     resolveHistoricalSourceMatchesById,
+    type HistoricalSourceMessage,
 } from './historicalSourceRecall'
 
 describe('historical source recall', () => {
@@ -131,4 +133,21 @@ describe('historical source recall', () => {
         expect(matches.map((match) => match.messageId)).toEqual(['turn-1'])
         expect(matches[0]?.score).toBeGreaterThan(100)
     })
+})
+
+test('builds the inquiry timeline from active messages before the recent transcript', () => {
+    const messages = [
+        { chatId: 'old', role: 'char', data: 'Before the boundary' },
+        { chatId: 'cut', role: 'user', data: 'cut', disabled: 'allBefore' },
+        { chatId: 'u1', role: 'user', data: 'One' }, { chatId: 'a1', role: 'char', data: 'Reply one' },
+        { chatId: 'u2', role: 'user', data: 'Two' }, { chatId: 'a2', role: 'char', data: 'Reply two' },
+        { chatId: 'u3', role: 'user', data: 'Three' }, { chatId: 'a3', role: 'char', data: 'Reply three' },
+        { chatId: 'pending', role: 'user', data: 'Now' },
+    ] as HistoricalSourceMessage[]
+    expect(buildInquiryTimeline(messages, 1)).toEqual({ messages: [
+        { chatId: 'u1', role: 'user' }, { chatId: 'a1', role: 'char' },
+        { chatId: 'u2', role: 'user' }, { chatId: 'a2', role: 'char' },
+    ] })
+    expect(buildInquiryTimeline(messages, 1, 3).messages.map((message) => message.chatId))
+        .toEqual(['a1', 'u2', 'a2'])
 })

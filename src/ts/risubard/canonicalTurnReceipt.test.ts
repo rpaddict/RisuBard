@@ -150,3 +150,12 @@ describe('canonical turn retry receipt', () => {
         expect(canonicalTurnRetryWarning(receipt)).toBe(warning)
     })
 })
+
+test('accepts bounded maintenance notes and rejects malformed ones', () => {
+    const base = { sourceMessageIds: ['a'], eventIds: [], changes: [], warnings: [], recordedAt: '2026-10-09T00:00:00.000Z' }
+    expect(parseCanonicalTurnReceipt({ ...base, notes: ['정본 정리: 미오 지식과 비밀 14→3항목'] }).notes)
+        .toEqual(['정본 정리: 미오 지식과 비밀 14→3항목'])
+    expect(parseCanonicalTurnReceipt(base).notes).toBeUndefined()
+    expect(() => parseCanonicalTurnReceipt({ ...base, notes: [1] })).toThrow()
+    expect(() => parseCanonicalTurnReceipt({ ...base, notes: Array.from({ length: 9 }, () => 'x') })).toThrow()
+})

@@ -1,3 +1,4 @@
+import { get_encoding } from '@dqbd/tiktoken'
 import { describe, expect, test } from 'vitest'
 import type { MarkdownWikiDocument } from './risubard-markdown-wiki'
 import { inquireMarkdownDocuments } from './risubard-markdown-inquiry'
@@ -456,13 +457,16 @@ describe('progressive Markdown inquiry', () => {
                 }),
                 ...linked,
             ],
+            // The bounds below are asserted against the old 2,000-token budget, independent of the app defaults.
+            tokenBudget: { target: 2_000, events: 2_000, perSource: 2_000, maximum: 6_000 },
         })
 
         expect(result.metrics.candidateCount).toBeLessThanOrEqual(64)
         expect(result.metrics.inspectedEdgeCount).toBeLessThanOrEqual(256)
         expect(result.sources.length).toBeLessThanOrEqual(12)
+        // The per-source token budget bounds an excerpt; a trimmed canon document may exceed 2,000 characters.
         expect(result.sources.every((source) =>
-            source.content.length <= 2_000)).toBe(true)
+            source.tokens <= 2_000)).toBe(true)
         expect(result.metrics.selectedTokens).toBeLessThanOrEqual(2_000)
     })
 
@@ -1149,5 +1153,151 @@ describe('progressive Markdown inquiry', () => {
 
         expect(result.sources).toEqual([])
         expect(result.metrics.candidateCount).toBe(0)
+    })
+
+    describe('trimming a canon document that does not fit', () => {
+        const marker = '[Partial canon excerpt trimmed to fit the memory budget; omitted parts are not evidence of absence]\n'
+        const encoder = get_encoding('cl100k_base')
+        const tokens = (value: string) => encoder.encode(value).length
+        const canon = (name: string) => {
+            const lines = [`## ${name}`, '', '### 현재 상태', '', `- ${name}는 역 대합실에서 비를 피하고 있다.`, '', '### 지식과 비밀', '']
+            for (let index = 1; tokens(lines.join('\n')) < 900; index += 1) {
+                lines.push(`- ${name}는 마을 규칙 ${index}을 알고 있다.`)
+            }
+            return lines.join('\n')
+        }
+        const documents = ['미오', '하루'].map((name, index) => document({
+            id: `character.${index}`, type: 'character', title: name,
+            relativePath: `characters/${index}.md`, content: canon(name),
+        }))
+        const isSource = (source: { id: string }) => source.id.startsWith('narrative-memory:source:')
+
+        test('trims it to the room that is left instead of dropping it', () => {
+            const input = { documents, currentInput: '미오와 하루가 함께 걷는다.' }
+            const trimmed = inquireMarkdownDocuments({
+                ...input, tokenBudget: { target: 1200, events: 256, perSource: 1000, maximum: 3000 },
+            })
+            expect(trimmed.sources).toHaveLength(2)
+            const [first, second] = trimmed.sources
+            expect(first.content.startsWith('[Partial canon excerpt')).toBe(false)
+            expect(first.tokens).toBeGreaterThanOrEqual(900)
+            expect(second.content.startsWith(marker)).toBe(true)
+            expect(second.content).toContain('### 현재 상태')
+            expect(second.tokens).toBe(tokens(second.content))
+            expect(second.tokens).toBeLessThanOrEqual(1200 - first.tokens)
+            expect(trimmed.metrics.selectedTokens).toBeLessThanOrEqual(1200)
+
+            // Less than 256 tokens of room is not worth a fragment.
+            const tight = inquireMarkdownDocuments({
+                ...input, tokenBudget: { target: 1000, events: 256, perSource: 1000, maximum: 3000 },
+            })
+            expect(tight.sources).toHaveLength(1)
+            expect(tight.sources[0].content.startsWith('[Partial canon excerpt')).toBe(false)
+        })
+
+        test('only fills what is left after whole documents and original evidence are packed', () => {
+            const input = {
+                documents, currentInput: '미오와 하루, 그때 무슨 말을 했는지 자세히 떠올려 줘.',
+                sourceMatches: [{
+                    messageId: 'assistant-3', role: 'assistant' as const, score: 5, occurredAt: 3,
+                    content: '미오는 북문 앞에서 하루에게 약속을 지키겠다고 말했다. '.repeat(3).trim(),
+                }],
+            }
+            const trimmed = inquireMarkdownDocuments({
+                ...input, tokenBudget: { target: 1400, events: 256, perSource: 1000, maximum: 3000 },
+            })
+            const evidence = trimmed.sources.filter(isSource)
+            const canonSources = trimmed.sources.filter((source) => !isSource(source))
+            expect(evidence).toHaveLength(1)
+            expect(canonSources).toHaveLength(2)
+            expect(canonSources[0].content.startsWith('[Partial canon excerpt')).toBe(false)
+            expect(canonSources[1].content.startsWith(marker)).toBe(true)
+            expect(canonSources[1].tokens).toBeLessThanOrEqual(1400 - canonSources[0].tokens - evidence[0].tokens)
+            expect(trimmed.metrics.selectedTokens).toBeLessThanOrEqual(1400)
+
+            // Without room for a fragment the evidence stays and the second document is absent.
+            const tight = inquireMarkdownDocuments({
+                ...input, tokenBudget: { target: 1100, events: 256, perSource: 1000, maximum: 3000 },
+            })
+            expect(tight.sources.filter(isSource)).toHaveLength(1)
+            expect(tight.sources.filter((source) => !isSource(source))).toHaveLength(1)
+            expect(tight.sources.some((source) => source.content.startsWith('[Partial canon excerpt'))).toBe(false)
+        })
+    })
+})
+
+describe('inquiry timeline', () => {
+    const documents = ([
+        ['omelet', '오므라이스 식사', 'a1'],
+        ['sleep', '테이블에서 잠듦', 'a2'],
+        ['wake', '잠에서 깸', 'a3'],
+        ['toast', '토스트 아침 식사', 'a4'],
+    ] as const).map(([id, title, source]) => document({
+        id, type: 'event', title, relativePath: `events/${id}.md`,
+        content: `## ${title}\n\n### 이야기 요약\n\n- ${title}.`, sourceMessageIds: [source],
+    }))
+    const timeline = { messages: [
+        { chatId: 'u1', role: 'user' }, { chatId: 'a1', role: 'char' },
+        { chatId: 'u2', role: 'user' }, { chatId: 'a2', role: 'char' },
+        { chatId: 'u3', role: 'user' }, { chatId: 'a3', role: 'char' },
+        { chatId: 'u4', role: 'user' }, { chatId: 'a4', role: 'char' },
+    ] as const }
+    const flowOf = (result: ReturnType<typeof inquireMarkdownDocuments>) =>
+        result.sources.find((source) => source.id === 'narrative-memory:recent-flow')
+
+    test('adds the ordered story flow before the recent transcript', () => {
+        const result = inquireMarkdownDocuments({
+            contextSelection: 'auto', currentInput: '카요가 하품했다.', documents, timeline,
+        })
+        const flow = flowOf(result)!
+        expect(result.sources[0]).toBe(flow)
+        expect(flow.displayName).toBe('직전 흐름')
+        expect(flow.content.split('\n')).toEqual([
+            'Story flow before the recent transcript (oldest first; the recent transcript continues after the last item):',
+            '- [4 turns before] 오므라이스 식사',
+            '- [3 turns before] 테이블에서 잠듦',
+            '- [2 turns before] 잠에서 깸',
+            '- [1 turn before] 토스트 아침 식사',
+        ])
+        expect(result.metrics.selectedTokens).toBeGreaterThanOrEqual(flow.tokens)
+    })
+
+    test('labels a selected event with its distance from the recent transcript', () => {
+        const result = inquireMarkdownDocuments({
+            contextSelection: 'auto', currentInput: '토스트 아침 식사를 자세히 떠올려 줘.', documents, timeline,
+        })
+        const toast = result.sources.find((source) =>
+            source.id === 'narrative-memory:wiki:events/toast.md')!
+        expect(toast.content.startsWith('[1 turn before the recent transcript]\n')).toBe(true)
+    })
+
+    test('keeps two events from one turn and ignores events outside the timeline', () => {
+        const extra = document({ id: 'toast-2', type: 'event', title: '마멀레이드 대화',
+            relativePath: 'events/toast-2.md', content: '## 마멀레이드 대화', sourceMessageIds: ['a4'] })
+        const older = document({ id: 'older', type: 'event', title: '정류장 만남',
+            relativePath: 'events/older.md', content: '## 정류장 만남', sourceMessageIds: ['a0'] })
+        const lines = flowOf(inquireMarkdownDocuments({
+            contextSelection: 'auto', currentInput: '카요', documents: [...documents, extra, older], timeline,
+        }))!.content.split('\n')
+        expect(lines.slice(-2)).toEqual([
+            '- [1 turn before] 토스트 아침 식사',
+            '- [1 turn before] 마멀레이드 대화',
+        ])
+        expect(lines.join('\n')).not.toContain('정류장 만남')
+    })
+
+    test('omits the flow without a timeline and keeps only the newest items in a tiny budget', () => {
+        expect(flowOf(inquireMarkdownDocuments({
+            contextSelection: 'auto', currentInput: '카요', documents,
+        }))).toBeUndefined()
+        const tiny = flowOf(inquireMarkdownDocuments({
+            contextSelection: 'auto', currentInput: '카요', documents, timeline,
+            tokenBudget: { target: 256, maximum: 256 },
+        }))
+        expect(tiny?.tokens ?? 0).toBeLessThanOrEqual(64)
+        if (tiny) {
+            expect(tiny.content).toContain('토스트 아침 식사')
+            expect(tiny.content).not.toContain('오므라이스 식사')
+        }
     })
 })

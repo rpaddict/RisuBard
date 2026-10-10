@@ -1,6 +1,7 @@
 import { basename } from 'node:path'
 import { get_encoding, type Tiktoken } from '@dqbd/tiktoken'
 import type { MarkdownWikiDocument } from './risubard-markdown-wiki'
+import { createInquiryTimeline, type InquiryTimelineInput } from './risubard-inquiry-timeline'
 import { normalizeRisuBardInquiryTokenBudget } from '../../src/ts/risubard/risuBardSettings'
 import { selectMarkdownExcerpt } from './risubard-markdown-excerpt'
 import { isStoryArcTitle } from '../../src/ts/risubard/wikiWritingLanguage'
@@ -17,6 +18,8 @@ const MAX_EDGES_PER_DOCUMENT = 16
 const MAX_INSPECTED_EDGES = 256
 const MAX_HOPS = 2
 const MAX_SOURCE_MATCHES = 32
+const MIN_TRIMMED_CANON_TOKENS = 256
+const TRIMMED_CANON_MARKER = '[Partial canon excerpt trimmed to fit the memory budget; omitted parts are not evidence of absence]'
 const DEFAULT_SELECTED_SOURCE_MESSAGES = 8
 const MAX_MAP_ANCHORS_BEFORE_EVENTS = 4
 const ROUTED_SOURCE_SCORE_BONUS = 12
@@ -113,6 +116,7 @@ export interface MarkdownInquiryInput {
         occurredAt: number
     }[]
     sourceLimit?: number
+    timeline?: InquiryTimelineInput
     tokenBudget?: {
         target: number
         events?: number
@@ -702,6 +706,7 @@ export function inquireMarkdownDocuments(
         input.tokenBudget?.events,
         input.tokenBudget?.perSource,
     )
+    const timeline = createInquiryTimeline(input.timeline)
     const prepared = [
         ...(input.contextSelection === 'auto' ? [] : requiredDocuments).map((document) => ({
             document,
@@ -744,10 +749,16 @@ export function inquireMarkdownDocuments(
                 }
             }
         }
+        const labels = candidate.document.type === 'event'
+            ? [
+                timeline.sourceLabel(candidate.document),
+                candidate.document.retrievalMetadata?.storyTime
+                    ? `[Story day relative to first recorded event: ${candidate.document.retrievalMetadata.storyTime.day ?? 'unknown'}; calendar date unspecified]`
+                    : undefined,
+            ].filter((label): label is string => label !== undefined)
+            : []
         const boundedContent = truncateToTokenBudget(
-            candidate.document.type === 'event' && candidate.document.retrievalMetadata?.storyTime
-                ? `[Story day relative to first recorded event: ${candidate.document.retrievalMetadata.storyTime.day ?? 'unknown'}; calendar date unspecified]\n${content}`
-                : content,
+            labels.length > 0 ? `${labels.join('\n')}\n${content}` : content,
             tokenBudget.perSource,
         )
         return {
@@ -765,7 +776,11 @@ export function inquireMarkdownDocuments(
     const selectedMapTokenBudget = tokenBudget.target
     const selected: typeof prepared = []
     const selectedIds = new Set<string>()
-    let selectedTokens = 0
+    // The flow is structural context, not a relevance pick; it never takes more than a quarter of the cap.
+    const recentFlow = input.timeline
+        ? timeline.recentFlow(eligibleDocuments, countInquiryTokens, Math.floor(tokenBudget.maximum / 4))
+        : undefined
+    let selectedTokens = recentFlow?.tokens ?? 0
     let selectedMapTokens = 0
     let selectedEventLaneTokens = 0
     let selectedEventTokens = 0
@@ -789,6 +804,7 @@ export function inquireMarkdownDocuments(
     const addOptionalIfFits = (
         candidate: (typeof prepared)[number],
         lane: 'map' | 'event',
+        allowTrim = false,
     ) => {
         const isEvent = candidate.document.type === 'event'
         const laneTokens = lane === 'event'
@@ -798,17 +814,34 @@ export function inquireMarkdownDocuments(
             ? tokenBudget.events
             : selectedMapTokenBudget
         if (selectedIds.has(candidate.document.id)
-            || selected.length >= optionalDocumentLimit
-            || selectedTokens + candidate.tokens > tokenBudget.maximum
-            || laneTokens + candidate.tokens > laneBudget) {
+            || selected.length >= optionalDocumentLimit) {
             return false
         }
-        selected.push(candidate)
+        let entry = candidate
+        if (selectedTokens + candidate.tokens > tokenBudget.maximum
+            || laneTokens + candidate.tokens > laneBudget) {
+            // Only the final pass trims, so whole documents and raw evidence are packed first.
+            if (!allowTrim || lane !== 'map' || isEvent) return false
+            const room = Math.min(tokenBudget.maximum - selectedTokens, laneBudget - laneTokens)
+            if (room < MIN_TRIMMED_CANON_TOKENS) return false
+            const excerpt = selectTokenBoundedExcerpt({
+                content: candidate.document.content,
+                documentType: candidate.document.type,
+                query: retrievalInput,
+                chronologyIntent,
+            }, room - countInquiryTokens(`${TRIMMED_CANON_MARKER}\n`))
+            if (!excerpt.trim()) return false
+            const content = `${TRIMMED_CANON_MARKER}\n${excerpt}`
+            const tokens = countInquiryTokens(content)
+            if (tokens > room) return false
+            entry = { ...candidate, content, tokens }
+        }
+        selected.push(entry)
         selectedIds.add(candidate.document.id)
-        selectedTokens += candidate.tokens
-        if (isEvent) selectedEventTokens += candidate.tokens
-        if (lane === 'event') selectedEventLaneTokens += candidate.tokens
-        else selectedMapTokens += candidate.tokens
+        selectedTokens += entry.tokens
+        if (isEvent) selectedEventTokens += entry.tokens
+        if (lane === 'event') selectedEventLaneTokens += entry.tokens
+        else selectedMapTokens += entry.tokens
         return true
     }
     for (const candidate of prepared.filter((item) =>
@@ -912,7 +945,7 @@ export function inquireMarkdownDocuments(
     for (const candidate of prepared) {
         if (!requiredIds.has(candidate.document.id)
             && candidate.document.type !== 'event') {
-            addOptionalIfFits(candidate, 'map')
+            addOptionalIfFits(candidate, 'map', true)
         }
     }
 
@@ -922,6 +955,15 @@ export function inquireMarkdownDocuments(
         indexRevision: input.documents.length,
         cacheStatus: 'current',
         sources: [
+            ...(recentFlow ? [{
+                id: 'narrative-memory:recent-flow',
+                kind: 'memory' as const,
+                role: 'system' as const,
+                content: recentFlow.content,
+                tokens: recentFlow.tokens,
+                priority: 190,
+                displayName: '직전 흐름',
+            }] : []),
             ...selected.map((candidate) => ({
                 id: `narrative-memory:wiki:${candidate.document.relativePath}`,
                 kind: 'memory' as const,

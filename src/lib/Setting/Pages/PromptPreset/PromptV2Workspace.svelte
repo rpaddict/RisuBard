@@ -10,8 +10,8 @@
         SlidersHorizontalIcon,
     } from '@lucide/svelte'
     import { language } from 'src/lang'
-    import { tick } from 'svelte'
-    import { DBState } from 'src/ts/stores.svelte'
+    import { tick, untrack } from 'svelte'
+    import { DBState, promptV2JumpRequest } from 'src/ts/stores.svelte'
     import type { PromptItem } from 'src/ts/process/prompt'
     import {
         clearPromptV2PreviewState,
@@ -225,6 +225,28 @@
         mode = nextMode
     }
 
+    let listContainer = $state<HTMLElement>()
+
+    // Prompt Assistant links land here. Runs after the saved session is restored
+    // so the restored selection does not override the requested block.
+    $effect(() => {
+        const request = $promptV2JumpRequest
+        if (!request || hydratedWorkspaceScope !== previewPresetId) return
+        promptV2JumpRequest.set(null)
+        untrack(() => void jumpToBlock(request.index))
+    })
+
+    async function jumpToBlock(index: number) {
+        if (index < 0 || index >= promptItems.length) return
+        blockEditor?.flushPendingText()
+        mode = 'prompts'
+        selectedIndex = index
+        compactPane = 'editor'
+        await tick()
+        listContainer?.querySelector('.prompt-v2-list-row--selected')?.scrollIntoView({ block: 'center' })
+        await blockEditor?.revealBodyRange(0, 0)
+    }
+
     async function openToggleUsage(usage: PromptV2ToggleUsage) {
         mode = 'prompts'
         selectedIndex = usage.blockIndex
@@ -326,7 +348,7 @@
         data-compact-pane={compactPane}
     >
         {#if showList}
-            <div data-prompt-v2-block-list class="workspace-pane workspace-pane--list">
+            <div data-prompt-v2-block-list class="workspace-pane workspace-pane--list" bind:this={listContainer}>
                 {#if mode === 'prompts'}
                     <PromptV2BlockList
                         items={promptItems}

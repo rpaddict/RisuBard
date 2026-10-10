@@ -73,6 +73,7 @@ const NARRATIVE_EVIDENCE_RULES = [
     'Narrative continuity:',
     '- Treat retrieved sources as authoritative evidence. Preserve established facts, chronology, viewpoint knowledge, and unresolved uncertainty; never replace them with an unsupported continuation.',
     '- Prefer direct historical chat evidence and event documents for exact past details, and current canonical state for present facts.',
+    '- Character canon records durable state and may compress several scenes into one sentence; it does not establish when they happened. For what happened most recently, use the recent transcript first, then the story flow and turn labels, before any canon summary.',
 ].join('\n')
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -136,6 +137,7 @@ export async function loadNarrativeInquiry(input: {
     }[]
     sourceMatches?: readonly HistoricalSourceMatch[]
     sourceLimit?: number
+    timeline?: { messages: readonly { chatId: string; role: 'user' | 'char' }[] }
     resolveSourceMatches?: (
         messageIds: readonly string[],
         evidenceRequests: readonly { messageId: string; eventTitle: string; documentId?: string }[],
@@ -214,6 +216,10 @@ export async function loadNarrativeInquiry(input: {
                                     32,
                                     Math.trunc(input.sourceLimit)
                                 )) }),
+                            ...(input.timeline === undefined || input.timeline.messages.length === 0
+                                ? {}
+                                : { timeline: { messages: input.timeline.messages.slice(-96)
+                                    .map(({ chatId, role }) => ({ chatId, role })) } }),
                         }),
                     }
                 )
@@ -258,7 +264,7 @@ export async function loadNarrativeInquiry(input: {
             String(value.cacheStatus)
         )
         || !Array.isArray(value.sources)
-        || value.sources.length > 44
+        || value.sources.length > 45
         || !isRecord(value.metrics)
         || !(hasExactKeys(value.metrics, [
                 'candidateCount',

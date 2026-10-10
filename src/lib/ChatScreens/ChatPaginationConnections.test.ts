@@ -60,13 +60,12 @@ describe('bounded chat-page UI connections', () => {
         expect(chat).toContain('data-chat-turn-reference="footer"')
     })
 
-    it('restores the per-chat page and scroll position after the chat screen remounts', () => {
+    it('opens a remounted or switched chat at the start of its latest message', () => {
         const source = screen()
-        expect(source).toContain("from 'src/ts/chatViewSession'")
-        expect(source).toContain('loadChatViewSession(nextKey)')
-        expect(source).toContain('saveChatViewSession(paginationKey')
+        expect(source).not.toContain("from 'src/ts/chatViewSession'")
         expect(source).toContain('bind:this={chatScrollContainer}')
-        expect(source).toContain('chatScrollContainer.scrollTop = savedView.scrollTop')
+        expect(source).toContain('void scrollToLatestMessageStart(nextKey)')
+        expect(source).toContain("scrollWithinContainer(latest, container, { block: 'start', behavior: 'instant' })")
     })
 
     it('never expands the mounted chat to infinity for screenshots', () => {

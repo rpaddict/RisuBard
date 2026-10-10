@@ -17,6 +17,7 @@ import {
     normalizeRisuBardCanonicalCustomStyle,
     normalizeRisuBardCanonicalTargetLimit,
     normalizeRisuBardCanonicalWritingStyle,
+    normalizeRisuBardDynamicMemoryMode,
     normalizeRisuBardInquiryTokenBudget,
     normalizeRisuBardInquiryTimeoutMs,
     normalizeRisuBardHistoricalSourceMatchLimit,
@@ -59,6 +60,32 @@ describe('RisuBard analysis settings', () => {
             .toBe(RISUBARD_ADDITIONAL_SEARCH_LIMIT_DEFAULT)
         expect(normalizeRisuBardCanonicalTargetLimit(Number.NaN))
             .toBe(RISUBARD_CANONICAL_TARGET_LIMIT_DEFAULT)
+    })
+
+    test('defaults the memory budget to the standard tier with economy dynamic growth', () => {
+        expect(RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT).toBe(4_000)
+        expect(RISUBARD_INQUIRY_EVENT_TOKEN_BUDGET_DEFAULT).toBe(3_000)
+        expect(RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT).toBe(2_000)
+        expect(RISUBARD_INQUIRY_MAXIMUM_TOKEN_BUDGET_DEFAULT).toBe(7_500)
+        expect(resolveRisuBardChatSettings({})).toMatchObject({
+            risuBardInquiryTargetTokenBudget: 4_000,
+            risuBardInquiryEventTokenBudget: 3_000,
+            risuBardInquirySourceTokenBudget: 2_000,
+            risuBardInquiryMaximumTokenBudget: 7_500,
+            risuBardDynamicMemoryMode: 'economy',
+            risuBardDynamicMemoryMaximumTokens: 12_000,
+        })
+    })
+
+    test('keeps an explicitly stored dynamic memory mode and falls back to economy otherwise', () => {
+        for (const mode of ['off', 'economy', 'balanced', 'recall'] as const) {
+            expect(normalizeRisuBardDynamicMemoryMode(mode)).toBe(mode)
+            expect(resolveRisuBardChatSettings({ risuBardDynamicMemoryMode: mode }).risuBardDynamicMemoryMode).toBe(mode)
+        }
+        for (const value of [undefined, null, '', 'bad', 0, false]) {
+            expect(normalizeRisuBardDynamicMemoryMode(value)).toBe('economy')
+        }
+        expect(resolveRisuBardChatSettings({}, { risuBardDynamicMemoryMode: 'off' }).risuBardDynamicMemoryMode).toBe('off')
     })
 
     test('retains minimums without imposing arbitrary setting maxima', () => {

@@ -113,6 +113,22 @@ export function eligibleHistoricalSources(messages: readonly HistoricalSourceMes
     )
 }
 
+/** Ordered message IDs just before the recent transcript, for inquiry turn labels. */
+export function buildInquiryTimeline(
+    messages: readonly HistoricalSourceMessage[],
+    workingMessageLimit: number,
+    limit = 96,
+): { messages: Array<{ chatId: string; role: 'user' | 'char' }> } {
+    return {
+        messages: eligibleHistoricalSources(messages, true, workingMessageLimit)
+            .slice(-limit)
+            .map(({ message }) => ({
+                chatId: message.chatId as string,
+                role: message.role === 'char' ? 'char' as const : 'user' as const,
+            })),
+    }
+}
+
 function normalized(value: string): string {
     return value.normalize('NFKC').toLocaleLowerCase().trim()
 }

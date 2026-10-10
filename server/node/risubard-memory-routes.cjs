@@ -32,6 +32,15 @@ function hasBoundedId(value) {
         && value.length <= 1_024
 }
 
+function validInquiryTimeline(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        && Object.keys(value).length === 1 && Array.isArray(value.messages)
+        && value.messages.length <= 96
+        && value.messages.every((message) => message !== null && typeof message === 'object'
+            && Object.keys(message).length === 2 && hasBoundedId(message.chatId)
+            && (message.role === 'user' || message.role === 'char'))
+}
+
 function hasBoundedName(value) {
     return typeof value === 'string'
         && value.trim().length > 0
@@ -583,8 +592,10 @@ function registerRisuBardMemoryRoutes(app, options) {
                     ? []
                     : ['sourceLimit']),
                 ...(req.body.retrievalLimits === undefined ? [] : ['retrievalLimits']),
+                ...(req.body.timeline === undefined ? [] : ['timeline']),
             ])
             if (!validShape
+                || (req.body.timeline !== undefined && !validInquiryTimeline(req.body.timeline))
                 || (req.body.contextSelection !== undefined && !['required', 'auto'].includes(req.body.contextSelection))
                 || (req.body.retrievalLimits !== undefined && !validRetrievalLimits(req.body.retrievalLimits))
                 || !hasBoundedId(req.body.characterId)

@@ -21,7 +21,6 @@
         buildChatTurnNavigation,
         normalizeChatNavigationTarget,
     } from 'src/ts/chatTurnNavigation';
-    import { loadChatViewSession, saveChatViewSession, type ChatViewSession } from 'src/ts/chatViewSession'
     import { oocTurnIndices } from 'src/ts/risubard/oocTurns'
     import { type Chat as ChatData, type Message, type Database } from "../../ts/storage/database.svelte";
     import { DBState } from 'src/ts/stores.svelte';
@@ -265,11 +264,34 @@ import { isMobile } from 'src/ts/platform'
         }
     })
 
-    async function restoreChatViewScroll(key: string, savedView: ChatViewSession) {
+    // A raw scrollTop goes stale while markdown and assets re-render after a remount,
+    // so reopening a chat always lands on the start of its newest rendered message.
+    async function scrollToLatestMessageStart(key: string) {
+        const request = ++scrollJumpRequest
+        const isCurrent = () => request === scrollJumpRequest && paginationKey === key
         await tick()
-        if (paginationKey !== key || !chatScrollContainer) return
-        chatScrollContainer.scrollTop = savedView.scrollTop
-        captureCurrentScrollAnchor()
+        let latest: HTMLElement | null = null
+        for (let i = 0; i <= 10 && isCurrent(); i++) {
+            const container = chatScrollContainer
+            const messages = container ? Array.from(container.querySelectorAll<HTMLElement>('[data-chat-index]')) : []
+            latest = messages.reduce<HTMLElement | null>((best, el) =>
+                !best || Number(el.dataset.chatIndex) > Number(best.dataset.chatIndex) ? el : best, null)
+            if (latest || i === 10) break
+            await sleep(100)
+        }
+        const container = chatScrollContainer
+        if (!isCurrent() || !container || !latest) return
+        scrollAnchorObserver?.reset()
+        scrollWithinContainer(latest, container, { block: 'start', behavior: 'instant' })
+        scrollAnchorObserver?.markProgrammaticScroll()
+        // Keep the message start pinned while its images load; a new reply still follows the bottom.
+        currentScrollAnchor = DBState.db.preserveChatScrollPosition ? {
+            contextKey: key,
+            messageIndex: Number(latest.dataset.chatIndex),
+            messageCount: currentChat.length,
+            offsetTop: 0,
+            atLatest: true,
+        } : null
     }
 
     $effect(() => {
@@ -281,13 +303,8 @@ import { isMobile } from 'src/ts/platform'
         if (nextKey !== paginationKey) {
             paginationKey = nextKey
             firstMessageCollapsed = true
-            const savedView = loadChatViewSession(nextKey)
-            if (savedView) {
-                chatPage = getChatPageBounds(messageCount, chatPageSize, savedView.page).page
-                void restoreChatViewScroll(nextKey, savedView)
-            } else {
-                chatPage = latestPage
-            }
+            chatPage = latestPage
+            void scrollToLatestMessageStart(nextKey)
         } else if (chatPageSize !== paginationPageSize) {
             const anchorIndex = chatPage * paginationPageSize
             chatPage = getChatPageForMessage(anchorIndex, messageCount, chatPageSize)
@@ -1684,12 +1701,6 @@ import { isMobile } from 'src/ts/platform'
                 bumpScrollNav()
             }
             const chatTarget = e.target as HTMLElement;
-            if (paginationKey) {
-                saveChatViewSession(paginationKey, {
-                    page: chatBounds.page,
-                    scrollTop: chatTarget.scrollTop,
-                })
-            }
             const chatsContainer = (DBState.db.fixedChatTextarea && chatTarget.children[1]) ? chatTarget.children[1] : chatTarget.children[0];
             const lastEl = chatsContainer?.firstElementChild;
             const isAtBottom = lastEl ? lastEl.getBoundingClientRect().top <= chatTarget.getBoundingClientRect().bottom + 100 : true;

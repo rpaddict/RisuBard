@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, onMount } from "svelte";
+    import { onDestroy, untrack } from "svelte";
     import { v4 } from "uuid";
     import Sortable from 'sortablejs/modular/sortable.core.esm.js';
     import { DownloadIcon, PencilIcon, HardDriveUploadIcon, MenuIcon, TrashIcon, SplitIcon, FolderPlusIcon, BookmarkCheckIcon, PackageIcon, CopyIcon, PlusIcon, MergeIcon, EllipsisIcon } from "@lucide/svelte";
@@ -274,7 +274,27 @@
         }
     }
 
+    const destroyStb = () => {
+        for (const stb of [...chatsStb, folderStb]) {
+            try {
+                stb?.destroy()
+            } catch (error) {}
+        }
+        chatsStb = []
+        folderStb = null
+    }
+
+    // Folder containers appear after mount and the component is reused across characters,
+    // so rebuild the drop targets whenever the character or its folder count changes.
+    const rebuildStb = async () => {
+        sorted += 1
+        await sleep(1)
+        createStb()
+    }
+
     const createStb = () => {
+        destroyStb()
+        if (!listEle) return
         for (let chat of listEle.querySelectorAll('.risu-chat')) {
             chatsStb.push(new Sortable(chat, {
                 group: 'chats',
@@ -358,20 +378,13 @@
         })
     }
 
-    onMount(createStb)
-
-    onDestroy(() => {
-        if (folderStb) {
-            try {
-                folderStb.destroy()
-            } catch (error) {}
-        }
-        chatsStb.map(stb => {
-            try {
-                stb.destroy()
-            } catch (error) {}
-        })
+    $effect(() => {
+        chara?.chaId
+        chara?.chatFolders?.length
+        untrack(() => void rebuildStb())
     })
+
+    onDestroy(destroyStb)
 </script>
 {#if mergeOpen}
     <ChatMergeDialog open={mergeOpen} chats={chara.chats} loadChat={loadMergeChat}
@@ -514,11 +527,8 @@
                     </div>
                 </button>
                 <!-- chats in folder -->
-                <div class="risu-chat flex flex-col w-full text-textcolor border-solid border-0 border-darkborderc p-2 cursor-pointer rounded-md {folder.folded ? 'hidden' : ''}">
-                    {#if chara.chats.filter(chat => chat.folderId == chara.chatFolders[i].id).length == 0}
-                    <span class="no-sort flex justify-center text-textcolor2">Empty</span>
-                    <div></div>
-                    {:else}
+                <!-- The empty label is CSS-only so the whole empty folder stays a Sortable drop target. -->
+                <div class="risu-chat flex flex-col w-full text-textcolor border-solid border-0 border-darkborderc p-2 cursor-pointer rounded-md empty:before:content-['Empty'] empty:before:flex empty:before:justify-center empty:before:text-textcolor2 {folder.folded ? 'hidden' : ''}">
                     {#each chara.chats.filter(chat => chat.folderId == chara.chatFolders[i].id) as chat}
                     {@const chatIdx = chara.chats.indexOf(chat)}
                     <button data-chat-list-row data-risu-chat-idx={chatIdx} onclick={() => {
@@ -529,7 +539,6 @@
                         <span class="truncate">{chat.name}</span>
                     </button>
                     {/each}
-                    {/if}
                 </div>
             </div>
             {/each}

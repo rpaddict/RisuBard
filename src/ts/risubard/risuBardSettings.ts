@@ -9,16 +9,17 @@ import {
 export const RISUBARD_ANALYSIS_TOKEN_LIMIT_DEFAULT = 8_192
 export const RISUBARD_ADDITIONAL_SEARCH_LIMIT_DEFAULT = 1
 export const RISUBARD_CANONICAL_TARGET_LIMIT_DEFAULT = 8
-export const RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT = 2_000
-export const RISUBARD_INQUIRY_EVENT_TOKEN_BUDGET_DEFAULT = 2_000
+export const RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT = 4_000
+export const RISUBARD_INQUIRY_EVENT_TOKEN_BUDGET_DEFAULT = 3_000
 export const RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT = 2_000
-export const RISUBARD_INQUIRY_MAXIMUM_TOKEN_BUDGET_DEFAULT = 6_000
+export const RISUBARD_INQUIRY_MAXIMUM_TOKEN_BUDGET_DEFAULT = 7_500
 export const RISUBARD_INQUIRY_TIMEOUT_MS_DEFAULT = 10_000
 export const RISUBARD_HISTORICAL_SOURCE_MATCH_LIMIT_DEFAULT = 8
 export const RISUBARD_CANONICAL_WRITING_STYLE_DEFAULT = 'concise' as const
 export const RISUBARD_CANONICAL_CUSTOM_STYLE_MAX_LENGTH = 1_000
 export const RISUBARD_DYNAMIC_MEMORY_MAXIMUM_DEFAULT = 12_000
 export type RisuBardDynamicMemoryMode = 'off' | 'economy' | 'balanced' | 'recall'
+export const RISUBARD_DYNAMIC_MEMORY_MODE_DEFAULT: RisuBardDynamicMemoryMode = 'economy'
 
 export type RisuBardCanonicalWritingStyle =
     | 'standard'
@@ -176,7 +177,10 @@ export function resolveRisuBardChatSettings(
 }
 
 export function normalizeRisuBardDynamicMemoryMode(value: unknown): RisuBardDynamicMemoryMode {
-    return value === 'economy' || value === 'balanced' || value === 'recall' ? value : 'off'
+    // An explicitly stored 'off' stays off; only missing or invalid values fall back to the default.
+    return value === 'off' || value === 'economy' || value === 'balanced' || value === 'recall'
+        ? value
+        : RISUBARD_DYNAMIC_MEMORY_MODE_DEFAULT
 }
 
 export function normalizeRisuBardDynamicMemoryMaximum(value: unknown): number {

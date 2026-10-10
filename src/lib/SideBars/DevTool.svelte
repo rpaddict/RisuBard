@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { selectedCharID } from "src/ts/stores.svelte";
+    import { promptAssistantOpen, selectedCharID } from "src/ts/stores.svelte";
     import TextInput from "../UI/GUI/TextInput.svelte";
     import NumberInput from "../UI/GUI/NumberInput.svelte";
     import Button from "../UI/GUI/Button.svelte";
@@ -318,3 +318,7 @@
     <Button className="mt-2" onclick={() => previewChatGuardToast('server-persist')}>Chat guard — server persist (write aborted)</Button>
     <Button className="mt-2" onclick={() => previewPersistFailureToast()}>Generic persist failure</Button>
 </Accordion>
+
+<Button className="mt-2" selected={$promptAssistantOpen} onclick={() => { $promptAssistantOpen = !$promptAssistantOpen }}>
+    Prompt Assistant
+</Button>

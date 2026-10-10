@@ -15,6 +15,7 @@ export interface CanonicalTurnReceipt {
     eventIds: string[]
     changes: CanonicalTurnReceiptChange[]
     warnings: string[]
+    notes?: string[]
     recordedAt: string
     recovery?: {
         inputHash: string
@@ -138,7 +139,9 @@ export function parseCanonicalTurnReceipt(
     value: unknown
 ): CanonicalTurnReceipt {
     if (!isRecord(value)
-        || Object.keys(value).length !== (value.recovery === undefined ? 5 : 6)
+        || Object.keys(value).length !== 5
+            + (value.recovery === undefined ? 0 : 1)
+            + (value.notes === undefined ? 0 : 1)
         || !['sourceMessageIds', 'eventIds', 'changes', 'warnings',
             'recordedAt'].every((key) => Object.hasOwn(value, key))
         || !Array.isArray(value.sourceMessageIds)
@@ -147,6 +150,8 @@ export function parseCanonicalTurnReceipt(
         || !value.eventIds.every((id) => typeof id === 'string')
         || !Array.isArray(value.warnings)
         || !value.warnings.every((warning) => typeof warning === 'string')
+        || (value.notes !== undefined && (!Array.isArray(value.notes) || value.notes.length > 8
+            || !value.notes.every((note) => typeof note === 'string' && note.length <= 512)))
         || typeof value.recordedAt !== 'string'
         || !Array.isArray(value.changes)) {
         throw new Error('Invalid wiki turn receipt')
@@ -193,6 +198,7 @@ export function parseCanonicalTurnReceipt(
         eventIds: [...value.eventIds] as string[],
         changes,
         warnings: [...value.warnings] as string[],
+        ...(value.notes === undefined ? {} : { notes: [...(value.notes as string[])] }),
         recordedAt: value.recordedAt,
         ...(recovery ? { recovery } : {}),
     }

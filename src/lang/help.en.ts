@@ -445,6 +445,8 @@ export const helpEn = {
             "Controls style and expression only. Fact selection, evidence, structure, and safety rules take priority. Limited to 1,000 characters.",
         risuBardAnalysisTokenLimit:
             "Input and output token limit for each memory analysis, reboot, and canonical writing request. Long input is fitted before sending, and the same value is applied to model output. The default is 8,192. There is no fixed app maximum; choose a value within your model's context and output limits.",
+        risuBardMemoryBudgetPreset:
+            "Sets the six wiki search budget values at once: search target, event search, per-source search, search maximum, and the long-term memory dynamic limit with its ceiling.\n\n**Economy** (search target 3,000 / events 2,000 / per source 1,500 / maximum 5,500): holds about two main character cards and a little other memory per response to save tokens.\n\n**Standard** (4,000 / 3,000 / 2,000 / 7,500): the default. Two main character cards plus room for other memory and event documents.\n\n**Generous** (6,000 / 4,000 / 2,500 / 10,500, balanced dynamic limit): puts more memory into each response for long chats with many characters and events. It uses the most tokens.\n\nEditing any value yourself switches to Custom. Choose Custom to see and edit the individual values.",
         risuBardInquiryTargetTokenBudget:
             "Target number of tokens for related documents in an ordinary wiki inquiry. It is not filled when fewer documents are relevant.",
         risuBardBardChanEnabled:

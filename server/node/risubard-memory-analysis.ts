@@ -58,6 +58,7 @@ import {
 } from './risubard-memory-writer'
 
 import {
+    RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT,
     buildRisuBardCanonicalWritingPolicy,
     buildRisuBardEventWritingPolicy,
     normalizeRisuBardAdditionalSearchLimit,
@@ -78,6 +79,11 @@ import {
     normalizeArcPlotterRuntimeSettings,
     type ArcPlotterRuntimeSettings,
 } from '../../src/ts/risubard/arcPlotterSettings'
+import {
+    MAINTENANCE_COOLDOWN_SOURCES,
+    maintainCharacterCanon,
+    maintenanceCoverDocuments,
+} from './risubard-canonical-maintenance'
 import {
     selectMarkdownExcerpt,
     type ExcerptDocumentType,
@@ -1018,6 +1024,8 @@ function analysisNotes(
 export function createMemoryAnalysisRunner(
     options: MemoryAnalysisRunnerOptions
 ) {
+    // Per session only: a reload forgets baselines and cooldowns, costing at most one extra attempt per card.
+    const maintenanceState = new Map<string, { baselineTokens?: number; failedSources?: ReadonlySet<string> }>()
     const reportError = async (error: unknown): Promise<void> => {
         try {
             await options.onError(error)
@@ -1501,6 +1509,7 @@ export function createMemoryAnalysisRunner(
                 action: 'create' | 'update'
                 afterHash: string
             }> = []
+            const receiptNotes: string[] = []
             const receiptWarnings: string[] = [
                 ...deferred.map((entry) => entry.warning),
                 ...recoveredNewCharacters.map((candidate) =>
@@ -1631,7 +1640,7 @@ export function createMemoryAnalysisRunner(
                                 `Prefer a compact self-contained \`### ${wikiWritingHeadings[normalizeWikiWritingLanguage(snapshot.wikiWritingLanguage)].currentState}\` section near the top of character documents when verified current facts benefit from a snapshot. Its absence is not a persistence error and never justifies a structure-only rewrite.`,
                                 'Remove superseded facts from current-state sections; retain an old state only as a clearly historical transition when it remains narratively useful.',
                                 'Preserve unrelated established identity facts, relationships, knowledge, goals, possessions, constraints, and unresolved continuity unless confirmedMessages explicitly change them.',
-                                'Apply the stateChanges.after values and relevant persistentFacts, characterKnowledge, and openContinuity to the correct subject document. Do not copy another character\'s facts into this target.',
+                                'Apply the stateChanges.after values and relevant persistentFacts and openContinuity to the correct subject document. Use characterKnowledge as a coverage checklist: record an item only where the canonical writing policy assigns it, merge it into an existing entry when one already covers the topic, and never append one entry per occasion of learning. Do not copy another character\'s facts into this target.',
                                 'Apply only changes supported by the confirmed messages and event.',
                                 snapshot.historicalReanalysis
                                     ? `This is a historical correction. Correct history sections, but preserve an existing character ${wikiWritingHeadings[normalizeWikiWritingLanguage(snapshot.wikiWritingLanguage)].currentState} section because it may represent later events.`
@@ -1952,6 +1961,52 @@ export function createMemoryAnalysisRunner(
                                 await canonicalFailure(entry, new ModelOutputError('invalid-structure', error.message))
                                 continue
                             }
+                            let maintenanceNote: string | undefined
+                            if (entry.target && entry.candidate.type === 'character' && !entry.storyArcPlan
+                                && !snapshot.rebootTurns && !snapshot.historicalReanalysis
+                                && !snapshot.additionalAnalysis) {
+                                const attemptKey = `${snapshot.characterId}\u0000${snapshot.chatId}\u0000${entry.target.id}`
+                                // Stored documents keep only their last source IDs, so count IDs unseen at the last attempt.
+                                const currentSources = new Set([...entry.target.sourceMessageIds, ...sourceMessageIds])
+                                const state = maintenanceState.get(attemptKey)
+                                const failedSources = state?.failedSources
+                                // Only a model error cools down; a card that is already minimal waits for growth instead.
+                                if (failedSources === undefined
+                                    || [...currentSources].filter((id) => !failedSources.has(id)).length >= MAINTENANCE_COOLDOWN_SOURCES) {
+                                    const maintained = await maintainCharacterCanon({
+                                        markdown: rewritten,
+                                        title: entry.target.title,
+                                        coverDocuments: maintenanceCoverDocuments(entry.target, [...documents, ...savedEvents]),
+                                        policy: [snapshot.wikiPromptGuide?.canonicalRewrite ?? '', canonicalWritingPolicy]
+                                            .filter(Boolean).join('\n'),
+                                        countTokens: countAnalysisTokens,
+                                        perSourceTokens: snapshot.inquiryTokenBudget?.perSource
+                                            ?? RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT,
+                                        baselineTokens: state?.baselineTokens,
+                                        request: async (prompt) => readModelResponseText(await analyzeResponse({
+                                            format: 'canonical-batch',
+                                            responseSchema: prompt.schema,
+                                            inputTokenLimit: snapshot.analysisTokenLimit,
+                                            system: prompt.system,
+                                            input: prompt.input,
+                                        })),
+                                    })
+                                    signal?.throwIfAborted()
+                                    if (maintained.outcome === 'applied') {
+                                        maintenanceState.set(attemptKey, { baselineTokens: maintained.tokensAfter })
+                                    }
+                                    else if (maintained.outcome === 'no-reduction') {
+                                        maintenanceState.set(attemptKey, { baselineTokens: maintained.tokensBefore })
+                                    }
+                                    else if (maintained.outcome === 'error') {
+                                        maintenanceState.set(attemptKey, {
+                                            baselineTokens: state?.baselineTokens, failedSources: currentSources,
+                                        })
+                                    }
+                                    if (maintained.markdown) rewritten = maintained.markdown
+                                    maintenanceNote = maintained.note
+                                }
+                            }
                             try {
                                 signal?.throwIfAborted()
                                 const aliases = mergeEvidenceBackedAliases(
@@ -2002,6 +2057,7 @@ export function createMemoryAnalysisRunner(
                                     ) ? 'update' : 'create',
                                     afterHash: saved.contentHash,
                                 })
+                                if (maintenanceNote) receiptNotes.push(maintenanceNote)
                             }
                             catch (error) {
                                 signal?.throwIfAborted()
@@ -2027,6 +2083,7 @@ export function createMemoryAnalysisRunner(
                 eventIds: savedEvents.map((event) => event.id),
                 changes: receiptChanges,
                 warnings: receiptWarnings,
+                ...(receiptNotes.length > 0 ? { notes: receiptNotes.slice(0, 8) } : {}),
                 recordedAt: new Date().toISOString(),
                 recovery: { inputHash, deferred },
             }
