@@ -1,9 +1,10 @@
 <script lang="ts">
-    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openModelPresetList, openModelProfileBrowser, openPersonaList, openPersonaManager, personaSelectCallback, openHypaV3PresetList, openThemePresetList, MobileGUI, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, popUpEditorStore, promptAssistantOpen } from './ts/stores.svelte';
+    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openModelPresetList, openModelProfileBrowser, openPersonaList, openPersonaManager, personaSelectCallback, openHypaV3PresetList, openThemePresetList, MobileGUI, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, popUpEditorStore, promptAssistantOpen, characterAssistantOpen } from './ts/stores.svelte';
     import Sidebar from './lib/SideBars/Sidebar.svelte';
     import { DBState } from './ts/stores.svelte';
     import ChatScreen from './lib/ChatScreens/ChatScreen.svelte';
     import RisuBardPromptAssistant from './lib/Others/RisuBardPromptAssistant.svelte';
+    import RisuBardCharacterAssistant from './lib/Others/RisuBardCharacterAssistant.svelte';
     import AlertComp from './lib/Others/AlertComp.svelte';
     import RealmPopUp from './lib/UI/Realm/RealmPopUp.svelte';
     import GridChars from './lib/Others/GridCatalog.svelte';
@@ -73,6 +74,8 @@
     // visible while editing the preset. Mounted on first open, then kept.
     let promptAssistantMounted = $state(false)
     $effect(() => { if ($promptAssistantOpen) promptAssistantMounted = true })
+    let characterAssistantMounted = $state(false)
+    $effect(() => { if ($characterAssistantOpen) characterAssistantMounted = true })
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -279,6 +282,9 @@
     {/if}
     {#if $loadedStore && promptAssistantMounted}
         <RisuBardPromptAssistant bind:open={$promptAssistantOpen} />
+    {/if}
+    {#if $loadedStore && characterAssistantMounted}
+        <RisuBardCharacterAssistant bind:open={$characterAssistantOpen} />
     {/if}
     <AlertComp />
     {#if $showRealmInfoStore}

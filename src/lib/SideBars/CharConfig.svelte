@@ -5,7 +5,9 @@
     import { convertCharacterToModule } from "src/ts/interchangeability";
     import { notifySuccess } from "src/ts/alert";
     import { DBState } from 'src/ts/stores.svelte';
-    import { CharConfigSubMenu, MobileGUI, selectedCharID, hypaV3ModalOpen } from "../../ts/stores.svelte";
+    import { CharConfigSubMenu, MobileGUI, selectedCharID, hypaV3ModalOpen, characterEditorJumpRequest, type CharacterEditorJumpRequest } from "../../ts/stores.svelte";
+    import { tick, untrack } from 'svelte';
+    import { get } from 'svelte/store';
     import { PlusIcon, TrashIcon, DownloadIcon, HardDriveUploadIcon, ImageIcon, ImageOffIcon, ArrowUp, ArrowDown, TriangleAlertIcon, LayoutTemplateIcon } from '@lucide/svelte'
     import Check from "../UI/GUI/CheckInput.svelte";
     import { addCharEmotion, addingEmotion, getCharImage, rmCharEmotion, selectCharImg, removeChar, changeCharImage } from "../../ts/characters";
@@ -114,6 +116,34 @@ import ShButton from "../UI/GUI/ShButton.svelte";
     let assetFileExtensions:string[] = $state([])
     let assetFilePath:string[] = $state([])
     let licensed = $state('')
+
+    // Character Assistant links: reveal a field or an alternate greeting once
+    // its tab has rendered, then take the request so the assistant knows.
+    let alternateGreetingsOpen = $state(false)
+    $effect(() => {
+        const request = $characterEditorJumpRequest
+        if (request && (request.kind === 'field' || request.kind === 'greeting')) untrack(() => void revealJumpTarget(request))
+    })
+    async function revealJumpTarget(request: CharacterEditorJumpRequest) {
+        if (request.kind === 'greeting') alternateGreetingsOpen = true
+        const selector = request.kind === 'greeting'
+            ? `[data-alternate-greeting="${request.index}"]`
+            : request.kind === 'field' ? `[data-char-field="${request.field === 'lua' ? 'trigger' : request.field}"]` : ''
+        let target: HTMLElement | null = null
+        for (let frame = 0; frame < 60 && !target; frame++) {
+            await tick()
+            target = document.querySelector<HTMLElement>(selector)
+            if (!target) await new Promise((resolve) => requestAnimationFrame(resolve))
+        }
+        if (!target || get(characterEditorJumpRequest)?.nonce !== request.nonce) return
+        characterEditorJumpRequest.set(null)
+        target.scrollIntoView({ block: 'center' })
+        let input: HTMLElement | null = target.querySelector('textarea, input')
+        for (let sibling = target.nextElementSibling; !input && sibling && !sibling.matches('[data-char-field]'); sibling = sibling.nextElementSibling) {
+            input = sibling.matches('textarea, input') ? sibling as HTMLElement : sibling.querySelector('textarea, input')
+        }
+        input?.focus({ preventScroll: true })
+    }
 
     $effect.pre(() => {
         if (!currentCharacter) return
@@ -280,10 +310,10 @@ import ShButton from "../UI/GUI/ShButton.svelte";
         <h2 class="mb-2 text-2xl font-bold">{language.characterInfo}</h2>
         <span class="text-textcolor">{language.characterName}</span>
         <ShInput className="mt-2 mb-4" autocomplete="off" placeholder={language.characterName} bind:value={DBState.db.characters[$selectedCharID].name} onblur={commitCharacterName} />
-        <span class="text-textcolor">{language.description} <Help key="charDesc"/></span>
+        <span data-char-field="desc" class="text-textcolor">{language.description} <Help key="charDesc"/></span>
         <TextAreaInput highlight margin="both" autocomplete="off" bind:value={(DBState.db.characters[$selectedCharID] as character).desc}></TextAreaInput>
         <span class="text-textcolor2 mb-6 text-sm">{tokens.desc} {language.tokens}</span>
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center justify-between gap-2" data-char-field="firstMessage">
             <span class="text-textcolor">{language.firstMessage} <Help key="charFirstMessage"/></span>
             <ShButton className="shrink-0" onclick={() => firstMessageStudioOpen = true}>
                 <LayoutTemplateIcon size={15}/>
@@ -297,6 +327,7 @@ import ShButton from "../UI/GUI/ShButton.svelte";
             <ShAccordion
                 name={`${language.altGreet} (${DBState.db.characters[$selectedCharID].alternateGreetings.length})`}
                 variant="card"
+                bind:open={alternateGreetingsOpen}
             >
                 <table class="contain w-full max-w-full tabler">
                     <tbody>
@@ -320,7 +351,7 @@ import ShButton from "../UI/GUI/ShButton.svelte";
                         </tr>
                     {/if}
                     {#each DBState.db.characters[$selectedCharID].alternateGreetings as bias, i}
-                        <tr>
+                        <tr data-alternate-greeting={i}>
                             <td class="font-medium truncate">
                                 <TextAreaInput highlight bind:value={DBState.db.characters[$selectedCharID].alternateGreetings[i]} placeholder="..." fullwidth />
                             </td>
@@ -708,11 +739,11 @@ import ShButton from "../UI/GUI/ShButton.svelte";
             <h2 class="mb-2 text-2xl font-bold">{language.scripts}</h2>
         {/if}
 
-        <span class="text-textcolor mt-2">{language.backgroundHTML} <Help key="backgroundHTML" /></span>
+        <span data-char-field="backgroundHTML" class="text-textcolor mt-2">{language.backgroundHTML} <Help key="backgroundHTML" /></span>
         <TextAreaInput highlight margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].backgroundHTML}></TextAreaInput>
 
         <span class="text-textcolor mt-4">{language.regexScript} <Help key="regexScript"/></span>
-        <RegexList bind:value={DBState.db.characters[$selectedCharID].customscript} />
+        <RegexList jumpTarget bind:value={DBState.db.characters[$selectedCharID].customscript} />
         <div class="text-textcolor2 mt-2 flex gap-2">
             <button class="font-medium cursor-pointer hover:text-primary" onclick={() => {
                 if(DBState.db.characters[$selectedCharID].type === 'character'){
@@ -734,12 +765,12 @@ import ShButton from "../UI/GUI/ShButton.svelte";
             }}><HardDriveUploadIcon /></button>
         </div>
 
-        <span class="text-textcolor mt-4">{language.triggerScript} <Help key="triggerScript"/></span>
+        <span data-char-field="trigger" class="text-textcolor mt-4">{language.triggerScript} <Help key="triggerScript"/></span>
         <TriggerList bind:value={(DBState.db.characters[$selectedCharID] as character).triggerscript} lowLevelAble={DBState.db.characters[$selectedCharID].lowLevelAccess} />
 
 
         {#if DBState.db.characters[$selectedCharID].virtualscript || DBState.db.showUnrecommended}
-            <span class="text-textcolor mt-4">{language.charjs} <Help key="charjs" unrecommended/></span>
+            <span data-char-field="virtualscript" class="text-textcolor mt-4">{language.charjs} <Help key="charjs" unrecommended/></span>
             <TextAreaInput margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].virtualscript}></TextAreaInput>
         {/if}
     {/if}
@@ -1168,39 +1199,39 @@ import ShButton from "../UI/GUI/ShButton.svelte";
         </table>
         </div>
 
-        <span class="text-textcolor">{language.exampleMessage} <Help key="exampleMessage"/></span>
+        <span data-char-field="exampleMessage" class="text-textcolor">{language.exampleMessage} <Help key="exampleMessage"/></span>
         <TextAreaInput highlight margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].exampleMessage}></TextAreaInput>
 
-        <span class="text-textcolor">{language.creatorNotes} <Help key="creatorQuotes"/></span>
+        <span data-char-field="creatorNotes" class="text-textcolor">{language.creatorNotes} <Help key="creatorQuotes"/></span>
         <MultiLangInput bind:value={DBState.db.characters[$selectedCharID].creatorNotes} className="my-2" onInput={() => {
             DBState.db.characters[$selectedCharID].removedQuotes = false
         }}></MultiLangInput>
 
-        <span class="text-textcolor">{language.systemPrompt} <Help key="systemPrompt"/></span>
+        <span data-char-field="systemPrompt" class="text-textcolor">{language.systemPrompt} <Help key="systemPrompt"/></span>
         <TextAreaInput highlight margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].systemPrompt}></TextAreaInput>
 
-        <span class="text-textcolor">{language.replaceGlobalNote} <Help key="replaceGlobalNote"/></span>
+        <span data-char-field="replaceGlobalNote" class="text-textcolor">{language.replaceGlobalNote} <Help key="replaceGlobalNote"/></span>
         <TextAreaInput highlight margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].replaceGlobalNote}></TextAreaInput>
 
-        <span class="text-textcolor mt-2">{language.additionalText} <Help key="additionalText" /></span>
+        <span data-char-field="additionalText" class="text-textcolor mt-2">{language.additionalText} <Help key="additionalText" /></span>
         <TextAreaInput highlight margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].additionalText}></TextAreaInput>
 
         {#if DBState.db.showUnrecommended || DBState.db.characters[$selectedCharID].personality.length > 3}
-            <span class="text-textcolor">{language.personality} <Help key="personality" unrecommended/></span>
+            <span data-char-field="personality" class="text-textcolor">{language.personality} <Help key="personality" unrecommended/></span>
             <TextAreaInput highlight margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].personality}></TextAreaInput>
         {/if}
         {#if DBState.db.showUnrecommended || DBState.db.characters[$selectedCharID].scenario.length > 3}
-            <span class="text-textcolor">{language.scenario} <Help key="scenario" unrecommended/></span>
+            <span data-char-field="scenario" class="text-textcolor">{language.scenario} <Help key="scenario" unrecommended/></span>
             <TextAreaInput highlight margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].scenario}></TextAreaInput>
         {/if}
 
-        <span class="text-textcolor mt-2">{language.defaultVariables} <Help key="defaultVariables" /></span>
+        <span data-char-field="defaultVariables" class="text-textcolor mt-2">{language.defaultVariables} <Help key="defaultVariables" /></span>
         <TextAreaInput margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].defaultVariables}></TextAreaInput>
 
-        <span class="text-textcolor mt-2">{language.translatorNote} <Help key="translatorNote" /></span>
+        <span data-char-field="translatorNote" class="text-textcolor mt-2">{language.translatorNote} <Help key="translatorNote" /></span>
         <TextAreaInput margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].translatorNote}></TextAreaInput>
 
-        <span class="text-textcolor mt-2">{language.customPromptTemplateToggle} <Help key="customPromptTemplateToggle" /></span>
+        <span data-char-field="customModuleToggle" class="text-textcolor mt-2">{language.customPromptTemplateToggle} <Help key="customPromptTemplateToggle" /></span>
         <TextAreaInput margin="both" autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].customModuleToggle}></TextAreaInput>
 
         <span class="text-textcolor">{language.creator}</span>
@@ -1212,7 +1243,7 @@ import ShButton from "../UI/GUI/ShButton.svelte";
         <span class="text-textcolor">{language.nickname} <Help key="nickname" /></span>
         <ShInput autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].nickname}/>
 
-        <span class="text-textcolor">{language.depthPrompt}</span>
+        <span data-char-field="depthPrompt" class="text-textcolor">{language.depthPrompt}</span>
         <div class="flex justify-center items-center">
             <NumberInput bind:value={DBState.db.characters[$selectedCharID].depth_prompt.depth} className="w-12"/>
             <ShInput autocomplete="off" bind:value={DBState.db.characters[$selectedCharID].depth_prompt.prompt} className="flex-1"/>

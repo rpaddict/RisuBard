@@ -730,3 +730,13 @@ export const EDITABLE_BLOCK_SELECTORS = [
     'pre',
     'div',
 ];
+
+const NESTED_BLOCK_SELECTOR = EDITABLE_BLOCK_SELECTORS.filter(selector => selector !== 'span').join(', ');
+
+// The message body and wrappers around several paragraphs also match the selectors.
+// Picking them would edit the whole message, so only innermost blocks are editable.
+export function isEditableBlockCandidate(block: Element, root: Element): boolean {
+    if (block === root || !root.contains(block)) return false;
+    return !Array.from(block.querySelectorAll(NESTED_BLOCK_SELECTOR))
+        .some(child => (child.textContent ?? '').trim() !== '');
+}

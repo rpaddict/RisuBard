@@ -1271,6 +1271,8 @@
         const newChat = $state.snapshot(currentChat)
         newChat.name = createChatCopyName(newChat.name, 'Branch')
         newChat.id = v4()
+        // The reboot job and its staging wiki stay with the source chat.
+        delete newChat.risuBardWikiReboot
         newChat.message = newChat.message.slice(0, idx + 1)
         if(historicalBranch){
             resetImportedBardWikiState(newChat)

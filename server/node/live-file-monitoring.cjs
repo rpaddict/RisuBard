@@ -1,32 +1,23 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
-const { commitTransaction, recoverTransactions, readVerifiedJson } = require('./file-store.cjs');
+const { recoverTransactions } = require('./file-store.cjs');
 const { createLiveCharacterFiles } = require('./live-character-files.cjs');
-const CONFIG = 'config/live-file-monitoring.json';
 
+// Live external file monitoring is retired. Outside Windows and macOS, Node
+// emulates a recursive watch with one watcher per file and rereads a whole
+// directory on each event, so bulk internal writes (KV objects, vector moves)
+// stalled the server. A saved `enabled: true` setting is ignored. Files edited
+// while the app was closed are adopted on the next read instead.
 function createLiveFileMonitoring(options) {
-    const platform = options.platform ?? process.platform;
-    const env = options.env ?? process.env;
-    const defaultEnabled = platform !== 'android' && !String(env.PREFIX || '').includes('com.termux');
-    const root = options.repository.dataRoot;
-    recoverTransactions(root);
-    const saved = fs.existsSync(path.join(root, CONFIG))
-        ? readVerifiedJson(root, CONFIG, { allowBackup: false }) : null;
-    if (saved && typeof saved.enabled !== 'boolean') throw new Error('Invalid live file monitoring setting');
-    const monitor = createLiveCharacterFiles({ ...options, enabled: saved?.enabled ?? defaultEnabled });
-    const status = () => ({ enabled: monitor.isEnabled(), defaultEnabled });
+    recoverTransactions(options.repository.dataRoot);
+    const monitor = createLiveCharacterFiles({ ...options, enabled: false });
+    const status = () => ({ enabled: false, defaultEnabled: false });
     return {
         ...monitor,
         status,
         setEnabled(enabled) {
             if (typeof enabled !== 'boolean') throw new TypeError('enabled must be a boolean');
-            recoverTransactions(root);
-            const previous = monitor.isEnabled();
-            monitor.setEnabled(enabled);
-            try { commitTransaction(root, [{ path: CONFIG, data: Buffer.from(`${JSON.stringify({ enabled })}\n`) }]); }
-            catch (error) { monitor.setEnabled(previous); throw error; }
+            if (enabled) throw new Error('External file monitoring is no longer available');
             return status();
         },
     };

@@ -1154,12 +1154,35 @@ export function setCurrentChat(chat:Chat){
  */
 export function newChatModelDefaults(
     character?: character | null,
-    previousChat?: Pick<Chat, 'bindedPersona'> | null,
-): Partial<Pick<Chat, 'useModelPreset' | 'modelBinding' | 'supaMemory' | 'bindedPersona'>> {
+    previousChat?: Pick<Chat, 'bindedPersona' | '_placeholder' | 'bindedBotPreset'
+        | 'usePromptPresetParams' | 'useLocallySetGlobalVariables'
+        | 'GLGlobalVariables' | 'togglePresetBaseline'> | null,
+): Partial<Pick<Chat, 'useModelPreset' | 'modelBinding' | 'supaMemory' | 'bindedPersona'
+    | 'bindedBotPreset' | 'usePromptPresetParams' | 'useLocallySetGlobalVariables'
+    | 'GLGlobalVariables' | 'togglePresetBaseline'>> {
     const db = getDatabase()
-    const defaults = {
+    const defaults: ReturnType<typeof newChatModelDefaults> = {
         supaMemory: false,
         bindedPersona: getNewChatPersonaBinding(db, character, previousChat),
+    }
+    // A new chat keeps the previous chat's prompt binding and pinned toggles,
+    // matching chat copy, branch and wiki continuation.
+    if (previousChat && !previousChat._placeholder) {
+        if (previousChat.bindedBotPreset) {
+            defaults.bindedBotPreset = previousChat.bindedBotPreset
+            defaults.usePromptPresetParams = previousChat.usePromptPresetParams
+        }
+        if (!db.disableToggleBinding && previousChat.useLocallySetGlobalVariables) {
+            defaults.useLocallySetGlobalVariables = true
+            defaults.GLGlobalVariables = structuredClone(
+                $state.snapshot(previousChat.GLGlobalVariables) ?? {}
+            )
+            if (previousChat.togglePresetBaseline) {
+                defaults.togglePresetBaseline = structuredClone(
+                    $state.snapshot(previousChat.togglePresetBaseline)
+                )
+            }
+        }
     }
     if (!db.useModelPresetByDefault) return defaults
     const def = db.defaultModelBinding

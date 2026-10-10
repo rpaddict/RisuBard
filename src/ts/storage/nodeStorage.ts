@@ -427,7 +427,11 @@ export class NodeStorage{
 
         const da = await this.authFetch('/api/read', { method: "GET", headers })
         if(da.status < 200 || da.status >= 300){
-            throw "getItem Error"
+            // Keep the server's reason, e.g. which hand-edited file is broken and where.
+            const body = await da.text().catch(() => '')
+            let detail = body
+            try { detail = JSON.parse(body)?.error ?? body } catch {}
+            throw detail ? `getItem Error: ${detail}` : "getItem Error"
         }
 
         // Capture ETag for database.bin

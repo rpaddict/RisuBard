@@ -11,6 +11,7 @@ export type RequestPurpose =
     | 'bard-painter'
     | 'bard-lore-analysis'
     | 'prompt-assistant'
+    | 'character-assistant'
 
 export const requestPurposeLabels: Record<RequestPurpose, string> = {
     'chat-response': '채팅 답변 생성',
@@ -23,6 +24,7 @@ export const requestPurposeLabels: Record<RequestPurpose, string> = {
     'bard-painter': '바드페인터',
     'bard-lore-analysis': '그리모어 메타데이터 분석',
     'prompt-assistant': '프롬프트 비서',
+    'character-assistant': '캐릭터 비서',
 }
 
 export function defaultRequestPurpose(

@@ -2,9 +2,9 @@
     import { type loreBook } from "src/ts/storage/database.svelte";
     import { DBState } from 'src/ts/stores.svelte';
     import LoreBookData from "./LoreBookData.svelte";
-    import { selectedCharID } from "src/ts/stores.svelte";
+    import { characterEditorJumpRequest, selectedCharID } from "src/ts/stores.svelte";
     import Sortable from 'sortablejs/modular/sortable.core.esm.js';
-    import { onDestroy, onMount, tick } from "svelte";
+    import { onDestroy, onMount, tick, untrack } from "svelte";
     import { sleep, sortableOptions } from "src/ts/util";
     import { v4 } from "uuid";
     import { notifyError } from "src/ts/alert";
@@ -351,6 +351,39 @@
             } catch (error) {  }
         }
     })
+
+    // Character Assistant links: open the entry and its parent folders. Each
+    // list opens what it shows; a folder's nested list mounts on open and takes
+    // the request from there.
+    const showsCharacterLore = $derived(!globalMode && (externalLoreBooks
+        ? externalLoreBooks === DBState.db.characters[$selectedCharID]?.globalLore
+        : submenu === 0))
+    $effect(() => {
+        const request = $characterEditorJumpRequest
+        if (request?.kind !== 'lore' || !showsCharacterLore) return
+        untrack(() => void revealLore(request.index, request.nonce))
+    })
+    async function revealLore(index: number, nonce: number) {
+        const lore = DBState.db.characters[$selectedCharID]?.globalLore
+        const target = lore?.[index]
+        if (!target) return
+        const shownHere = (book: loreBook) => (!showFolder && !book.folder) || showFolder === book.folder
+        const seen = new Set<string>()
+        for (let key = target.folder; key && !seen.has(key);) {
+            seen.add(key)
+            const folder = lore.find((book) => book.mode === 'folder' && book.key === key)
+            if (!folder) break
+            if (shownHere(folder) && !openedRefs.has(openEntryKey(folder))) onOpen(false, folder)
+            key = folder.folder
+        }
+        if (!shownHere(target) || $characterEditorJumpRequest?.nonce !== nonce) return
+        if (!openedRefs.has(openEntryKey(target))) onOpen(target.mode !== 'folder', target)
+        characterEditorJumpRequest.set(null)
+        await tick()
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+        const rows = ele?.querySelectorAll<HTMLElement>(`[data-risu-idx="${index}"]`) ?? []
+        ;[...rows].find((row) => row.offsetParent !== null)?.scrollIntoView({ block: 'center' })
+    }
 </script>
 
 {#key sorted}

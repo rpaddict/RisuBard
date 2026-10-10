@@ -132,6 +132,41 @@
         void requestImmediateSave()
     }
 
+    // Returns false when the chat must not be deleted yet; the reason is already shown.
+    async function preparePainterChatForDeletion(targetCharacter: character, targetChatId: string): Promise<boolean> {
+        try {
+            const { isPainterChatBusy } = await import('src/ts/bardPainter/runtime.svelte')
+            const index = targetCharacter.chats.findIndex(chat => chat.id === targetChatId)
+            if(index < 0) return false
+            const chat = await ensureChatHydrated(targetCharacter.chats, index, targetCharacter.chaId)
+            if (!chat || chat._placeholder || chat.id !== targetChatId) throw new Error('챗 데이터를 불러오지 못했습니다.')
+            if (isPainterChatBusy(targetCharacter.chaId, targetChatId) || chat.bardPainter?.results?.some(result => result.compressionPending)) {
+                notifyError('바드페인터 작업이나 이미지 저장을 마친 뒤 챗을 삭제해 주세요.')
+                return false
+            }
+            await preservePainterChatGallery(chat)
+            if (isPainterChatBusy(targetCharacter.chaId, targetChatId)) {
+                notifyError('바드페인터 작업이나 이미지 저장을 마친 뒤 챗을 삭제해 주세요.')
+                return false
+            }
+            return true
+        } catch (error) {
+            notifyError(`그림의 생성 기록을 보존하지 못해 챗 삭제를 중단했습니다: ${String(error)}`)
+            return false
+        }
+    }
+
+    // The server looks chats up by index until the deletion is saved, so load the next chat first.
+    async function hydrateBeforeRemoval(targetCharacter: character, nextChat: Chat): Promise<Chat | null> {
+        if (!nextChat._placeholder) return nextChat
+        const hydrated = await ensureChatHydrated(targetCharacter.chats, targetCharacter.chats.indexOf(nextChat), targetCharacter.chaId).catch(() => null)
+        if (!hydrated || hydrated._placeholder) {
+            notifyError('챗 데이터를 불러오지 못해 삭제를 중단했습니다.')
+            return null
+        }
+        return hydrated
+    }
+
     async function deleteCurrentChat(): Promise<void> {
         if(!activeChat) return
         const targetCharacter = chara, targetChatId = activeChat.id, targetChatName = activeChat.name
@@ -144,34 +179,68 @@
             `${language.removeConfirm}${targetChatName}`
         )
         if(!confirmed) return
-        try {
-            const { isPainterChatBusy } = await import('src/ts/bardPainter/runtime.svelte')
-            const index = targetCharacter.chats.findIndex(chat => chat.id === targetChatId)
-            if(index < 0) return
-            const chat = await ensureChatHydrated(targetCharacter.chats, index, targetCharacter.chaId)
-            if (!chat || chat._placeholder || chat.id !== targetChatId) throw new Error('챗 데이터를 불러오지 못했습니다.')
-            if (isPainterChatBusy(targetCharacter.chaId, targetChatId) || chat.bardPainter?.results?.some(result => result.compressionPending)) {
-                notifyError('바드페인터 작업이나 이미지 저장을 마친 뒤 챗을 삭제해 주세요.')
-                return
-            }
-            await preservePainterChatGallery(chat)
-            if (isPainterChatBusy(targetCharacter.chaId, targetChatId)) {
-                notifyError('바드페인터 작업이나 이미지 저장을 마친 뒤 챗을 삭제해 주세요.')
-                return
-            }
-        } catch (error) {
-            notifyError(`그림의 생성 기록을 보존하지 못해 챗 삭제를 중단했습니다: ${String(error)}`)
-            return
-        }
+        if (!await preparePainterChatForDeletion(targetCharacter, targetChatId)) return
+        if (targetCharacter.chats.length === 1) { notifyError(language.errors.onlyOneChat); return }
+        const nextChat = targetCharacter.chats.find(chat => chat.id !== targetChatId)
+        if (!nextChat || !await hydrateBeforeRemoval(targetCharacter, nextChat)) return
         const deletionIndex = targetCharacter.chats.findIndex(chat => chat.id === targetChatId)
         if (deletionIndex < 0) return
-        if (targetCharacter.chats.length === 1) { notifyError(language.errors.onlyOneChat); return }
         targetCharacter.chats.splice(deletionIndex, 1)
         targetCharacter.chats = targetCharacter.chats
         if (chara.chaId === targetCharacter.chaId) changeChatTo(0)
         else targetCharacter.chatPage = Math.max(0, Math.min(targetCharacter.chatPage, targetCharacter.chats.length - 1))
         $ReloadGUIPointer += 1
         void requestImmediateSave()
+    }
+
+    let selectedChatIds = $state<string[]>([])
+    $effect(() => {
+        chara?.chaId
+        untrack(() => { selectedChatIds = [] })
+    })
+
+    const deleteLabel = $derived(selectedChatIds.length > 0 ? `선택한 챗 ${selectedChatIds.length}개 삭제` : language.remove)
+
+    function setChatSelected(chatId: string | undefined, checked: boolean): void {
+        if (!chatId) return
+        const rest = selectedChatIds.filter(id => id !== chatId)
+        selectedChatIds = checked ? [...rest, chatId] : rest
+    }
+
+    async function deleteSelectedChats(): Promise<void> {
+        const targetCharacter = chara
+        const targetIds = targetCharacter.chats.map(chat => chat.id).filter(id => id && selectedChatIds.includes(id))
+        if (targetIds.length === 0) { selectedChatIds = []; return }
+        if (targetIds.length >= targetCharacter.chats.length) {
+            notifyError(language.errors.onlyOneChat)
+            return
+        }
+        const names = targetCharacter.chats.filter(chat => targetIds.includes(chat.id)).map(chat => chat.name)
+        const shownNames = names.slice(0, 10).join(', ') + (names.length > 10 ? ` 외 ${names.length - 10}개` : '')
+        const confirmed = await alertConfirm(`${language.removeConfirm}챗 ${names.length}개 (${shownNames})`)
+        if (!confirmed) return
+        const deletableIds: string[] = []
+        for (const id of targetIds) {
+            if (await preparePainterChatForDeletion(targetCharacter, id)) deletableIds.push(id)
+        }
+        if (deletableIds.length === 0) return
+        const activeChatId = targetCharacter.chats[targetCharacter.chatPage]?.id
+        const remaining = targetCharacter.chats.filter(chat => !deletableIds.includes(chat.id))
+        if (remaining.length === 0) { notifyError(language.errors.onlyOneChat); return }
+        const nextChat = remaining.find(chat => chat.id === activeChatId) ?? remaining[0]
+        const hydrated = await hydrateBeforeRemoval(targetCharacter, nextChat)
+        if (!hydrated) return
+        remaining[remaining.indexOf(nextChat)] = hydrated
+        targetCharacter.chats = remaining
+        selectedChatIds = selectedChatIds.filter(id => !deletableIds.includes(id))
+        const nextPage = Math.max(0, remaining.findIndex(chat => chat.id === activeChatId))
+        if (chara.chaId === targetCharacter.chaId) changeChatTo(nextPage)
+        else targetCharacter.chatPage = nextPage
+        $ReloadGUIPointer += 1
+        void requestImmediateSave()
+        if (deletableIds.length < targetIds.length) {
+            notifyError(`선택한 챗 중 ${targetIds.length - deletableIds.length}개는 삭제하지 못했습니다.`)
+        }
     }
 
     async function copyChatWithMemory(chat: Chat): Promise<void> {
@@ -199,6 +268,8 @@
         const newChat = $state.snapshot(sourceChat)
         newChat.name = createChatCopyName(newChat.name, 'Copy')
         newChat.id = v4()
+        // The reboot job and its staging wiki stay with the source chat.
+        delete newChat.risuBardWikiReboot
         rebindPainterChatScope(newChat, (chara as character).chaId)
         try {
             const forkReceipt = await forkMemoryWiki({
@@ -386,6 +457,10 @@
 
     onDestroy(destroyStb)
 </script>
+{#snippet chatSelectBox(chat: Chat)}
+    <CheckInput check={selectedChatIds.includes(chat.id)} onChange={(checked) => setChatSelected(chat.id, checked)}
+        margin={false} hiddenName name={`${chat.name} 선택`} className="shrink-0 self-stretch pl-2 pr-1" />
+{/snippet}
 {#if mergeOpen}
     <ChatMergeDialog open={mergeOpen} chats={chara.chats} loadChat={loadMergeChat}
         onMerge={mergeChats} onOpenChange={(open) => { mergeOpen = open }} />
@@ -418,8 +493,12 @@
             <ShButton data-chat-branch variant="ghost" size="icon-sm" className="min-w-0 w-full" aria-label="챗 분할 (브랜치)" title="챗 분할 (브랜치)" onclick={() => { alertStore.set({ type: 'branches', msg: '' }) }}>
                 <SplitIcon size={18} />
             </ShButton>
-            <ShButton data-chat-delete variant="destructive" size="icon-sm" className="min-w-0 w-full" aria-label={language.remove} title={language.remove} onclick={() => void deleteCurrentChat()}>
+            <ShButton data-chat-delete variant="destructive" size="icon-sm" className="relative min-w-0 w-full" aria-label={deleteLabel} title={deleteLabel}
+                onclick={() => void (selectedChatIds.length > 0 ? deleteSelectedChats() : deleteCurrentChat())}>
                 <TrashIcon size={18} />
+                {#if selectedChatIds.length > 0}
+                    <span data-chat-delete-count class="absolute -top-1 -right-0.5 min-w-4 rounded-full bg-darkbg px-1 text-[10px] leading-4 text-textcolor">{selectedChatIds.length}</span>
+                {/if}
             </ShButton>
             <ShButton data-chat-new-folder variant="ghost" size="icon-sm" className="min-w-0 w-full" aria-label="새 폴더" title="새 폴더" onclick={() => {
                 chara.chatFolders ??= []
@@ -531,13 +610,16 @@
                 <div class="risu-chat flex flex-col w-full text-textcolor border-solid border-0 border-darkborderc p-2 cursor-pointer rounded-md empty:before:content-['Empty'] empty:before:flex empty:before:justify-center empty:before:text-textcolor2 {folder.folded ? 'hidden' : ''}">
                     {#each chara.chats.filter(chat => chat.folderId == chara.chatFolders[i].id) as chat}
                     {@const chatIdx = chara.chats.indexOf(chat)}
-                    <button data-chat-list-row data-risu-chat-idx={chatIdx} onclick={() => {
-                        if(!editMode){
-                            changeChatTo(chatIdx)
-                        }
-                    }} class="risu-chats flex items-center text-textcolor border-solid border-0 border-darkborderc p-2 cursor-pointer rounded-md"class:bg-selected={chatIdx === chara.chatPage && !$chatDeselected}>
-                        <span class="truncate">{chat.name}</span>
-                    </button>
+                    <div data-chat-list-row data-risu-chat-idx={chatIdx} class="risu-chats flex items-center rounded-md" class:bg-selected={chatIdx === chara.chatPage && !$chatDeselected}>
+                        {@render chatSelectBox(chat)}
+                        <button onclick={() => {
+                            if(!editMode){
+                                changeChatTo(chatIdx)
+                            }
+                        }} class="flex min-w-0 grow items-center text-textcolor border-solid border-0 border-darkborderc p-2 pl-1 cursor-pointer rounded-md">
+                            <span class="truncate">{chat.name}</span>
+                        </button>
+                    </div>
                     {/each}
                 </div>
             </div>
@@ -547,15 +629,17 @@
         <div class="risu-chat flex flex-col">
             {#each chara.chats as chat, i}
             {#if chat.folderId == null || isOrphanFolder(chat.folderId)}
-            <button data-chat-list-row data-risu-chat-idx={i} onclick={() => {
-                if(!editMode){
-                    changeChatTo(i)
-                }
-            }}
-            class="flex items-center text-textcolor border-solid border-0 border-darkborderc p-2 cursor-pointer rounded-md"
-            class:bg-selected={i === chara.chatPage && !$chatDeselected}>
-                <span class="truncate">{chat.name}</span>
-            </button>
+            <div data-chat-list-row data-risu-chat-idx={i} class="flex items-center rounded-md" class:bg-selected={i === chara.chatPage && !$chatDeselected}>
+                {@render chatSelectBox(chat)}
+                <button onclick={() => {
+                    if(!editMode){
+                        changeChatTo(i)
+                    }
+                }}
+                class="flex min-w-0 grow items-center text-textcolor border-solid border-0 border-darkborderc p-2 pl-1 cursor-pointer rounded-md">
+                    <span class="truncate">{chat.name}</span>
+                </button>
+            </div>
             {/if}
             {/each}
         </div>

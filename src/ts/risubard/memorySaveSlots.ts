@@ -228,6 +228,8 @@ export async function createMemorySaveSlot(input: {
     const snapshot = structuredClone(input.chat)
     applyMemorySavePromptSettings(snapshot)
     delete snapshot._placeholder
+    // A reboot job points at this chat's staging wiki; a restored copy must not inherit it.
+    delete snapshot.risuBardWikiReboot
     snapshot.isStreaming = false
     delete snapshot.activeStreamingDisplayOptimizationMode
     const latestMessageId = latestChatMessageId(snapshot.message)
@@ -477,6 +479,8 @@ export async function prepareMemorySaveLoad(input: {
         throw new Error('Memory save load returned an invalid chat snapshot')
     }
     const chat = decoded as unknown as Chat
+    // Older saves may carry a reboot job whose staging wiki belongs to another chat.
+    delete chat.risuBardWikiReboot
     applyMemorySavePromptSettings(chat, input.currentChat)
     if (typeof chat.note !== 'string') chat.note = ''
     if (!Array.isArray(chat.localLore)) chat.localLore = []

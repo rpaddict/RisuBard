@@ -53,6 +53,14 @@ export const risuBardGalleryOpen = writable(false)
 export const promptAssistantOpen = writable(false)
 // Asks the Prompt V2 editor to select and focus a block of the active preset.
 export const promptV2JumpRequest = writable<{ index: number } | null>(null)
+export const characterAssistantOpen = writable(false)
+// Asks the character editor to reveal one item of the selected character.
+// The consumer that reveals it clears the request.
+export type CharacterEditorJumpRequest =
+    | { kind: 'lore' | 'regex'; index: number; nonce: number }
+    | { kind: 'greeting'; index: number; nonce: number }
+    | { kind: 'field'; field: string; nonce: number }
+export const characterEditorJumpRequest = writable<CharacterEditorJumpRequest | null>(null)
 export const openThemePresetList = writable(false)
 export const openPersonaList = writable(false)
 export const openPersonaManager = writable(false)

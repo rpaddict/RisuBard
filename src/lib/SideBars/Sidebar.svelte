@@ -22,7 +22,7 @@
 
   } from "../../ts/stores.svelte";
     import { setDatabase } from "../../ts/storage/database.svelte";
-    import { DBState, MobileSideBar, risuBardGalleryOpen, SizeStore } from 'src/ts/stores.svelte';
+    import { characterEditorJumpRequest, DBState, MobileSideBar, risuBardGalleryOpen, SizeStore } from 'src/ts/stores.svelte';
     import BarIcon from "./BarIcon.svelte";
     import SidebarIndicator from "./SidebarIndicator.svelte";
     import {
@@ -91,6 +91,8 @@
   let editMode = $state(false);
   let menuMode = $state(0);
   let devTool = $state(false)
+  // The Character Assistant opens an editor item; the dev tool panel would hide it.
+  $effect(() => { if ($characterEditorJumpRequest) devTool = false })
   let characterManageOpen = $state(false)
   let sidebarElement = $state<HTMLDivElement>()
   let characterListSidebarElement = $state<HTMLDivElement>()

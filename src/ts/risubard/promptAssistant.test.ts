@@ -130,6 +130,9 @@ describe('block references', () => {
         expect(findBlockReferences('114번 블록 `대화`와 블록 7번, 블록 #3, 그리고 <block no="20" type="plain">'))
             .toEqual([3, 7, 20, 114])
         expect(findBlockReferences('1140개의 블록이 아님, 2024년')).toEqual([])
+        expect(findBlockReferences('11번째 블록, #12 블록, 블록 no.13, 블록 번호 14, 블록 #15번째, 16 블록'))
+            .toEqual([11, 12, 13, 14, 15, 16])
+        expect(findBlockReferences('버전 1.5 블록')).toEqual([])
     })
 
     it('records names for mentioned blocks only', () => {

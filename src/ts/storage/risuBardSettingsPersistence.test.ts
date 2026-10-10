@@ -120,6 +120,38 @@ describe('RisuBard settings persistence', () => {
         expect(getDatabase().pinPersonaOnNewChat).toBe(true)
     })
 
+    test('new chats keep the previous chat prompt binding and pinned toggles', () => {
+        setDatabase({
+            characters: [], formatingOrder: ['main'], loreBook: [],
+            personas: [], username: 'User', userIcon: '', userNote: '',
+        } as any)
+        const previous = {
+            bindedBotPreset: 'preset-a',
+            usePromptPresetParams: true,
+            useLocallySetGlobalVariables: true,
+            GLGlobalVariables: { mode: 'dark' },
+            togglePresetBaseline: { name: 'Night', values: { mode: 'dark' } },
+        } as any
+        const defaults = newChatModelDefaults(null, previous)
+        expect(defaults).toMatchObject({
+            bindedBotPreset: 'preset-a',
+            usePromptPresetParams: true,
+            useLocallySetGlobalVariables: true,
+            GLGlobalVariables: { mode: 'dark' },
+            togglePresetBaseline: { name: 'Night', values: { mode: 'dark' } },
+        })
+        defaults.GLGlobalVariables!.mode = 'light'
+        expect(previous.GLGlobalVariables.mode).toBe('dark')
+
+        expect(newChatModelDefaults(null, { ...previous, _placeholder: true }))
+            .not.toHaveProperty('bindedBotPreset')
+        setDatabase({ ...getDatabase(), disableToggleBinding: true } as any)
+        expect(newChatModelDefaults(null, previous))
+            .not.toHaveProperty('useLocallySetGlobalVariables')
+        expect(newChatModelDefaults(null, { bindedPersona: '' }))
+            .not.toHaveProperty('bindedBotPreset')
+    })
+
     test.each([
         { recent: 250, response: 300, timeout: 7_500, expectedRecent: 250, expectedResponse: 300, expectedTimeout: 7_500 },
         { recent: 0, response: Infinity, timeout: 20_000, expectedRecent: 12, expectedResponse: 12, expectedTimeout: 10_000 },

@@ -15,7 +15,9 @@ function createCanonicalProjectionSync(options = {}) {
     function loadExternalChanges() {
         const revision = repository.getProjectionRevision();
         if (!revision || revision === readAcceptedRevision()) return null;
-        const reconciled = repository.reconcileCanonicalProjection();
+        // Files edited by hand while the app was closed have stale checksums.
+        // Validate and adopt them like the retired live file monitor did.
+        const reconciled = repository.reconcileCanonicalProjection({ externalEditing: true });
         return {
             revision: reconciled.revision,
             database: reconciled.database,

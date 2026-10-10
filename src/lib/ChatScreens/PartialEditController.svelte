@@ -8,6 +8,7 @@
         findAllOriginalRangesFromText,
         replaceRange,
         EDITABLE_BLOCK_SELECTORS,
+        isEditableBlockCandidate,
         type RangeResult,
         type RangeResultWithContext
     } from 'src/ts/parser/partialEdit';
@@ -478,7 +479,7 @@
                 const elementAtPoint = document.elementFromPoint(lastMouseX, lastMouseY);
                 if (elementAtPoint) {
                     const block = elementAtPoint.closest(SELECTOR) as HTMLElement | null;
-                    if (block && bodyRoot.contains(block) && hasTextContent(block)) {
+                    if (block && isEditableBlockCandidate(block, bodyRoot) && hasTextContent(block)) {
                         showBlockButton(block);
                         return;
                     }
@@ -488,7 +489,7 @@
                 const blocks = bodyRoot.querySelectorAll(SELECTOR);
                 for (const block of blocks) {
                     if (isMouseInButtonZone(lastMouseX, lastMouseY, block as HTMLElement)) {
-                        if (hasTextContent(block as HTMLElement)) {
+                        if (isEditableBlockCandidate(block, bodyRoot) && hasTextContent(block as HTMLElement)) {
                             const rect = (block as HTMLElement).getBoundingClientRect();
                             const checkX = rect.left + rect.width / 2;
                             const checkY = rect.top + 5;

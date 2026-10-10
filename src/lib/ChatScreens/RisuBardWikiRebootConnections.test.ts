@@ -129,4 +129,27 @@ describe('BardWiki reboot connections', () => {
         expect(koSource).toContain('정본 갱신 배치가 이 한도를 넘을 것으로 예상되면 문서 단위로 자동 분할됩니다')
         expect(enSource).toContain('Canonical update batches are automatically split by document')
     })
+
+    test('shows the send lock with resume and cancel above the composer', () => {
+        expect(chatSource).toContain('data-risubard-wiki-reboot-notice')
+        expect(chatSource).toContain('onclick={resumeRebootFromNotice}')
+        expect(chatSource).toContain('alertConfirm(language.risuBardWikiRebootCancelWarning)')
+        expect(koSource).toContain('risuBardWikiRebootNoticePaused')
+        expect(enSource).toContain('risuBardWikiRebootNoticePaused')
+    })
+
+    test('does not copy a reboot job into another chat', () => {
+        for (const file of [
+            'src/lib/SideBars/SideChatList.svelte',
+            'src/lib/ChatScreens/Chat.svelte',
+        ]) {
+            expect(readFileSync(resolve(process.cwd(), file), 'utf8'))
+                .toContain('delete newChat.risuBardWikiReboot')
+        }
+        const saveSlots = readFileSync(resolve(
+            process.cwd(), 'src/ts/risubard/memorySaveSlots.ts'
+        ), 'utf8')
+        expect(saveSlots).toContain('delete snapshot.risuBardWikiReboot')
+        expect(saveSlots).toContain('delete chat.risuBardWikiReboot')
+    })
 })

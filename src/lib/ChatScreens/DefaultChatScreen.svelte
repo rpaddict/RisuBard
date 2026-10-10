@@ -44,7 +44,7 @@
     import { sleep } from "../../ts/util";
     import { language } from "../../lang";
     import { isExpTranslator, translate } from "../../ts/translator/translator";
-    import { alertError, alertWait, notifySuccess, notifyError } from "../../ts/alert";
+    import { alertConfirm, alertError, alertWait, notifySuccess, notifyError } from "../../ts/alert";
     import { playNotificationSound } from '../../ts/notificationSound'
 import { isMobile } from 'src/ts/platform'
     import { processScript } from "src/ts/process/scripts";
@@ -194,6 +194,40 @@ import { isMobile } from 'src/ts/platform'
         blocksChatGeneration(currentChatSlot?.risuBardWikiReboot)
     )
     let currentChatReady = $derived(!!currentChatSlot && !currentChatSlot._placeholder)
+    let rebootNoticeBusy = $state(false)
+    let rebootNotice = $derived.by(() => {
+        const job = currentChatSlot?.risuBardWikiReboot
+        if (!job) return undefined
+        const total = job.targetAssistantMessageIds.length
+        const completed = Math.min(job.completedAssistantMessageIds.length, total)
+        const stopped = job.status === 'paused' || job.status === 'failed'
+        return {
+            stopped,
+            message: job.status === 'failed'
+                ? language.risuBardWikiRebootNoticeFailed(job.lastError)
+                : stopped
+                    ? language.risuBardWikiRebootNoticePaused
+                    : language.risuBardWikiRebootNoticeRunning(completed, total),
+        }
+    })
+    function resumeRebootFromNotice() {
+        if (rebootNoticeBusy) return
+        void resumeCurrentWikiReboot().catch((cause) => alertError(cause))
+    }
+    async function cancelRebootFromNotice() {
+        if (rebootNoticeBusy) return
+        if (!await alertConfirm(language.risuBardWikiRebootCancelWarning)) return
+        rebootNoticeBusy = true
+        try {
+            await cancelCurrentWikiReboot()
+        }
+        catch (cause) {
+            alertError(cause)
+        }
+        finally {
+            rebootNoticeBusy = false
+        }
+    }
     let choosingImage = $state(false)
     let imageInsertionVersion = 0
     $effect(() => { currentCharacter?.chaId; currentChatSlot?.id; imageInsertionVersion += 1 })
@@ -1300,6 +1334,23 @@ import { isMobile } from 'src/ts/platform'
                             onFindReplace={() => findReplaceOpen = true}
                             findReplaceDisabled={!currentChatReady || !currentChatSlot?.id}
                         />
+                    </div>
+                {/if}
+                {#if rebootNotice}
+                    <div class="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-warning/60 bg-warning/10 px-3 py-2 text-sm text-textcolor" role="status" data-risubard-wiki-reboot-notice>
+                        <span class="min-w-0 flex-1 basis-56 wrap-break-word">{rebootNotice.message}</span>
+                        {#if rebootNotice.stopped}
+                            <div class="flex shrink-0 items-center gap-1.5">
+                                <button type="button" data-risubard-wiki-reboot-notice-resume disabled={rebootNoticeBusy} onclick={resumeRebootFromNotice}
+                                        class="rounded-full bg-warning px-3 py-1 text-xs font-bold text-on-warning transition-colors hover:bg-warning/85 disabled:opacity-45">
+                                    {language.risuBardWikiRebootResume}
+                                </button>
+                                <button type="button" data-risubard-wiki-reboot-notice-cancel disabled={rebootNoticeBusy} onclick={() => void cancelRebootFromNotice()}
+                                        class="rounded-full border border-darkborderc px-3 py-1 text-xs font-bold text-textcolor transition-colors hover:bg-darkbg disabled:opacity-45">
+                                    {language.risuBardWikiRebootCancel}
+                                </button>
+                            </div>
+                        {/if}
                     </div>
                 {/if}
                 <!-- "plugin-compat-items-stretch" is a compat hook (not a Tailwind class):

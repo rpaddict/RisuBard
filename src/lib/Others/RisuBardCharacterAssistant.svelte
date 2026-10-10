@@ -1,14 +1,20 @@
 <script lang="ts">
     import { onDestroy, tick, untrack } from 'svelte'
+    import { get } from 'svelte/store'
     import markdownit from 'markdown-it'
     import DOMPurify from 'dompurify'
     import {
+        ArrowLeftIcon,
+        BotIcon,
         CheckIcon,
+        ExternalLinkIcon,
+        ListPlusIcon,
         LoaderCircleIcon,
-        MessageSquareTextIcon,
         PanelRightCloseIcon,
         PanelRightOpenIcon,
         PencilIcon,
+        PinIcon,
+        PinOffIcon,
         PlusIcon,
         RotateCcwIcon,
         SendHorizontalIcon,
@@ -17,41 +23,56 @@
         XIcon,
     } from '@lucide/svelte'
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
-    import { DBState, PromptPresetSubmenuIndex, promptV2JumpRequest, selectedCharID } from 'src/ts/stores.svelte'
-    import { getActiveBotPresetId, getBotPresetIndexById, selectChatPromptPreset } from 'src/ts/storage/database.svelte'
+    import {
+        botMakerMode,
+        CharConfigSubMenu,
+        characterEditorJumpRequest,
+        DBState,
+        PromptPresetSubmenuIndex,
+        promptV2JumpRequest,
+        risuBardGalleryOpen,
+        selectedCharID,
+        settingsOpen,
+        sideBarStore,
+    } from 'src/ts/stores.svelte'
     import { openSettings, SettingsRoute } from 'src/ts/routing'
     import { alertConfirm } from 'src/ts/alert'
     import { tokenize } from 'src/ts/tokenizer'
+    import { changeChar } from 'src/ts/characters'
+    import { markStrongForCjk, STRONG_CLOSE_MARK, STRONG_OPEN_MARK } from 'src/ts/risubard/promptAssistant'
     import {
-        BLOCK_REFERENCE_PATTERN,
-        clampChatMessageCount,
-        collectBlockNames,
-        formatChatLogForAssistant,
-        markStrongForCjk,
-        PROMPT_ASSISTANT_MAX_CHAT_MESSAGES,
-        STRONG_CLOSE_MARK,
-        STRONG_OPEN_MARK,
-        stripBlockWrapper,
-        resolveBlockIndex,
-        serializePresetForAssistant,
-        type PromptAssistantIndex,
-        type PromptAssistantModel,
-        type PromptAssistantProject,
-    } from 'src/ts/risubard/promptAssistant'
+        addPins,
+        buildAssistantScopes,
+        clampAssistantChatCount,
+        CHARACTER_ASSISTANT_MAX_CHAT_MESSAGES,
+        CHARACTER_FIELDS,
+        collectMentionNames,
+        findSection,
+        findSectionMentions,
+        pinKey,
+        resolveSectionRef,
+        type AssistantPin,
+        type AssistantScope,
+        type AssistantSection,
+        type CharacterAssistantIndex,
+        type CharacterAssistantModel,
+        type CharacterAssistantProject,
+    } from 'src/ts/risubard/characterAssistant'
     import {
-        collectPromptAssistantChatLines,
-        createPromptAssistantMessage,
-        deletePromptAssistantProject,
-        findLatestSentRequest,
-        listPromptAssistantPresets,
-        loadPromptAssistantIndex,
-        loadPromptAssistantProject,
-        newPromptAssistantProject,
-        rememberPromptAssistantProject,
-        resolvePromptAssistantPreset,
-        savePromptAssistantProject,
-        sendPromptAssistant,
-    } from 'src/ts/risubard/promptAssistantStore'
+        collectCharacterAssistantChatLines,
+        collectCharacterAssistantSource,
+        createCharacterAssistantMessage,
+        deleteCharacterAssistantProject,
+        describeCharacterAssistantMaterial,
+        findAssistantCharacter,
+        listAssistantCharacters,
+        loadCharacterAssistantIndex,
+        loadCharacterAssistantProject,
+        newCharacterAssistantProject,
+        rememberCharacterAssistantProject,
+        saveCharacterAssistantProject,
+        sendCharacterAssistant,
+    } from 'src/ts/risubard/characterAssistantStore'
 
     interface Props {
         open: boolean
@@ -59,36 +80,43 @@
 
     let { open = $bindable() }: Props = $props()
 
-    const RATIO_KEY = 'risubard-prompt-assistant-dock-ratio'
-    const SCROLL_KEY = 'risubard-prompt-assistant-scroll'
-    const COLLAPSED_KEY = 'risubard-prompt-assistant-collapsed'
-    const OPEN_BLOCK_TITLE = '프롬프트 프리셋 V2 편집기에서 이 블록을 엽니다'
+    const RATIO_KEY = 'risubard-character-assistant-dock-ratio'
+    const SCROLL_KEY = 'risubard-character-assistant-scroll'
+    const COLLAPSED_KEY = 'risubard-character-assistant-collapsed'
+    const OPEN_TITLE = '캐릭터 편집기에서 이 항목을 엽니다'
+    const VIEW_TITLE = '이 자료의 본문을 봅니다'
+    /** Character editor tab of each bot field. Fields without a tab open in the viewer. */
+    const FIELD_TABS: Record<string, number> = {
+        desc: 0, firstMessage: 0,
+        backgroundHTML: 4, lua: 4, virtualscript: 4,
+        personality: 2, scenario: 2, exampleMessage: 2, systemPrompt: 2, replaceGlobalNote: 2, additionalText: 2,
+        depthPrompt: 2, creatorNotes: 2, defaultVariables: 2, translatorNote: 2, customModuleToggle: 2,
+    }
+    const FIELD_LABELS = new Map<string, string>(CHARACTER_FIELDS.map((field) => [field.label, field.key]))
     const markdown = markdownit({ html: false, linkify: true, breaks: true })
     const renderFence = markdown.renderer.rules.fence!
-    markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
-        const no = tokens[idx].content.match(/^\s*<block\s+no="(\d{1,4})"/)?.[1]
-        const openButton = no ? `<button type="button" data-block-ref="${no}" title="${OPEN_BLOCK_TITLE}">편집기에서 열기</button>` : ''
-        return `<div data-code-block>${renderFence(tokens, idx, options, env, self)}<div data-code-actions>${openButton}<button type="button" data-copy-code title="블록 태그를 뺀 본문을 복사합니다">복사</button></div></div>`
-    }
+    markdown.renderer.rules.fence = (tokens, idx, options, env, self) =>
+        `<div data-code-block>${renderFence(tokens, idx, options, env, self)}<div data-code-actions><button type="button" data-copy-code title="코드 블록 내용을 복사합니다">복사</button></div></div>`
     const examples = [
-        '방금 응답이 너무 길고 같은 묘사를 반복해. 어느 블록 때문인지 짚어 줘.',
-        '캐릭터가 내 행동을 대신 서술해. 이걸 막으려면 어디를 고쳐야 해?',
-        '이 프리셋에서 서로 충돌하거나 중복되는 지시를 찾아 줘.',
+        '이 봇의 구조를 훑어보고 토큰을 많이 쓰거나 서로 겹치는 부분을 짚어 줘.',
+        '상시 활성 로어북 중에 키 매칭으로 바꿔도 되는 항목을 찾아 줘.',
+        '호감도 변수가 어디서 바뀌고 어디서 쓰이는지 따라가 줘.',
     ]
 
-    let index = $state<PromptAssistantIndex>({ version: 1, projects: [] })
-    let project = $state<PromptAssistantProject | null>(null)
+    let index = $state<CharacterAssistantIndex>({ version: 1, projects: [] })
+    let project = $state<CharacterAssistantProject | null>(null)
     let loading = $state(true)
     let loadError = $state('')
     let saveError = $state('')
 
     let formMode = $state<'none' | 'create' | 'rename'>('none')
     let formName = $state('')
-    let formPresetId = $state('')
+    let formCharacterId = $state('')
 
     let draft = $state('')
     let running = $state(false)
     let streamingText = $state('')
+    let lookupStatus = $state<string[]>([])
     let notice = $state('')
     let controller: AbortController | null = null
     let logElement = $state<HTMLElement>()
@@ -98,25 +126,49 @@
     let collapsed = $state(readCollapsed())
     let estimate = $state<number | null>(null)
 
-    const presets = $derived.by(() => {
-        void DBState.db.botPresets
-        void DBState.db.botPresetsId
-        return listPromptAssistantPresets()
+    /** Side panel over the log: the section picker or one section's text. */
+    let panel = $state<'none' | 'picker' | 'viewer'>('none')
+    let pickerQuery = $state('')
+    let viewerRef = $state('')
+
+    const characters = $derived.by(() => {
+        void DBState.db.characters
+        return listAssistantCharacters()
     })
-    const currentCharacter = $derived($selectedCharID >= 0 ? DBState.db.characters[$selectedCharID] : undefined)
-    const currentChat = $derived(currentCharacter?.chats[currentCharacter.chatPage])
+    const target = $derived(project ? characters.find((item) => item.chaId === project.characterId) : undefined)
+    const scopes = $derived.by((): AssistantScope[] => {
+        if (!project) return []
+        // Read the fields the material depends on, so edits refresh the index.
+        void DBState.db.characters
+        void DBState.db.promptTemplate
+        void DBState.db.modules
+        const source = collectCharacterAssistantSource($state.snapshot(project) as CharacterAssistantProject)
+        return source ? buildAssistantScopes(source) : []
+    })
+    const viewerSection = $derived(viewerRef ? findSection(scopes, viewerRef) : undefined)
+    const pickerSections = $derived.by(() => {
+        const query = pickerQuery.trim().toLowerCase()
+        const all = scopes.flatMap((scope) => scope.sections)
+        if (!query) return all
+        return all.filter((section) => `${section.ref} ${section.label} ${section.summary ?? ''}`.toLowerCase().includes(query))
+    })
     const attachmentLabel = $derived(project
-        ? ['프리셋', project.chatMessages > 0 ? `최근 챗 최대 ${project.chatMessages}개` : '', project.includeRequest ? '마지막 실제 요청' : '']
-            .filter(Boolean).join(', ')
+        ? [
+            '목차',
+            project.pins.length > 0 ? `재료 ${project.pins.length}개` : '',
+            project.referenceId ? '참고 봇' : '',
+            project.includeModules ? '모듈' : '',
+            project.includePreset ? '프리셋과 토글' : '',
+            project.chatMessages > 0 ? `최근 챗 최대 ${project.chatMessages}개` : '',
+        ].filter(Boolean).join(', ')
         : '')
-    const projectPreset = $derived(project ? presets.find((preset) => preset.id === project.presetId) : undefined)
 
     function readRatio(): number {
         try {
             const value = Number(localStorage.getItem(RATIO_KEY))
             return Number.isFinite(value) && value >= 0.15 && value <= 0.75 ? value : 0.32
         }
-        catch { return 0.38 }
+        catch { return 0.32 }
     }
 
     function readCollapsed(): boolean {
@@ -164,92 +216,189 @@
         const html = markdown.render(markStrongForCjk(text))
             .replaceAll(STRONG_OPEN_MARK, '<strong>')
             .replaceAll(STRONG_CLOSE_MARK, '</strong>')
-        return linkBlockReferences(DOMPurify.sanitize(html))
+        return linkMentions(DOMPurify.sanitize(html))
     }
 
-    // Turns "114번 블록" in prose into editor links. Added after sanitizing, so
-    // the buttons are built here and never come from the model's text.
-    function linkBlockReferences(html: string): string {
+    function refButton(ref: string, text: string): HTMLButtonElement {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.dataset.sectionRef = ref
+        button.title = ref.startsWith('bot:') || ref.startsWith('preset:') ? OPEN_TITLE : VIEW_TITLE
+        button.textContent = text
+        return button
+    }
+
+    // Turns "로어북 12번" and `설명` in prose into links. Added after sanitizing,
+    // so the buttons are built here and never come from the model's text.
+    function linkMentions(html: string): string {
         const template = document.createElement('template')
         template.innerHTML = html
+        const includeBlocks = !!project?.includePreset
         const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT)
         const targets: Text[] = []
         while (walker.nextNode()) {
             const node = walker.currentNode as Text
             if (node.parentElement?.closest('pre, code, a, button')) continue
-            BLOCK_REFERENCE_PATTERN.lastIndex = 0
-            if (BLOCK_REFERENCE_PATTERN.test(node.data)) targets.push(node)
+            if (findSectionMentions(node.data, includeBlocks).length > 0) targets.push(node)
         }
         for (const node of targets) {
             const fragment = document.createDocumentFragment()
             let last = 0
-            for (const match of node.data.matchAll(BLOCK_REFERENCE_PATTERN)) {
-                const start = match.index ?? 0
-                fragment.append(node.data.slice(last, start))
-                const button = document.createElement('button')
-                button.type = 'button'
-                button.dataset.blockRef = match[1] ?? match[2]
-                button.title = OPEN_BLOCK_TITLE
-                button.textContent = match[0]
-                fragment.append(button)
-                last = start + match[0].length
+            for (const mention of findSectionMentions(node.data, includeBlocks)) {
+                if (mention.start < last) continue
+                fragment.append(node.data.slice(last, mention.start))
+                fragment.append(refButton(mention.ref, node.data.slice(mention.start, mention.end)))
+                last = mention.end
             }
             fragment.append(node.data.slice(last))
             node.replaceWith(fragment)
         }
-        const names = projectBlockNames()
-        if (names.size > 0) {
-            for (const code of template.content.querySelectorAll('code')) {
-                if (code.closest('pre, a, button')) continue
-                const name = code.textContent?.trim() ?? ''
-                if (!names.has(name)) continue
-                const button = document.createElement('button')
-                button.type = 'button'
-                button.dataset.blockName = name
-                button.title = OPEN_BLOCK_TITLE
-                code.replaceWith(button)
-                button.append(code)
-            }
+        const names = itemNameRefs()
+        for (const code of template.content.querySelectorAll('code')) {
+            if (code.closest('pre, a, button')) continue
+            const text = code.textContent?.trim() ?? ''
+            const field = FIELD_LABELS.get(text)
+            const ref = field ? `bot:field:${field}` : names.get(text)
+            if (!ref || !findSection(scopes, ref)) continue
+            const button = refButton(ref, '')
+            code.replaceWith(button)
+            button.append(code)
         }
         return template.innerHTML
     }
 
-    /** Names of the linked preset's blocks, for turning `블록 이름` code spans into links. */
-    function projectBlockNames(): Set<string> {
-        const items = project ? resolvePromptAssistantPreset(project.presetId)?.promptTemplate : undefined
-        return new Set((items ?? []).map((item) => item.name?.trim() ?? '').filter(Boolean))
+    /** Bot item names that are unique, for turning `이름` code spans into links. */
+    function itemNameRefs(): Map<string, string> {
+        const counts = new Map<string, number>()
+        const refs = new Map<string, string>()
+        for (const section of scopes.find((scope) => scope.scope === 'bot')?.sections ?? []) {
+            if (!section.name || section.kind === 'field') continue
+            counts.set(section.name, (counts.get(section.name) ?? 0) + 1)
+            refs.set(section.name, section.ref)
+        }
+        for (const [name, count] of counts) if (count > 1) refs.delete(name)
+        return refs
     }
 
-    /** Opens a block by its number in the reply, or by name alone when `no` is 0. */
-    async function openBlock(no: number, messageId?: string, blockName?: string) {
-        if (!project || !Number.isInteger(no)) return
-        const name = blockName ?? (messageId ? project.messages.find((message) => message.id === messageId)?.blockNames?.[no] : undefined)
-        const presetIndex = getBotPresetIndexById(project.presetId)
-        if (presetIndex < 0) {
-            notice = '이 프로젝트에 연결된 프리셋을 찾지 못했습니다. 프리셋을 다시 골라 주세요.'
-            return
+    function resolveRef(ref: string, messageId?: string): AssistantSection | undefined {
+        const name = messageId ? project?.messages.find((message) => message.id === messageId)?.refNames?.[ref] : undefined
+        return resolveSectionRef(scopes, ref, name)
+    }
+
+    /** Whether the editor took the jump request within about a second and a half. */
+    async function jumpTaken(nonce: number): Promise<boolean> {
+        for (let frame = 0; frame < 90; frame++) {
+            if (get(characterEditorJumpRequest)?.nonce !== nonce) return true
+            await new Promise((resolve) => requestAnimationFrame(resolve))
         }
-        if (project.presetId !== getActiveBotPresetId()) {
-            const presetName = DBState.db.botPresets[presetIndex]?.name || '이름 없음'
-            const confirmed = await alertConfirm(`이 프로젝트의 프리셋 '${presetName}'은(는) 지금 사용 중이 아닙니다. 사용 중 프리셋을 바꾸고 편집기를 열까요? 채팅에 쓰이는 프리셋도 함께 바뀝니다.`)
-            if (!confirmed) return
-            selectChatPromptPreset(presetIndex)
-        }
-        const target = resolveBlockIndex(DBState.db.promptTemplate ?? [], no, name)
-        if (target < 0) {
-            notice = !name
-                ? `${no}번 블록이 지금 프리셋에 없습니다.`
-                : no > 0
-                    ? `${no}번 블록 '${name}'을(를) 찾지 못했습니다. 이름이 바뀌었거나 삭제됐을 수 있습니다.`
-                    : `'${name}' 블록을 찾지 못했습니다. 이름이 바뀌었거나 삭제됐을 수 있습니다.`
+        return false
+    }
+
+    async function openSection(ref: string, messageId?: string) {
+        if (!project) return
+        const section = resolveRef(ref, messageId)
+        if (!section) {
+            const name = messageId ? project.messages.find((message) => message.id === messageId)?.refNames?.[ref] : undefined
+            notice = name
+                ? `'${name}' 항목을 찾지 못했습니다. 이름이 바뀌었거나 삭제됐을 수 있습니다.`
+                : '이 항목이 지금 목차에 없습니다. 모듈이나 프리셋 범위가 꺼져 있는지 확인해 주세요.'
             return
         }
         notice = ''
-        promptV2JumpRequest.set({ index: target })
-        openSettings(SettingsRoute.PromptPreset)
-        PromptPresetSubmenuIndex.set(2)
+        if (section.scope === 'preset' && section.kind === 'block') {
+            promptV2JumpRequest.set({ index: Number(section.id) - 1 })
+            openSettings(SettingsRoute.PromptPreset)
+            PromptPresetSubmenuIndex.set(2)
+            foldOnPhone()
+            return
+        }
+        const tab = section.scope !== 'bot' ? undefined
+            : section.kind === 'lore' ? 3
+            : section.kind === 'regex' || section.kind === 'trigger' ? 4
+            : section.kind === 'greeting' ? 0
+            : FIELD_TABS[section.id]
+        if (tab === undefined) {
+            openViewer(section.ref)
+            return
+        }
+        const found = findAssistantCharacter(project.characterId)
+        if (!found) {
+            notice = '이 프로젝트의 봇을 찾지 못했습니다.'
+            return
+        }
+        if (get(selectedCharID) !== found.index) {
+            const confirmed = await alertConfirm(`편집기를 열려면 '${found.character.name}' 캐릭터를 선택해야 합니다. 선택을 바꿀까요? 채팅 화면도 그 캐릭터로 바뀝니다.`)
+            if (!confirmed) return
+            changeChar(found.index)
+            await tick()
+            if (get(selectedCharID) !== found.index) {
+                notice = '캐릭터를 바꾸지 못했습니다. 답변 생성이 끝난 뒤 다시 시도해 주세요.'
+                return
+            }
+        }
+        const nonce = Date.now()
+        settingsOpen.set(false)
+        risuBardGalleryOpen.set(false)
+        sideBarStore.set(true)
+        botMakerMode.set(true)
+        CharConfigSubMenu.set(tab)
+        if (section.kind === 'trigger') {
+            characterEditorJumpRequest.set({ kind: 'field', field: 'trigger', nonce })
+        }
+        else if (section.kind === 'field') {
+            characterEditorJumpRequest.set({ kind: 'field', field: section.id, nonce })
+        }
+        else {
+            characterEditorJumpRequest.set({ kind: section.kind as 'lore' | 'regex' | 'greeting', index: Number(section.id) - 1, nonce })
+        }
+        foldOnPhone()
+        // The editor clears the request once it shows the item. A request still
+        // here means the item could not be shown, e.g. Bard Lore view is on.
+        if (!await jumpTaken(nonce)) {
+            characterEditorJumpRequest.set(null)
+            notice = section.kind === 'lore'
+                ? '로어북 탭은 열었지만 항목을 펼치지 못했습니다. 로어북이 바드 로어 보기라면 기존 로어북 편집기로 바꿔 주세요.'
+                : '편집기 탭은 열었지만 항목을 찾지 못했습니다.'
+        }
+    }
+
+    function foldOnPhone() {
         // A phone has no room for both; fold the dock so the editor shows.
         if (window.matchMedia('(max-width: 46rem)').matches) setCollapsed(true)
+    }
+
+    function openViewer(ref: string) {
+        viewerRef = ref
+        panel = 'viewer'
+    }
+
+    function closePanel() {
+        panel = 'none'
+        viewerRef = ''
+    }
+
+    function togglePin(ref: string) {
+        if (!project) return
+        if (project.pins.some((pin) => pin.ref === ref)) project.pins = project.pins.filter((pin) => pin.ref !== ref)
+        else project.pins = addPins(project.pins, [{ ref }])
+        void persist()
+    }
+
+    function removePin(pin: AssistantPin) {
+        if (!project) return
+        project.pins = project.pins.filter((item) => pinKey(item) !== pinKey(pin))
+        void persist()
+    }
+
+    function clearPins() {
+        if (!project || project.pins.length === 0) return
+        project.pins = []
+        void persist()
+    }
+
+    function pinLabel(pin: AssistantPin): string {
+        const label = findSection(scopes, pin.ref)?.label ?? `${pin.ref} (없음)`
+        return (pin.lines ? `${label} ${pin.lines[0]}-${pin.lines[1]}줄` : label).replaceAll('`', '')
     }
 
     type ScrollAnchor = { messageId: string; offset: number }
@@ -273,8 +422,6 @@
 
     let scrollTimer: ReturnType<typeof setTimeout> | undefined
 
-    // Stores the message at the top of the view, so a remounted or resized
-    // log returns to the same text rather than to a raw pixel offset.
     function saveScrollNow() {
         clearTimeout(scrollTimer)
         if (!project || !logElement || logElement.clientHeight === 0) return
@@ -289,11 +436,9 @@
 
     function rememberScroll() {
         clearTimeout(scrollTimer)
-        // A timer, not requestAnimationFrame: frames pause while the page is in the background.
         scrollTimer = setTimeout(saveScrollNow, 150)
     }
 
-    /** Last viewed position, or the start of the latest message when none is saved. */
     let stopFollowingAnchor: (() => void) | undefined
 
     async function restoreScroll() {
@@ -305,16 +450,14 @@
         const saved = readScrollAnchors()[projectId]
         const apply = () => {
             const items = log.querySelectorAll<HTMLElement>('[data-message-id]')
-            const target = saved ? [...items].find((item) => item.dataset.messageId === saved.messageId) : undefined
-            if (target && saved) log.scrollTop = target.offsetTop + saved.offset
+            const anchor = saved ? [...items].find((item) => item.dataset.messageId === saved.messageId) : undefined
+            if (anchor && saved) log.scrollTop = anchor.offsetTop + saved.offset
             else {
                 const last = items[items.length - 1]
                 log.scrollTop = last ? last.offsetTop - parseFloat(getComputedStyle(log).paddingTop) : 0
             }
         }
         apply()
-        // Fonts and rendered markdown can still change heights after the first
-        // paint. Keep the anchor in place briefly, until the reader moves.
         const observer = new ResizeObserver(() => {
             if (project?.id === projectId) apply()
         })
@@ -347,40 +490,39 @@
         if (!copied) throw new Error('copy failed')
     }
 
-    async function handleLogClick(event: MouseEvent) {
-        const target = event.target as HTMLElement | null
-        const reference = target?.closest<HTMLElement>('[data-block-ref]')
-        if (reference) {
-            const messageId = reference.closest<HTMLElement>('[data-message-id]')?.dataset.messageId
-            await openBlock(Number(reference.dataset.blockRef), messageId)
-            return
-        }
-        const named = target?.closest<HTMLElement>('[data-block-name]')
-        if (named?.dataset.blockName) {
-            await openBlock(0, undefined, named.dataset.blockName)
-            return
-        }
-        const button = target?.closest<HTMLButtonElement>('[data-copy-code]')
-        if (!button) return
-        const code = button.closest('[data-code-block]')?.querySelector('pre')?.textContent ?? ''
+    async function copyWithFeedback(button: HTMLButtonElement, text: string) {
+        const original = button.textContent
         let label = '복사됨'
-        try { await copyText(stripBlockWrapper(code)) }
+        try { await copyText(text) }
         catch { label = '복사 실패' }
         button.textContent = label
         button.dataset.state = label === '복사됨' ? 'done' : 'failed'
         setTimeout(() => {
-            button.textContent = '복사'
+            button.textContent = original
             delete button.dataset.state
         }, 1600)
+    }
+
+    async function handleLogClick(event: MouseEvent) {
+        const element = event.target as HTMLElement | null
+        const reference = element?.closest<HTMLElement>('[data-section-ref]')
+        if (reference?.dataset.sectionRef) {
+            const messageId = reference.closest<HTMLElement>('[data-message-id]')?.dataset.messageId
+            await openSection(reference.dataset.sectionRef, messageId)
+            return
+        }
+        const button = element?.closest<HTMLButtonElement>('[data-copy-code]')
+        if (!button) return
+        await copyWithFeedback(button, button.closest('[data-code-block]')?.querySelector('pre')?.textContent ?? '')
     }
 
     async function load() {
         loading = true
         loadError = ''
         try {
-            index = await loadPromptAssistantIndex()
+            index = await loadCharacterAssistantIndex()
             const id = index.lastProjectId ?? index.projects[0]?.id
-            project = id ? await loadPromptAssistantProject(id) : null
+            project = id ? await loadCharacterAssistantProject(id) : null
             if (!project) startCreate()
         }
         catch (cause) {
@@ -396,7 +538,7 @@
         if (!project) return
         saveError = ''
         try {
-            index = await savePromptAssistantProject($state.snapshot(project) as PromptAssistantProject, index)
+            index = await saveCharacterAssistantProject($state.snapshot(project) as CharacterAssistantProject, index)
         }
         catch (cause) {
             saveError = `저장하지 못했습니다. ${errorText(cause)}`
@@ -407,14 +549,15 @@
         if (running || id === project?.id) return
         saveScrollNow()
         try {
-            const next = await loadPromptAssistantProject(id)
+            const next = await loadCharacterAssistantProject(id)
             if (!next) {
                 notice = '프로젝트 파일을 찾지 못했습니다.'
                 return
             }
             project = next
             formMode = 'none'
-            index = await rememberPromptAssistantProject(id, index)
+            closePanel()
+            index = await rememberCharacterAssistantProject(id, index)
             await restoreScroll()
         }
         catch (cause) {
@@ -423,10 +566,11 @@
     }
 
     function startCreate() {
-        const active = presets.find((preset) => preset.active) ?? presets[0]
+        const selected = $selectedCharID >= 0 ? DBState.db.characters[$selectedCharID]?.chaId : undefined
+        const initial = characters.find((item) => item.chaId === selected) ?? characters[0]
         formMode = 'create'
-        formPresetId = active?.id ?? ''
-        formName = active ? `${active.name} 다듬기` : ''
+        formCharacterId = initial?.chaId ?? ''
+        formName = initial ? `${initial.name} 다듬기` : ''
     }
 
     function startRename() {
@@ -439,8 +583,10 @@
         const name = formName.trim()
         if (!name) return
         if (formMode === 'create') {
-            if (!formPresetId) return
-            project = newPromptAssistantProject(name, formPresetId)
+            const found = findAssistantCharacter(formCharacterId)
+            if (!found) return
+            project = newCharacterAssistantProject(name, found.character)
+            closePanel()
         }
         else if (project) {
             project.name = name
@@ -451,10 +597,11 @@
 
     async function removeProject() {
         if (!project || running) return
-        if (!await alertConfirm(`'${project.name}' 프로젝트와 대화를 삭제할까요? 프리셋은 그대로 남습니다.`)) return
+        if (!await alertConfirm(`'${project.name}' 프로젝트와 대화를 삭제할까요? 봇은 그대로 남습니다.`)) return
         try {
-            index = await deletePromptAssistantProject(project.id, index)
-            project = index.lastProjectId ? await loadPromptAssistantProject(index.lastProjectId) : null
+            index = await deleteCharacterAssistantProject(project.id, index)
+            project = index.lastProjectId ? await loadCharacterAssistantProject(index.lastProjectId) : null
+            closePanel()
             if (!project) startCreate()
             await restoreScroll()
         }
@@ -465,13 +612,13 @@
 
     async function resetConversation() {
         if (!project || running || project.messages.length === 0) return
-        if (!await alertConfirm('이 프로젝트의 대화를 모두 지울까요? 프로젝트 설정과 프리셋은 그대로 남습니다.')) return
+        if (!await alertConfirm('이 프로젝트의 대화를 모두 지울까요? 프로젝트 설정과 재료는 그대로 남습니다.')) return
         project.messages = []
         notice = ''
         await persist()
     }
 
-    function setModel(model: PromptAssistantModel) {
+    function setModel(model: CharacterAssistantModel) {
         if (!project || project.model === model) return
         project.model = model
         void persist()
@@ -485,70 +632,69 @@
     async function send(text = draft) {
         const userText = text.trim()
         if (!project || running || !userText) return
-        const preset = resolvePromptAssistantPreset(project.presetId)
-        if (!preset) {
-            notice = '연결된 프리셋을 찾지 못했습니다. 프리셋을 다시 골라 주세요.'
+        const source = collectCharacterAssistantSource($state.snapshot(project) as CharacterAssistantProject)
+        if (!source) {
+            notice = '이 프로젝트의 봇을 찾지 못했습니다. 삭제됐거나 비공개 라이선스 봇일 수 있습니다.'
             return
         }
         stopFollowingAnchor?.()
         notice = ''
+        closePanel()
         running = true
         streamingText = ''
+        lookupStatus = []
         controller = new AbortController()
         const signal = controller.signal
-        const target = project
-        const history = $state.snapshot(target.messages) as PromptAssistantProject['messages']
+        const current = project
+        const snapshot = $state.snapshot(current) as CharacterAssistantProject
         try {
-            const chatLines = currentCharacter && currentChat
-                ? collectPromptAssistantChatLines(currentCharacter, currentChat, target.chatMessages)
-                : []
-            let sentRequest: string | undefined
-            if (target.includeRequest && currentChat) {
-                const found = await findLatestSentRequest(currentChat)
-                if (found.status === 'found') sentRequest = found.text
-                else notice = found.status === 'disabled'
-                    ? '요청 기록이 꺼져 있어 실제 요청을 첨부하지 못했습니다.'
-                    : '마지막 AI 응답의 요청 기록이 없어 실제 요청을 첨부하지 못했습니다.'
-            }
-            target.messages.push(createPromptAssistantMessage('user', userText, {
-                attached: { chatMessages: chatLines.length, request: !!sentRequest },
-            }))
+            const chatLines = collectCharacterAssistantChatLines(snapshot)
+            current.messages.push(createCharacterAssistantMessage('user', userText))
             if (text === draft) draft = ''
             await scrollToEnd()
-            const reply = await sendPromptAssistant({
-                project: { ...target, messages: history },
+            const result = await sendCharacterAssistant({
+                project: snapshot,
                 userText,
-                preset,
+                source,
                 chatLines,
-                sentRequest,
-                currentCharacter,
                 signal,
                 onText: (value) => {
                     streamingText = value
                     void scrollToEnd()
                 },
+                onLookup: (labels, pins) => {
+                    lookupStatus = [...lookupStatus, ...labels]
+                    current.pins = pins
+                    streamingText = ''
+                    void persist()
+                },
             })
-            const blockNames = collectBlockNames(preset, reply)
+            current.pins = result.pins
+            const refNames = collectMentionNames(buildAssistantScopes(source), result.reply, current.includePreset)
+            const extra = { refNames, lookups: result.lookups.length > 0 ? result.lookups : undefined }
             if (signal.aborted) {
-                if (reply.trim()) target.messages.push(createPromptAssistantMessage('assistant', reply, { blockNames }))
+                if (result.reply.trim()) current.messages.push(createCharacterAssistantMessage('assistant', result.reply, extra))
                 notice = '응답을 중단했습니다.'
             }
-            else if (!reply.trim()) {
-                target.messages.push(createPromptAssistantMessage('assistant', '빈 응답을 받았습니다.', { failed: true }))
+            else if (!result.reply.trim()) {
+                current.messages.push(createCharacterAssistantMessage('assistant', result.stalled
+                    ? '비서가 자료만 요청하고 답하지 못했습니다. 목차에 없는 자료를 찾았거나 요청 횟수를 넘었을 수 있습니다. 질문을 좁혀 다시 보내 주세요.'
+                    : '빈 응답을 받았습니다.', { failed: true }))
             }
             else {
-                target.messages.push(createPromptAssistantMessage('assistant', reply, { blockNames }))
+                current.messages.push(createCharacterAssistantMessage('assistant', result.reply, extra))
             }
         }
         catch (cause) {
             if (signal.aborted) notice = '응답을 중단했습니다.'
-            else target.messages.push(createPromptAssistantMessage('assistant', errorText(cause), { failed: true }))
+            else current.messages.push(createCharacterAssistantMessage('assistant', errorText(cause), { failed: true }))
         }
         finally {
             running = false
             streamingText = ''
+            lookupStatus = []
             controller = null
-            if (project === target) {
+            if (project === current) {
                 await persist()
                 await scrollToEnd()
             }
@@ -571,15 +717,12 @@
     }
 
     $effect(() => {
-        if (!project) {
+        if (!project || scopes.length === 0) {
             estimate = null
             return
         }
-        const preset = resolvePromptAssistantPreset(project.presetId)
-        const lines = currentCharacter && currentChat
-            ? collectPromptAssistantChatLines(currentCharacter, currentChat, project.chatMessages)
-            : []
-        const material = (preset ? serializePresetForAssistant(preset) : '') + formatChatLogForAssistant(lines)
+        const { indexes, materials } = describeCharacterAssistantMaterial(scopes, project.pins)
+        const material = [...indexes, ...materials].join('\n')
         let cancelled = false
         const timer = setTimeout(async () => {
             try {
@@ -601,19 +744,16 @@
         void load()
     })
 
-    // Turning the assistant on always shows it in full; only folding keeps the rail.
     $effect(() => {
         if (open) untrack(() => { if (collapsed) setCollapsed(false) })
     })
 
-    // Runs before the DOM hides the dock, while the log still has its offset.
     $effect.pre(() => {
         if (!open || collapsed) untrack(saveScrollNow)
     })
 
-    // display:none drops the log's scroll offset, so reopening restores it.
     $effect(() => {
-        if (open && !collapsed && !loading) void restoreScroll()
+        if (open && !collapsed && !loading && panel === 'none') void restoreScroll()
     })
 
     onDestroy(() => {
@@ -629,40 +769,40 @@
     class:closed={!open}
     class:collapsed
     style:flex-basis={collapsed ? null : `${ratio * 100}%`}
-    aria-label="프롬프트 비서"
+    aria-label="캐릭터 비서"
     aria-hidden={!open}
     inert={!open}
-    data-prompt-assistant
+    data-character-assistant
 >
     <button
         type="button"
         class="rail"
-        aria-label="프롬프트 비서 펼치기"
+        aria-label="캐릭터 비서 펼치기"
         title="펼치기"
         onclick={() => setCollapsed(false)}
-        data-prompt-assistant-expand
+        data-character-assistant-expand
     >
         <PanelRightOpenIcon size={18} />
-        <span class="rail-title">프롬프트 비서</span>
+        <span class="rail-title">캐릭터 비서</span>
         {#if running}<LoaderCircleIcon class="animate-spin" size={15} aria-label="답변을 받는 중" />{/if}
     </button>
     <button
         type="button"
         class="dock-resizer"
-        aria-label="프롬프트 비서 폭 조절"
+        aria-label="캐릭터 비서 폭 조절"
         onpointerdown={resize}
         onkeydown={resizeByKeyboard}
     ></button>
 
     <header class="dock-header">
         <div class="dock-titlebar">
-            <span class="dock-mark"><MessageSquareTextIcon size={17} /></span>
-            <strong>프롬프트 비서</strong>
+            <span class="dock-mark"><BotIcon size={17} /></span>
+            <strong>캐릭터 비서</strong>
             <span class="titlebar-spacer"></span>
-            <button class="icon-button" type="button" aria-label="프롬프트 비서 접기" title="접기" onclick={() => setCollapsed(true)} data-prompt-assistant-collapse>
+            <button class="icon-button" type="button" aria-label="캐릭터 비서 접기" title="접기" onclick={() => setCollapsed(true)} data-character-assistant-collapse>
                 <PanelRightCloseIcon size={18} />
             </button>
-            <button class="icon-button" type="button" aria-label="프롬프트 비서 닫기" title="닫기" onclick={() => { saveScrollNow(); open = false }}>
+            <button class="icon-button" type="button" aria-label="캐릭터 비서 닫기" title="닫기" onclick={() => { saveScrollNow(); open = false }}>
                 <XIcon size={18} />
             </button>
         </div>
@@ -676,7 +816,7 @@
                         value={project.id}
                         disabled={running}
                         onchange={(event) => void switchProject(event.currentTarget.value)}
-                        data-prompt-assistant-project
+                        data-character-assistant-project
                     >
                         {#each index.projects as item (item.id)}
                             <option value={item.id}>{item.name}</option>
@@ -687,21 +827,31 @@
                     <button class="icon-button danger" type="button" aria-label="프로젝트 삭제" title="프로젝트 삭제" disabled={running} onclick={() => void removeProject()}><TrashIcon size={15} /></button>
                 </div>
 
+                <p class="target-line" data-character-assistant-target>
+                    <span>분석 대상</span>
+                    {#if target}
+                        <b>{target.name}</b>
+                    {:else}
+                        <b class="missing">{project.characterName || '이름 없음'} (찾을 수 없음)</b>
+                    {/if}
+                </p>
+
                 <div class="settings-grid">
                     <label class="setting">
-                        <span>프리셋</span>
+                        <span>참고용 봇</span>
                         <select
                             class="field"
-                            bind:value={project.presetId}
+                            bind:value={project.referenceId}
                             disabled={running}
                             onchange={() => void persist()}
-                            data-prompt-assistant-preset
+                            data-character-assistant-reference
                         >
-                            {#if !projectPreset}
-                                <option value={project.presetId}>삭제된 프리셋</option>
+                            <option value="">없음</option>
+                            {#if project.referenceId && !characters.some((item) => item.chaId === project?.referenceId)}
+                                <option value={project.referenceId}>찾을 수 없는 봇</option>
                             {/if}
-                            {#each presets as preset (preset.id)}
-                                <option value={preset.id}>{preset.name}{preset.active ? ' (사용 중)' : ''}</option>
+                            {#each characters.filter((item) => item.chaId !== project?.characterId) as item (item.chaId)}
+                                <option value={item.chaId}>{item.name}</option>
                             {/each}
                         </select>
                     </label>
@@ -719,59 +869,87 @@
                                 class="field"
                                 type="number"
                                 min="0"
-                                max={PROMPT_ASSISTANT_MAX_CHAT_MESSAGES}
+                                max={CHARACTER_ASSISTANT_MAX_CHAT_MESSAGES}
                                 step="1"
                                 value={project.chatMessages}
                                 disabled={running}
                                 onchange={(event) => {
                                     if (!project) return
-                                    project.chatMessages = clampChatMessageCount(event.currentTarget.value)
+                                    project.chatMessages = clampAssistantChatCount(event.currentTarget.value)
                                     event.currentTarget.value = String(project.chatMessages)
                                     void persist()
                                 }}
-                                aria-label="함께 보낼 최근 챗 메시지 수"
-                                data-prompt-assistant-chat-count
+                                aria-label="함께 보낼 대상 봇 현재 챗의 최근 메시지 수"
+                                data-character-assistant-chat-count
                             />
                             <small>개</small>
                         </span>
                     </label>
-                    <label class="setting check" title="마지막 AI 응답을 만들 때 모델에 실제로 보낸 최종 프롬프트를 요청 기록에서 가져옵니다.">
-                        <input
-                            type="checkbox"
-                            bind:checked={project.includeRequest}
-                            disabled={running}
-                            onchange={() => void persist()}
-                            data-prompt-assistant-include-request
-                        />
-                        <span>실제 요청 첨부</span>
-                    </label>
+                    <div class="scope-checks">
+                        <label class="setting check" title="이 봇에 켜진 모듈의 로어북, 정규식, 트리거를 목차에 넣습니다.">
+                            <input type="checkbox" bind:checked={project.includeModules} disabled={running} onchange={() => void persist()} data-character-assistant-modules />
+                            <span>연결된 모듈</span>
+                        </label>
+                        <label class="setting check" title="지금 사용 중인 프롬프트 프리셋의 블록 목록과 토글 정의, 현재 토글 값을 목차에 넣습니다.">
+                            <input type="checkbox" bind:checked={project.includePreset} disabled={running} onchange={() => void persist()} data-character-assistant-preset />
+                            <span>현재 프리셋과 토글</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="pin-row" data-character-assistant-pins>
+                    <span class="pin-title">재료 {project.pins.length}개</span>
+                    <div class="pin-list">
+                        {#each project.pins as pin (pinKey(pin))}
+                            <span class="pin-chip" class:missing={!findSection(scopes, pin.ref)}>
+                                <button type="button" class="pin-open" title={VIEW_TITLE} onclick={() => openViewer(pin.ref)}>{pinLabel(pin)}</button>
+                                <button type="button" class="pin-remove" aria-label={`${pinLabel(pin)} 재료에서 빼기`} title="재료에서 빼기" disabled={running} onclick={() => removePin(pin)}><XIcon size={12} /></button>
+                            </span>
+                        {:else}
+                            <span class="pin-empty">아직 없음. 비서가 필요한 자료를 직접 읽어 옵니다.</span>
+                        {/each}
+                    </div>
+                    <div class="pin-actions">
+                        <button type="button" class="text-button" disabled={running} onclick={() => { panel = panel === 'picker' ? 'none' : 'picker'; pickerQuery = '' }} aria-pressed={panel === 'picker'} data-character-assistant-picker-open>
+                            <ListPlusIcon size={14} /> 자료 추가
+                        </button>
+                        {#if project.pins.length > 0}
+                            <button type="button" class="text-button" disabled={running} onclick={clearPins}>모두 빼기</button>
+                        {/if}
+                    </div>
                 </div>
                 <p class="attach-summary" aria-live="polite">
                     <span>함께 보냄: {attachmentLabel}</span>
-                    {#if estimate !== null}<span class="tabular">약 {estimate.toLocaleString()} 토큰{project.includeRequest ? ' + 요청' : ''}</span>{/if}
+                    {#if estimate !== null}<span class="tabular">약 {estimate.toLocaleString()} 토큰{project.chatMessages > 0 ? ' + 챗' : ''}</span>{/if}
                 </p>
             {:else if formMode !== 'none'}
-                <form class="project-form" onsubmit={(event) => { event.preventDefault(); void submitForm() }} data-prompt-assistant-form>
+                <form class="project-form" onsubmit={(event) => { event.preventDefault(); void submitForm() }} data-character-assistant-form>
                     <label class="setting">
                         <span>{formMode === 'create' ? '새 프로젝트 이름' : '프로젝트 이름'}</span>
                         <!-- svelte-ignore a11y_autofocus -->
-                        <input class="field" bind:value={formName} maxlength="80" placeholder="예: 대사 위주 버전" autofocus />
+                        <input class="field" bind:value={formName} maxlength="80" placeholder="예: 로어북 정리" autofocus />
                     </label>
                     {#if formMode === 'create'}
                         <label class="setting">
-                            <span>다듬을 프리셋</span>
-                            <select class="field" bind:value={formPresetId}>
-                                {#each presets as preset (preset.id)}
-                                    <option value={preset.id}>{preset.name}{preset.active ? ' (사용 중)' : ''}</option>
+                            <span>다듬을 봇</span>
+                            <select class="field" bind:value={formCharacterId} onchange={() => {
+                                const picked = characters.find((item) => item.chaId === formCharacterId)
+                                if (picked && (!formName.trim() || formName.endsWith(' 다듬기'))) formName = `${picked.name} 다듬기`
+                            }}>
+                                {#each characters as item (item.chaId)}
+                                    <option value={item.chaId}>{item.name}{item.index === $selectedCharID ? ' (선택 중)' : ''}</option>
                                 {/each}
                             </select>
                         </label>
+                        {#if characters.length === 0}
+                            <p class="notice">분석할 수 있는 봇이 없습니다. 비공개 라이선스 봇은 분석하지 않습니다.</p>
+                        {/if}
                     {/if}
                     <div class="form-actions">
                         {#if project}
                             <ShButton variant="outline" size="sm" type="button" onclick={() => formMode = 'none'}><XIcon size={14} /> 취소</ShButton>
                         {/if}
-                        <ShButton variant="primary" size="sm" type="submit" disabled={!formName.trim() || (formMode === 'create' && !formPresetId)}>
+                        <ShButton variant="primary" size="sm" type="submit" disabled={!formName.trim() || (formMode === 'create' && !formCharacterId)}>
                             <CheckIcon size={14} /> {formMode === 'create' ? '만들기' : '저장'}
                         </ShButton>
                     </div>
@@ -780,8 +958,56 @@
         {/if}
     </header>
 
+    {#if project && formMode === 'none' && panel !== 'none'}
+        <section class="side-panel" aria-label={panel === 'picker' ? '자료 추가' : '자료 보기'} data-character-assistant-panel={panel}>
+            <div class="panel-bar">
+                <button class="icon-button" type="button" aria-label="대화로 돌아가기" title="대화로 돌아가기" onclick={closePanel}><ArrowLeftIcon size={16} /></button>
+                {#if panel === 'picker'}
+                    <input class="field panel-search" bind:value={pickerQuery} placeholder="이름, 키, 종류로 찾기" aria-label="자료 찾기" data-character-assistant-picker-search />
+                {:else}
+                    <strong class="panel-title">{viewerSection?.label.replaceAll('`', '') ?? '찾을 수 없는 자료'}</strong>
+                {/if}
+            </div>
+            {#if panel === 'picker'}
+                <ul class="picker-list">
+                    {#each pickerSections.slice(0, 300) as section (section.ref)}
+                        {@const pinned = project.pins.some((pin) => pin.ref === section.ref)}
+                        <li class:pinned>
+                            <button type="button" class="picker-pin" aria-pressed={pinned} title={pinned ? '재료에서 빼기' : '재료에 넣기'} onclick={() => togglePin(section.ref)}>
+                                {#if pinned}<PinIcon size={14} />{:else}<PinOffIcon size={14} />{/if}
+                            </button>
+                            <button type="button" class="picker-item" title={VIEW_TITLE} onclick={() => openViewer(section.ref)}>
+                                <span class="picker-label">{section.label.replaceAll('`', '')}</span>
+                                {#if section.summary}<small>{section.summary}</small>{/if}
+                            </button>
+                        </li>
+                    {:else}
+                        <li class="picker-empty">{scopes.length === 0 ? '봇을 찾지 못했습니다.' : '맞는 자료가 없습니다.'}</li>
+                    {/each}
+                    {#if pickerSections.length > 300}
+                        <li class="picker-empty">{pickerSections.length - 300}개가 더 있습니다. 검색어를 좁혀 주세요.</li>
+                    {/if}
+                </ul>
+            {:else if viewerSection}
+                <div class="viewer-actions">
+                    {#if viewerSection.scope === 'bot' && (viewerSection.kind !== 'field' || FIELD_TABS[viewerSection.id] !== undefined) || viewerSection.kind === 'block'}
+                        <ShButton variant="outline" size="sm" onclick={() => void openSection(viewerSection.ref)}><ExternalLinkIcon size={13} /> 편집기에서 열기</ShButton>
+                    {/if}
+                    <ShButton variant="outline" size="sm" disabled={running} onclick={() => togglePin(viewerSection.ref)}>
+                        {#if project.pins.some((pin) => pin.ref === viewerSection.ref)}<PinOffIcon size={13} /> 재료에서 빼기{:else}<PinIcon size={13} /> 재료에 넣기{/if}
+                    </ShButton>
+                    <button type="button" class="text-button" onclick={(event) => void copyWithFeedback(event.currentTarget, viewerSection.text)}>복사</button>
+                    {#if viewerSection.scope !== 'bot'}<span class="readonly-note">읽기 전용 자료</span>{/if}
+                </div>
+                <pre class="viewer-text">{viewerSection.text}</pre>
+            {:else}
+                <p class="picker-empty">이 자료를 지금 목차에서 찾지 못했습니다. 삭제됐거나 범위가 꺼져 있을 수 있습니다.</p>
+            {/if}
+        </section>
+    {/if}
+
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="log" bind:this={logElement} aria-live="polite" onscroll={rememberScroll} onclick={(event) => void handleLogClick(event)} data-prompt-assistant-log>
+    <div class="log" class:hidden-by-panel={panel !== 'none' && !!project && formMode === 'none'} bind:this={logElement} aria-live="polite" onscroll={rememberScroll} onclick={(event) => void handleLogClick(event)} data-character-assistant-log>
         {#if loading}
             <div class="state"><LoaderCircleIcon class="animate-spin" size={18} /> 프로젝트를 불러오는 중입니다.</div>
         {:else if loadError}
@@ -791,12 +1017,12 @@
             </div>
         {:else if !project}
             <div class="state">
-                <p>프로젝트를 만들면 대화가 그 이름으로 저장됩니다. 같은 프리셋도 버전마다 프로젝트를 따로 둘 수 있습니다.</p>
+                <p>프로젝트를 만들면 대화가 그 이름으로 저장됩니다. 프로젝트는 만들 때 고른 봇에 고정되어, 다른 캐릭터를 선택해도 분석 대상이 바뀌지 않습니다.</p>
             </div>
         {:else if project.messages.length === 0 && !running}
             <div class="empty">
-                <p class="empty-lead">채팅이 마음에 들지 않을 때 무엇이 문제인지 말해 주세요.</p>
-                <p>비서는 <b>{projectPreset?.name ?? '연결된 프리셋'}</b>을 분석할 자료로 읽고, 어느 블록을 어떻게 고칠지 제안합니다. 프리셋은 비서의 지시로 쓰이지 않으며, 수정은 직접 반영합니다.</p>
+                <p class="empty-lead">봇에서 다듬고 싶은 부분을 말해 주세요.</p>
+                <p>비서는 <b>{target?.name ?? '대상 봇'}</b>의 목차만 먼저 보고, 질문에 필요한 필드와 로어북, 정규식, 트리거만 골라 읽습니다. 읽은 자료는 위의 재료에 남고, 직접 넣거나 뺄 수도 있습니다. 봇의 내용은 비서의 지시로 쓰이지 않으며, 수정은 직접 반영합니다.</p>
                 <div class="examples">
                     {#each examples as example}
                         <button type="button" onclick={() => void useExample(example)}>{example}</button>
@@ -808,10 +1034,8 @@
                 <article class="message {message.role}" class:failed={message.failed} data-message-id={message.id}>
                     <header>
                         <span class="role">{message.role === 'user' ? '나' : '비서'}</span>
-                        {#if message.attached && (message.attached.chatMessages > 0 || message.attached.request)}
-                            <span class="attached">
-                                {message.attached.chatMessages > 0 ? `챗 ${message.attached.chatMessages}개` : ''}{message.attached.chatMessages > 0 && message.attached.request ? ', ' : ''}{message.attached.request ? '실제 요청' : ''} 첨부
-                            </span>
+                        {#if message.lookups?.length}
+                            <span class="attached" title={message.lookups.join('\n').replaceAll('`', '')}>읽은 자료 {message.lookups.length}개</span>
                         {/if}
                     </header>
                     {#if message.role === 'assistant' && !message.failed}
@@ -826,10 +1050,17 @@
             {#if running}
                 <article class="message assistant pending">
                     <header><span class="role">비서</span></header>
-                    {#if streamingText}
+                    {#if lookupStatus.length > 0}
+                        <ul class="lookup-status" data-character-assistant-lookups>
+                            {#each lookupStatus as label}
+                                <li>{label.replaceAll('`', '')}</li>
+                            {/each}
+                        </ul>
+                    {/if}
+                    {#if streamingText && !/^\s*<(read|search)\b/i.test(streamingText)}
                         <div class="markdown">{@html renderMarkdown(streamingText)}</div>
                     {:else}
-                        <p class="body waiting"><LoaderCircleIcon class="animate-spin" size={14} /> 프리셋을 읽는 중입니다.</p>
+                        <p class="body waiting"><LoaderCircleIcon class="animate-spin" size={14} /> {lookupStatus.length > 0 ? '읽은 자료로 다시 생각하는 중입니다.' : '목차를 살펴보는 중입니다.'}</p>
                     {/if}
                 </article>
             {:else if project.messages.at(-1)?.failed}
@@ -850,15 +1081,15 @@
                 bind:value={draft}
                 rows="3"
                 maxlength="12000"
-                placeholder="예: 방금 응답에서 캐릭터 말투가 무너졌어. 원인이 뭐야?"
-                aria-label="프롬프트 비서에게 보낼 메시지"
+                placeholder="예: 첫 메시지가 너무 길어. 어디를 줄이면 좋을까?"
+                aria-label="캐릭터 비서에게 보낼 메시지"
                 onkeydown={(event) => {
                     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                         event.preventDefault()
                         void send()
                     }
                 }}
-                data-prompt-assistant-input
+                data-character-assistant-input
             ></textarea>
             <div class="composer-actions">
                 <button
@@ -866,13 +1097,13 @@
                     type="button"
                     disabled={running || project.messages.length === 0}
                     onclick={() => void resetConversation()}
-                    data-prompt-assistant-reset
+                    data-character-assistant-reset
                 ><RotateCcwIcon size={14} /> 대화 초기화</button>
                 <span class="hint">Ctrl+Enter로 보내기</span>
                 {#if running}
-                    <ShButton variant="outline" size="sm" onclick={stop} data-prompt-assistant-stop><SquareIcon size={13} /> 중단</ShButton>
+                    <ShButton variant="outline" size="sm" onclick={stop} data-character-assistant-stop><SquareIcon size={13} /> 중단</ShButton>
                 {:else}
-                    <ShButton variant="primary" size="sm" disabled={!draft.trim()} onclick={() => void send()} data-prompt-assistant-send>
+                    <ShButton variant="primary" size="sm" disabled={!draft.trim() || !target} onclick={() => void send()} data-character-assistant-send>
                         <SendHorizontalIcon size={14} /> 보내기
                     </ShButton>
                 {/if}
@@ -1319,6 +1550,149 @@
     .text-button:hover:not(:disabled),
     .text-button:focus-visible { color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-primary) 8%, transparent); outline: 0; }
     .text-button:disabled { cursor: not-allowed; opacity: .42; }
+
+    .target-line {
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+        min-width: 0;
+        margin: 0;
+        font-size: .74rem;
+    }
+    .target-line span { flex: 0 0 auto; color: var(--risu-theme-textcolor2); font-size: .68rem; font-weight: 600; }
+    .target-line b { min-width: 0; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .target-line b.missing { color: var(--risu-theme-draculared); }
+    .scope-checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+    .scope-checks .setting.check { grid-column: auto; }
+
+    .pin-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .3rem .5rem; }
+    .pin-title { padding-top: .3rem; color: var(--risu-theme-textcolor2); font-size: .68rem; font-weight: 600; white-space: nowrap; }
+    .pin-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+        min-width: 0;
+        max-height: 4.4rem;
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+    .pin-chip {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        min-height: 1.6rem;
+        border: 1px solid var(--pa-line);
+        border-radius: .35rem;
+        background: color-mix(in srgb, var(--risu-theme-primary) 6%, transparent);
+    }
+    .pin-chip.missing { border-style: dashed; opacity: .7; }
+    .pin-open {
+        min-width: 0;
+        overflow: hidden;
+        padding: 0 .1rem 0 .45rem;
+        border: 0;
+        color: var(--risu-theme-textcolor);
+        background: none;
+        font-size: .7rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    .pin-remove {
+        display: grid;
+        flex: 0 0 auto;
+        width: 1.5rem;
+        height: 1.5rem;
+        place-items: center;
+        border: 0;
+        color: var(--risu-theme-textcolor2);
+        background: none;
+        cursor: pointer;
+    }
+    .pin-open:hover, .pin-open:focus-visible { color: var(--risu-theme-primary); outline: 0; }
+    .pin-remove:hover:not(:disabled), .pin-remove:focus-visible { color: var(--risu-theme-draculared); outline: 0; }
+    .pin-remove:disabled { cursor: not-allowed; opacity: .42; }
+    .pin-empty { padding-top: .3rem; color: var(--risu-theme-textcolor2); font-size: .68rem; line-height: 1.4; }
+    .pin-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: .2rem; }
+    .pin-actions .text-button { min-height: 1.75rem; }
+
+    .side-panel { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }
+    .log.hidden-by-panel { display: none; }
+    .panel-bar {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .45rem .6rem;
+        border-bottom: 1px solid var(--risu-theme-darkborderc);
+    }
+    .panel-search { flex: 1 1 auto; }
+    .panel-title { min-width: 0; overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+    .picker-list { flex: 1 1 auto; min-height: 0; margin: 0; padding: .3rem .4rem .8rem; overflow-y: auto; list-style: none; scrollbar-width: thin; }
+    .picker-list li { display: flex; align-items: flex-start; gap: .2rem; border-radius: .35rem; }
+    .picker-list li.pinned { background: color-mix(in srgb, var(--risu-theme-primary) 7%, transparent); }
+    .picker-pin {
+        display: grid;
+        flex: 0 0 auto;
+        width: 2rem;
+        height: 2rem;
+        place-items: center;
+        border: 0;
+        border-radius: .35rem;
+        color: var(--risu-theme-textcolor2);
+        background: none;
+        cursor: pointer;
+    }
+    .picker-list li.pinned .picker-pin { color: var(--risu-theme-primary); }
+    .picker-item {
+        display: grid;
+        flex: 1 1 auto;
+        gap: .1rem;
+        min-width: 0;
+        padding: .4rem .3rem;
+        border: 0;
+        border-radius: .35rem;
+        color: var(--risu-theme-textcolor);
+        text-align: left;
+        background: none;
+        cursor: pointer;
+    }
+    .picker-pin:hover, .picker-pin:focus-visible,
+    .picker-item:hover, .picker-item:focus-visible { background: color-mix(in srgb, var(--risu-theme-primary) 9%, transparent); outline: 0; }
+    .picker-label { overflow-wrap: anywhere; font-size: .76rem; font-weight: 600; line-height: 1.35; }
+    .picker-item small { color: var(--risu-theme-textcolor2); font-size: .66rem; line-height: 1.4; overflow-wrap: anywhere; }
+    .picker-empty { padding: .8rem .6rem; color: var(--risu-theme-textcolor2); font-size: .74rem; line-height: 1.5; }
+    .viewer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; padding: .5rem .7rem; }
+    .readonly-note { color: var(--risu-theme-textcolor2); font-size: .68rem; }
+    .viewer-text {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 0 .7rem .8rem;
+        padding: .65rem .75rem;
+        overflow: auto;
+        border: 1px solid var(--risu-theme-darkborderc);
+        border-radius: .45rem;
+        background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--color-darkbg));
+        font: .74rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+    .lookup-status { display: grid; gap: .15rem; margin: 0; padding-left: 1.1rem; color: var(--risu-theme-textcolor2); font-size: .72rem; list-style: disc; }
+    .markdown :global(button[data-section-ref]) {
+        display: inline;
+        padding: 0;
+        border: 0;
+        color: var(--risu-theme-primary);
+        background: none;
+        font: inherit;
+        font-weight: 600;
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: .18em;
+        cursor: pointer;
+    }
+    .markdown :global(button[data-section-ref]:hover),
+    .markdown :global(button[data-section-ref]:focus-visible) { text-decoration-thickness: 2px; outline: 0; }
+    .markdown :global(button[data-section-ref] code) { color: inherit; }
 
     @container (max-width: 26rem) {
         .settings-grid { grid-template-columns: minmax(0, 1fr) auto; }

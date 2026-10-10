@@ -317,6 +317,17 @@ function createUserDataRepository(options = {}) {
         return parseMessageBytes(readCanonicalBytes(relativePath), relativePath, 'CANONICAL_FILES_CHANGED');
     }
 
+    // V8 reports a character offset; editors show lines and columns.
+    function jsonErrorLocation(text, cause) {
+        const reason = String(cause?.message || 'invalid JSON').replace(/\s*in JSON at position \d+.*$/, '');
+        const match = /at position (\d+)/.exec(String(cause?.message || ''));
+        const position = match ? Math.min(Number(match[1]), text.length) : text.length;
+        const before = text.slice(0, position);
+        const line = before.split('\n').length;
+        const column = position - before.lastIndexOf('\n');
+        return `line ${line}, column ${column}: ${reason}`;
+    }
+
     function reconcileCanonicalProjection(options = {}) {
         const includeDatabase = options.includeDatabase !== false;
         const externalWrites = [];
@@ -339,44 +350,48 @@ function createUserDataRepository(options = {}) {
             if (fs.existsSync(checksumPath) && fs.readFileSync(checksumPath, 'utf8').trim() === digest) {
                 return readCanonicalJson(relativePath);
             }
-            const fail = () => {
-                const error = new Error(`Invalid external ${kind}: ${relativePath}`);
+            // Name the file and the reason so a hand edit can be fixed in place.
+            const fail = (reason) => {
+                const error = new Error(`Invalid external ${kind}: ${normalizedPath} (${reason})`);
                 error.code = 'LIVE_FILES_INVALID';
                 throw error;
             };
+            const text = bytes.toString('utf8');
             let value;
-            try { value = JSON.parse(bytes.toString('utf8')); } catch { fail(); }
-            if (!isPlainObject(value)) fail();
+            try { value = JSON.parse(text); } catch (cause) { fail(jsonErrorLocation(text, cause)); }
+            if (!isPlainObject(value)) fail('the top level must be a JSON object');
             // These objects are merged into live application state. Never accept prototype keys.
             JSON.stringify(value, (key, child) => {
-                if (['__proto__', 'prototype', 'constructor'].includes(key)) fail();
+                if (['__proto__', 'prototype', 'constructor'].includes(key)) fail(`"${key}" is not allowed`);
                 return child;
             });
             if (kind === 'character') {
-                if (typeof value.chaId !== 'string' || !value.chaId || 'chats' in value) fail();
+                if (typeof value.chaId !== 'string' || !value.chaId) fail('"chaId" must be a non-empty string');
+                if ('chats' in value) fail('"chats" must not be in metadata.json');
                 for (const key of ['name', 'desc', 'firstMessage', 'personality', 'scenario', 'exampleMessage', 'image']) {
-                    if (key in value && typeof value[key] !== 'string') fail();
+                    if (key in value && typeof value[key] !== 'string') fail(`"${key}" must be a string`);
                 }
                 for (const key of ['globalLore', 'additionalAssets', 'emotionImages']) {
-                    if (key in value && !Array.isArray(value[key])) fail();
+                    if (key in value && !Array.isArray(value[key])) fail(`"${key}" must be an array`);
                 }
                 for (const entry of value.globalLore || []) {
-                    if (!isPlainObject(entry) || ('content' in entry && typeof entry.content !== 'string')) fail();
+                    if (!isPlainObject(entry) || ('content' in entry && typeof entry.content !== 'string')) fail('each "globalLore" entry must be an object with string "content"');
                 }
                 for (const entry of [...(value.additionalAssets || []), ...(value.emotionImages || [])]) {
-                    if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'string') fail();
+                    if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'string') fail('each asset entry must start with two strings');
                 }
             } else if (kind === 'chat') {
-                if (typeof value.id !== 'string' || !value.id || 'message' in value || '_stub' in value) fail();
-                if ('name' in value && typeof value.name !== 'string') fail();
-                if ('localLore' in value && !Array.isArray(value.localLore)) fail();
+                if (typeof value.id !== 'string' || !value.id) fail('"id" must be a non-empty string');
+                if ('message' in value || '_stub' in value) fail('"message" must not be in metadata.json');
+                if ('name' in value && typeof value.name !== 'string') fail('"name" must be a string');
+                if ('localLore' in value && !Array.isArray(value.localLore)) fail('"localLore" must be an array');
                 for (const entry of value.localLore || []) {
-                    if (!isPlainObject(entry) || ('content' in entry && typeof entry.content !== 'string')) fail();
+                    if (!isPlainObject(entry) || ('content' in entry && typeof entry.content !== 'string')) fail('each "localLore" entry must be an object with string "content"');
                 }
             } else {
-                if ('name' in value && typeof value.name !== 'string') fail();
-                if ('data' in value && !Array.isArray(value.data)) fail();
-                if (value.id && stableId(value.id, 'lore') !== path.basename(relativePath, '.json')) fail();
+                if ('name' in value && typeof value.name !== 'string') fail('"name" must be a string');
+                if ('data' in value && !Array.isArray(value.data)) fail('"data" must be an array');
+                if (value.id && stableId(value.id, 'lore') !== path.basename(relativePath, '.json')) fail('"id" does not match the file name');
             }
             externalInputs.push({ target, bytes: original });
             externalWrites.push({ path: relativePath, data: bytes });

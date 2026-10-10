@@ -13,7 +13,7 @@
     import BardLoreSearchPreview from "./BardLoreSearchPreview.svelte";
     import BardLoreAnalysisPanel from "./BardLoreAnalysisPanel.svelte";
     import Help from "src/lib/Others/Help.svelte";
-    import { selectedCharID } from "src/ts/stores.svelte";
+    import { characterEditorJumpRequest, selectedCharID } from "src/ts/stores.svelte";
     import type { character, loreBook } from "src/ts/storage/database.svelte";
     import {
         applyMaterializedBardLoreEntries,
@@ -45,6 +45,8 @@
     } from 'src/ts/lorebook/bardLorePortable';
 
     let submenu = $state(0)
+    // Character Assistant links point at the character lorebook.
+    $effect(() => { if ($characterEditorJumpRequest?.kind === 'lore') submenu = 0 })
     let workspaceOpen = $state(false)
     let loreView = $state<'legacy' | 'bard'>('legacy')
     let viewedCharacterId = $state('')

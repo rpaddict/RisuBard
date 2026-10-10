@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy } from "svelte";
+    import { onDestroy, untrack } from "svelte";
     import { XIcon } from "@lucide/svelte";
     import { language } from "src/lang";
     import { ReloadGUIPointer } from "src/ts/stores.svelte";
@@ -19,6 +19,8 @@ interface Props {
     onClose?: () => void;
     onOpen?: () => void;
     idx: number;
+    /** Changes to a new non-zero value to open this row from outside. */
+    openSignal?: number;
   }
 
   let {
@@ -26,7 +28,8 @@ interface Props {
     onRemove = () => {},
     onClose = () => {},
     onOpen = () => {},
-    idx
+    idx,
+    openSignal = 0
   }: Props = $props();
 
     const checkFlagContain = (flag:string, matchFlag:string) => {
@@ -81,6 +84,13 @@ interface Props {
     ]
 
     let open = $state(false)
+
+    $effect(() => {
+        if (openSignal && !untrack(() => open)) {
+            open = true
+            onOpen()
+        }
+    })
 
     // Single point that balances onOpen. Covers every way this row can go away:
     // deletion, the parent's array being swapped wholesale (character/preset/module

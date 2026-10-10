@@ -7,7 +7,6 @@
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
     import CharacterAssetTransition from './CharacterAssetTransition.svelte'
     import ModuleAssetTransition from './ModuleAssetTransition.svelte'
-    import LiveFileMonitoring from './LiveFileMonitoring.svelte'
 
     interface DurationSummary {
         p50: number | null
@@ -82,7 +81,6 @@
 
 <SettingPage title={language.storageDiagnosticsTitle} description={language.storageDiagnosticsDesc}>
     <div class="diagnostics-stack">
-        <LiveFileMonitoring />
         <CharacterAssetTransition />
         <ModuleAssetTransition />
         <section class="privacy-note" aria-label={language.storageDiagnosticsPrivacy}>

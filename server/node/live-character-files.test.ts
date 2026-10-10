@@ -9,49 +9,26 @@ const { metadataSnapshot, mergePendingLiveDatabase } = require('./live-character
 const { createLiveFileMonitoring } = require('./live-file-monitoring.cjs')
 
 test.each([
-    ['android', {}, false],
-    ['linux', { PREFIX: '/data/data/com.termux/files/usr' }, false],
-    ['win32', {}, true],
-    ['linux', {}, true],
-])('monitoring uses server platform defaults and persists user overrides: %s %j', (platform, env, expected) => {
-    const { repository } = fixture()
-    const options = { repository, platform, env, watch: false, writeAsset: () => {} }
-    const monitor = createLiveFileMonitoring(options)
-    expect(monitor.status()).toEqual({ enabled: expected, defaultEnabled: expected })
-    monitor.setEnabled(!expected)
-    monitor.close()
-    const reopened = createLiveFileMonitoring(options)
-    expect(reopened.status()).toEqual({ enabled: !expected, defaultEnabled: expected })
-    expect(() => reopened.setEnabled('false')).toThrow('boolean')
-    reopened.close()
-})
-
-test('failed monitoring setting persistence restores the previous disabled state', () => {
+    ['android', {}],
+    ['linux', { PREFIX: '/data/data/com.termux/files/usr' }],
+    ['win32', {}],
+    ['linux', {}],
+])('monitoring stays off and creates no watcher on every platform: %s %j', (platform, env) => {
     const { root, repository } = fixture()
-    const monitor = createLiveFileMonitoring({ repository, platform: 'android', env: {}, watch: false, writeAsset: () => {} })
-    fs.writeFileSync(path.join(root, 'config'), 'blocks the config directory')
-    expect(() => monitor.setEnabled(true)).toThrow()
-    expect(monitor.isEnabled()).toBe(false)
-    monitor.close()
-})
-
-test('interrupted monitoring publication recovers on reopen', () => {
-    const { root, repository } = fixture()
-    const options = { repository, platform: 'android', env: {}, watch: false, writeAsset: () => {} }
-    const monitor = createLiveFileMonitoring(options)
-    monitor.setEnabled(false)
-    const rename = fs.renameSync
-    const failure = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
-        if (String(to) === path.join(root, 'config/live-file-monitoring.json.sha256')) throw new Error('interrupted checksum')
-        return rename(from, to)
-    })
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'config/live-file-monitoring.json'), '{"enabled":true}\n')
+    const watch = vi.spyOn(fs, 'watch')
     try {
-        expect(() => monitor.setEnabled(true)).toThrow('interrupted checksum')
+        const monitor = createLiveFileMonitoring({ repository, platform, env, writeAsset: () => {} })
+        expect(monitor.status()).toEqual({ enabled: false, defaultEnabled: false })
+        expect(watch).not.toHaveBeenCalled()
+        expect(monitor.setEnabled(false)).toEqual({ enabled: false, defaultEnabled: false })
+        expect(() => monitor.setEnabled(true)).toThrow('no longer available')
+        expect(() => monitor.setEnabled('false')).toThrow('boolean')
         expect(monitor.isEnabled()).toBe(false)
-    } finally { failure.mockRestore(); monitor.close() }
-    const reopened = createLiveFileMonitoring(options)
-    expect(reopened.status().enabled).toBe(true)
-    reopened.close()
+        expect(watch).not.toHaveBeenCalled()
+        monitor.close()
+    } finally { watch.mockRestore() }
 })
 
 test('re-enabling reconciles valid external metadata even when its checksum was updated', () => {

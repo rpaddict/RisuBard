@@ -153,7 +153,7 @@ function attribute(name: string, value: string | number | undefined): string {
     return ` ${name}="${String(value).replaceAll('"', '&quot;')}"`
 }
 
-function serializeBlock(item: PromptItem, index: number): string {
+export function serializeBlock(item: PromptItem, index: number): string {
     const head = `<block${attribute('no', index + 1)}${attribute('type', item.type)}${attribute('name', item.name)}`
     switch (item.type) {
         case 'plain':
@@ -267,8 +267,12 @@ export function stripBlockWrapper(text: string): string {
     return lines.join('\n')
 }
 
-/** Matches `114번 블록`, `블록 114`, `블록 114번` in prose. Group 1 or 2 is the number. */
-export const BLOCK_REFERENCE_PATTERN = /(\d{1,4})\s*번\s*블록|블록\s*#?(\d{1,4})(?:\s*번)?(?!\d)/g
+/**
+ * Matches block mentions in prose: `114번 블록`, `114번째 블록`, `#114 블록`,
+ * `블록 114`, `블록 114번`, `블록 #114`, `블록 no.114`, `블록 번호 114`.
+ * Group 1 or 2 is the number.
+ */
+export const BLOCK_REFERENCE_PATTERN = /(?<![\d.])(?:#|no\.?\s*)?(\d{1,4})\s*(?:번째|번)?\s*블록|블록\s*(?:no\.?\s*|번호\s*|#)?(\d{1,4})(?:\s*(?:번째|번))?(?!\d)/gi
 const BLOCK_TAG_PATTERN = /<block\s+no="(\d{1,4})"/g
 
 export function findBlockReferences(text: string): number[] {

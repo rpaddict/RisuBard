@@ -3,15 +3,32 @@
     import RegexData from "./RegexData.svelte";
     import Sortable from "sortablejs";
     import { sleep, sortableOptions } from "src/ts/util";
-    import { onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount, tick, untrack } from "svelte";
+    import { characterEditorJumpRequest } from "src/ts/stores.svelte";
   import { DownloadIcon, HardDriveUploadIcon, PlusIcon } from "@lucide/svelte";
   import { exportRegex, importRegex } from "src/ts/process/scripts";
     interface Props {
         value?: customscript[];
         buttons?: boolean
+        /** Set on the selected character's list, which Character Assistant links open. */
+        jumpTarget?: boolean
     }
 
-    let { value = $bindable([]), buttons = false }: Props = $props();
+    let { value = $bindable([]), buttons = false, jumpTarget = false }: Props = $props();
+    let openRequest = $state<{ index: number; nonce: number } | null>(null)
+
+    $effect(() => {
+        const request = $characterEditorJumpRequest
+        if (!jumpTarget || request?.kind !== 'regex') return
+        untrack(() => void revealScript(request.index, request.nonce))
+    })
+    async function revealScript(index: number, nonce: number) {
+        if (index < 0 || index >= value.length) return
+        openRequest = { index, nonce }
+        characterEditorJumpRequest.set(null)
+        await tick()
+        ele?.querySelector<HTMLElement>(`[data-risu-idx="${index}"]`)?.scrollIntoView({ block: 'center' })
+    }
     let stb: Sortable = null
     let ele: HTMLDivElement = $state()
     let sorted = $state(0)
@@ -80,7 +97,7 @@
              deletion would destroy the LAST instance's state rather than the removed
              row's, desyncing the `opened` counter and killing drag reordering. -->
         {#each value as customscript, i (customscript)}
-            <RegexData idx={i} bind:value={value[i]} onOpen={onOpen} onClose={onClose} onRemove={() => {
+            <RegexData idx={i} bind:value={value[i]} openSignal={openRequest?.index === i ? openRequest.nonce : 0} onOpen={onOpen} onClose={onClose} onRemove={() => {
                 let customscript = value
                 customscript.splice(i, 1)
                 value = customscript
