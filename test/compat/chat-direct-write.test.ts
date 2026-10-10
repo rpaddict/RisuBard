@@ -142,7 +142,7 @@ test('chunk upload HTTP endpoint rejects missing chunks and unauthenticated writ
     expect(oversized.status).toBe(413)
 })
 
-test('entering external edit mode during upload prevents the final chunk from overwriting the chat', async () => {
+test('external edit mode is retired: it cannot start during an upload, which then completes', async () => {
     const fixture = await setup()
     const database = await fixture.read()
     const original = database.characters[0].chats[0]
@@ -152,21 +152,20 @@ test('entering external edit mode during upload prevents the final chunk from ov
     let staged = false
     const result = await uploadChatContent(async (url, init) => {
         const response = await fixture.client.fetch(url, { ...init, headers: { ...fixture.headers, ...init.headers } })
-        if (response.status === 202) {
+        if (response.status === 202 && !staged) {
             staged = true
             const edit = await fixture.client.fetch('/api/external-edit/start', { method: 'POST', headers: fixture.headers })
-            expect(edit.ok).toBe(true)
+            expect(edit.status).toBe(409)
         }
         return response
     }, 'test-char-0', 0, 'chat-0-0', encoded, 8, true)
     expect(staged).toBe(true)
-    expect(result.status).toBe(409)
-    expect((await result.json()).code).toBe('EXTERNAL_EDIT_MODE')
+    expect(result.ok).toBe(true)
     const response = await fixture.client.fetch('/api/chat-content/test-char-0/0', {
         headers: { ...fixture.headers, 'x-chat-id': 'chat-0-0' },
     })
-    const unchanged: any = decodeRisuDat(Buffer.from(await response.arrayBuffer()))
-    expect(unchanged.message[0].data).not.toHaveLength(CHAT_UPLOAD_CHUNK_BYTES)
+    const saved: any = decodeRisuDat(Buffer.from(await response.arrayBuffer()))
+    expect(saved.message[0].data).toHaveLength(CHAT_UPLOAD_CHUNK_BYTES)
 })
 
 test('coalesced metadata and CSS survive restart; preset mixing, reordering and deletion use full sync', async () => {
