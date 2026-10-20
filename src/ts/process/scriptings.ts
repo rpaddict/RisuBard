@@ -117,7 +117,7 @@ export async function runScripted(code:string, arg:{
                 const previousEngine = ScriptingEngineState.engine
                 ScriptingEngineState.engine = undefined
                 previousEngine?.global.close()
-                ScriptingEngineState.engine = await luaFactory.createEngine({injectObjects: true})
+                ScriptingEngineState.engine = await luaFactory.createEngine({injectObjects: true, enableProxy: false})
                 const luaEngine = ScriptingEngineState.engine
                 declareAPI = (name:string, func:Function) => {
                     luaEngine.global.set(name, func)
