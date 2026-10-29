@@ -238,6 +238,61 @@ function lastLinkedEventIndex(markdown: string, ordered: readonly StoryArcWriter
     return undefined
 }
 
+/** Every way a [[target|label]] or [[target#part]] link may name a document. */
+function linkTargetKeys(markdown: string): Set<string> {
+    return new Set([...markdown.matchAll(wikiLinkPattern)].flatMap((match) => [
+        match[1],
+        match[1].split('|')[0] ?? '',
+        match[1].split('|')[0]?.split('#')[0] ?? '',
+    ].map(identityKey)))
+}
+
+function storyArcOverviewRange(lines: readonly string[]): { start: number; end: number } | undefined {
+    const keys = new Set(Object.values(wikiWritingLocales).map((locale) => identityKey(locale.storyArc.overview)))
+    const start = lines.findIndex((line) => {
+        const heading = /^#{3,6}[\t ]+(.+?)[\t ]*$/u.exec(line)
+        return heading !== null && keys.has(identityKey(heading[1]))
+    })
+    if (start < 0) return undefined
+    let end = start + 1
+    while (end < lines.length && !/^#{1,6}[\t ]/u.test(lines[end])) end += 1
+    return { start, end }
+}
+
+/**
+ * A rewrite may merge old arcs, but an arc bullet whose event links all
+ * vanished was dropped. Put it back as written, before the surviving arcs.
+ */
+export function restoreDroppedStoryArcs(
+    previous: string,
+    rewritten: string,
+    writingLanguage: WikiWritingLanguage
+): { markdown: string; restored: string[] } {
+    const previousLines = previous.split('\n')
+    const previousRange = storyArcOverviewRange(previousLines)
+    if (!previousRange) return { markdown: rewritten, restored: [] }
+    const kept = linkTargetKeys(rewritten)
+    const restored = previousLines.slice(previousRange.start + 1, previousRange.end).filter((line) => {
+        if (!/^[-*][\t ]/u.test(line)) return false
+        const links = linkTargetKeys(line)
+        return links.size > 0 && ![...links].some((key) => kept.has(key))
+    })
+    if (restored.length === 0) return { markdown: rewritten, restored }
+    const lines = rewritten.split('\n')
+    const range = storyArcOverviewRange(lines)
+    if (range) {
+        let at = range.start + 1
+        while (at < range.end && lines[at].trim() === '') at += 1
+        lines.splice(at, 0, ...restored)
+        if (at === range.start + 1) lines.splice(at, 0, '')
+        return { markdown: lines.join('\n'), restored }
+    }
+    const section = [`### ${wikiWritingLocales[writingLanguage].storyArc.overview}`, '', ...restored]
+    const title = lines.findIndex((line) => /^#{1,2}[\t ]+\S/u.test(line))
+    lines.splice(title + 1, 0, ...(title < 0 ? [...section, ''] : ['', ...section]))
+    return { markdown: lines.join('\n'), restored }
+}
+
 /** Title of a closed arc chapter that keeps its arcs out of later rewrites. */
 export function storyArcChapterTitle(title: string, chapter: number): string {
     return `${title} (${chapter})`

@@ -10,6 +10,7 @@ import type {
     MemoryAnalysisModelRequest,
 } from './risubard-memory-analysis'
 import { createMemoryAnalysisRunner } from './risubard-memory-analysis'
+import { stampStoryArcCheckpoint } from './risubard-story-arc-writer'
 import { createNarrativeMemoryService } from './risubard-memory-service'
 import { createNarrativeGraphService } from './risubard-graph-service'
 import { resolveMemoryWorkspace } from './risubard-memory-workspace'
@@ -3823,6 +3824,78 @@ describe('memory analysis runner', () => {
         expect(saveCanonicalDocument.mock.calls[0][0].markdown).toContain(
             '### 주요 전환점\n\n- 관문이 열렸다.\n- [[사건 8]]'
         )
+    })
+
+    test('puts back story arcs that a plot rewrite dropped', async () => {
+        const events = Array.from({ length: 15 }, (_, index) => ({
+            id: `event.${index + 1}`,
+            type: 'event' as const,
+            title: `사건 ${index + 1}`,
+            relativePath: `events/${index + 1}.md`,
+            content: `## 사건 ${index + 1}\n\n### 이야기 요약\n\n- ${index + 1}번째 사건`,
+            sourceMessageIds: [`assistant-${index + 1}`],
+            contentHash: `hash-${index + 1}`,
+            created: `2026-08-30T00:00:${String(index + 1).padStart(2, '0')}.000Z`,
+        }))
+        const plot = {
+            id: 'other.story-arc-map',
+            type: 'other' as const,
+            title: '스토리 아크 플롯',
+            relativePath: 'notes/story-arc-map.md',
+            content: stampStoryArcCheckpoint(['## 스토리 아크 플롯', '', '### 아크 개요', '',
+                '- 첫 만남과 꽃다발. [[사건 1]] [[사건 2]]', '- 떠났다가 돌아오다. [[사건 5]]'].join('\n'), 'event.7'),
+            sourceMessageIds: ['assistant-7'],
+            contentHash: 'arc-hash',
+        }
+        const saveCanonicalDocument = vi.fn(async (input) => ({
+            ...input, id: plot.id, status: 'active' as const, aliases: [], relativePath: plot.relativePath,
+            updated: '2026-08-30T00:00:16.000Z', content: input.markdown, links: [],
+            contextMode: 'auto' as const, contentHash: 'arc-hash-2',
+        }))
+        const analyze = vi.fn(async (request: MemoryAnalysisModelRequest) => {
+            if (request.format === 'canonical-batch') {
+                return canonicalPatchBatch([{
+                    heading: '아크 개요', operation: 'upsert', content: '- 수리와 투영. [[사건 9]] [[사건 15]]',
+                }])
+            }
+            return JSON.stringify({
+                schemaVersion: 1, title: '사건 16', establishedEvents: ['투영이 끝났다.'], stateChanges: [],
+                characterKnowledge: [], persistentFacts: [], openContinuity: [], canonicalUpdateCandidates: [],
+            })
+        })
+        const runner = createMemoryAnalysisRunner({
+            memoryService: { loadState: vi.fn(), applyDelta: vi.fn() },
+            nativeV2Analysis: true,
+            markdownWikiService: {
+                inquire: vi.fn(async () => ({ graphRevision: 0, sources: [] })),
+                loadDocuments: vi.fn(async () => [...events, plot]),
+                saveConfirmedTurn: vi.fn(async () => ({
+                    id: 'event.16', type: 'event' as const, status: 'active' as const, title: '사건 16', aliases: [],
+                    relativePath: 'events/16.md', sourceMessageIds: ['assistant-16'],
+                    updated: '2026-08-30T00:00:16.000Z', created: '2026-08-30T00:00:16.000Z',
+                    content: '## 사건 16\n\n### 이야기 요약\n\n- 투영이 끝났다.', links: [],
+                    contextMode: 'auto' as const, contentHash: 'hash-16',
+                })),
+                saveCanonicalDocument,
+            },
+            onError: vi.fn(),
+            analyze,
+        })
+
+        await runner.run({
+            characterId: 'character',
+            chatId: 'chat',
+            arcPlotterSettings: { enabled: true, checkpointSize: 8, maxArcs: 8, maxTurningPoints: 16, maxOpenThreads: 8, maxCharacters: 6_000 },
+            messages: [{ messageId: 'assistant-16', role: 'assistant', content: '투영이 끝났다.' }],
+        })
+
+        expect(saveCanonicalDocument).toHaveBeenCalledTimes(1)
+        expect(saveCanonicalDocument.mock.calls[0][0].markdown).toContain([
+            '### 아크 개요', '',
+            '- 첫 만남과 꽃다발. [[사건 1]] [[사건 2]]',
+            '- 떠났다가 돌아오다. [[사건 5]]',
+            '- 수리와 투영. [[사건 9]] [[사건 15]]',
+        ].join('\n'))
     })
 })
 

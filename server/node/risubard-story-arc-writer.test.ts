@@ -5,6 +5,7 @@ import {
     ensureStoryArcEventLink,
     isStoryArcTitle,
     readStoryArcCheckpoint,
+    restoreDroppedStoryArcs,
     stampStoryArcCheckpoint,
     storyArcRewriteInstruction,
     validateStoryArcCheckpointEventLink,
@@ -266,5 +267,27 @@ describe('story arc writer', () => {
         expect(plan?.candidate.title).toBe(title)
         expect(storyArcRewriteInstruction(locale)).toContain(overview)
         expect(isStoryArcTitle(title)).toBe(true)
+    })
+
+    test('restores an arc whose event links all vanished, but not a merged one', () => {
+        const previous = ['## 스토리 아크 플롯', '', '### 아크 개요', '',
+            '- 첫 만남과 꽃다발. [[사건 1]] [[사건 2]]',
+            '- 예나 수리. [[사건 3|수리]]',
+            '- 투영. [[사건 4]]', '', '### 주요 전환점', '', '- [[사건 4]]'].join('\n')
+        const rewritten = ['## 스토리 아크 플롯', '', '### 아크 개요', '',
+            '- 예나 수리와 투영. [[사건 3]] [[사건 4]]',
+            '- 출발. [[사건 5]]', '', '### 주요 전환점', '', '- [[사건 5]]'].join('\n')
+        const { markdown, restored } = restoreDroppedStoryArcs(previous, rewritten, 'ko')
+        expect(restored).toEqual(['- 첫 만남과 꽃다발. [[사건 1]] [[사건 2]]'])
+        expect(markdown.split('\n').slice(2, 7)).toEqual(['### 아크 개요', '',
+            '- 첫 만남과 꽃다발. [[사건 1]] [[사건 2]]',
+            '- 예나 수리와 투영. [[사건 3]] [[사건 4]]', '- 출발. [[사건 5]]'])
+        expect(restoreDroppedStoryArcs(previous, previous, 'ko').restored).toEqual([])
+    })
+
+    test('restores dropped arcs into a rewrite that lost its overview heading', () => {
+        const previous = '## 스토리 아크 플롯\n\n### 아크 개요\n\n- 첫 장. [[사건 1]]'
+        const { markdown } = restoreDroppedStoryArcs(previous, '## 스토리 아크 플롯\n\n### 주요 전환점\n\n- [[사건 2]]', 'ko')
+        expect(markdown).toBe('## 스토리 아크 플롯\n\n### 아크 개요\n\n- 첫 장. [[사건 1]]\n\n### 주요 전환점\n\n- [[사건 2]]')
     })
 })

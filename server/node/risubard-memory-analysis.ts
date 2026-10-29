@@ -118,6 +118,7 @@ import {
     storyArcRewriteInstruction,
     validateStoryArcCheckpointEventLink,
     ensureStoryArcEventLink,
+    restoreDroppedStoryArcs,
     type StoryArcUpdatePlan,
 } from './risubard-story-arc-writer'
 
@@ -2258,6 +2259,16 @@ export function createMemoryAnalysisRunner(
                                             ?.maxCharacters
                                             ?? STORY_ARC_MAX_MARKDOWN_CHARACTERS)) {
                                         throw new Error('Story arc Markdown exceeds the configured character limit')
+                                    }
+                                    // The limit applies to the model's rewrite; restored arcs are
+                                    // earlier text and leave with the next closed chapter.
+                                    const recovered = restoreDroppedStoryArcs(entry.preparedMarkdown, rewritten,
+                                        snapshot.wikiWritingLanguage ?? 'ko')
+                                    if (recovered.restored.length > 0) {
+                                        rewritten = recovered.markdown
+                                        receiptWarnings.push(
+                                            `스토리 아크 플롯에서 빠진 아크 ${recovered.restored.length}개를 되살렸습니다: ${entry.candidate.title}`
+                                        )
                                     }
                                 }
                             }
