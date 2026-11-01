@@ -17,6 +17,7 @@ import { getModules } from '../process/modules'
 import { parseToggleSyntax } from '../util'
 import { formatChatLogForAssistant, type PromptAssistantChatLine } from './promptAssistant'
 import { forkAssistantMessages } from './assistantChat'
+import { resolveAssistantPrompt } from './assistantPrompts'
 import { collectPromptAssistantChatLines } from './promptAssistantStore'
 import {
     addPins,
@@ -304,6 +305,7 @@ export async function sendCharacterAssistant(input: CharacterAssistantSendInput)
         const finalRound = round >= CHARACTER_ASSISTANT_MAX_LOOKUP_ROUNDS
         const { materials } = describeCharacterAssistantMaterial(scopes, pins)
         const formated = buildCharacterAssistantMessages({
+            systemPrompt: resolveAssistantPrompt(getDatabase().risuBardAssistantPrompts, 'characterAssistant'),
             indexes,
             materials,
             lookups,

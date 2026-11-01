@@ -1,7 +1,7 @@
 <script lang="ts">
 
     import Suggestion from './Suggestion.svelte';
-    import { CameraIcon, ChevronUpIcon, ChevronDownIcon, ChevronsUpIcon, ChevronsDownIcon, DatabaseIcon, FileTextIcon, GlobeIcon, ImagePlusIcon, LanguagesIcon, Laugh, MenuIcon, MicOffIcon, PackageIcon, Plus, RefreshCcwIcon, ReplyIcon, Send, StepForwardIcon, XIcon, BrainIcon, ArrowDown, ZapIcon, Maximize2, Minimize2, BookOpenIcon, WandSparklesIcon, Undo2Icon, LoaderCircleIcon } from "@lucide/svelte";
+    import { CameraIcon, ChevronUpIcon, ChevronDownIcon, ChevronsUpIcon, ChevronsDownIcon, DatabaseIcon, FileTextIcon, GlobeIcon, ImagePlusIcon, LanguagesIcon, Laugh, MenuIcon, MicOffIcon, PackageIcon, Plus, RefreshCcwIcon, ReplyIcon, Send, StepForwardIcon, XIcon, BrainIcon, ArrowDown, ZapIcon, Maximize2, Minimize2, BookOpenIcon, WandSparklesIcon, Undo2Icon, LoaderCircleIcon, SquareIcon } from "@lucide/svelte";
     import { runInputAssistant } from "src/ts/risubard/inputAssistantRunner";
     import ShDropdownMenu from 'src/lib/UI/GUI/ShDropdownMenu.svelte';
     import ShDropdownMenuTrigger from 'src/lib/UI/GUI/ShDropdownMenuTrigger.svelte';
@@ -1752,9 +1752,9 @@ import { isMobile } from 'src/ts/platform'
                                     onclick={cancelWikiGeneration}
                                     aria-label={language.risuBardWikiCancel}
                                     title={language.risuBardWikiCancel}
-                                    class="absolute bottom-[calc(100%+6px)] right-0 z-30 whitespace-nowrap rounded-md border border-danger/70 bg-danger px-2.5 py-1.5 text-xs font-bold text-on-danger shadow-lg transition-colors hover:bg-danger/85 active:bg-danger/75"
+                                    class="mr-1 shrink-0 flex justify-center items-center w-9 h-9 rounded-full bg-danger text-on-danger shadow-sm transition-colors hover:bg-danger/85 active:bg-danger/75"
                             >
-                                {language.risuBardWikiCancel}
+                                <SquareIcon size={14} fill="currentColor" strokeWidth={0} />
                             </button>
                         {/if}
                         <button

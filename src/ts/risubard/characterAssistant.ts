@@ -844,6 +844,8 @@ export const CHARACTER_ASSISTANT_SYSTEM_PROMPT = `너는 RisuBard의 "캐릭터 
 ${characterAssistantEditGuide()}`
 
 export interface CharacterAssistantRequestInput {
+    /** Overrides the built-in system prompt. */
+    systemPrompt?: string
     indexes: string[]
     materials: string[]
     lookups: string[]
@@ -868,7 +870,7 @@ export function buildCharacterAssistantMessages(input: CharacterAssistantRequest
     if (input.lookups.length > 0) material.push(input.lookups.join('\n\n'))
     if (input.chatLog) material.push(input.chatLog)
     const messages: CharacterAssistantChatMessage[] = [
-        { role: 'system', content: `${CHARACTER_ASSISTANT_SYSTEM_PROMPT}\n\n${material.join('\n\n')}` },
+        { role: 'system', content: `${input.systemPrompt ?? CHARACTER_ASSISTANT_SYSTEM_PROMPT}\n\n${material.join('\n\n')}` },
     ]
     for (const message of input.history) {
         const results = formatEditResults(message.edits ?? [])

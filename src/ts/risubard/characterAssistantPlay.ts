@@ -40,6 +40,8 @@ export interface PlayLoreEntry {
 }
 
 export interface PlayerRequestInput {
+    /** Overrides the built-in player prompt. */
+    systemPrompt?: string
     instruction: string
     personaName: string
     personaPrompt: string
@@ -105,7 +107,7 @@ export function buildPlayerMessages(input: PlayerRequestInput): CharacterAssista
     }
     const left = input.total - input.turn
     return [
-        { role: 'system', content: `${CHARACTER_ASSISTANT_PLAYER_PROMPT}\n\n${material.join('\n\n')}` },
+        { role: 'system', content: `${input.systemPrompt ?? CHARACTER_ASSISTANT_PLAYER_PROMPT}\n\n${material.join('\n\n')}` },
         { role: 'user', content: `[턴 ${input.turn}/${input.total}. 이 입력 뒤에 남은 턴 ${left}개. <react>와 <input>으로 답한다.]` },
     ]
 }

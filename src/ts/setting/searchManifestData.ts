@@ -178,6 +178,13 @@ export const searchManifestEntries: ManualSearchEntry[] = [
         keywords: ['input assistant', 'input helper', 'wand', '인풋 도우미', '입력 도우미', '요술봉'],
         route: SettingsRoute.RisuBardInputAssistant,
     },
+    {
+        id: 'manual.page.risuBardAssistantPrompt',
+        label: () => language.risuBardAssistantPrompt.title,
+        help: () => language.risuBardAssistantPrompt.description,
+        keywords: ['assistant prompt', 'prompt assistant', 'character assistant', 'system prompt', '비서 프롬프트', '프롬프트 비서', '캐릭터 비서', '시스템 프롬프트'],
+        route: SettingsRoute.RisuBardAssistantPrompt,
+    },
     // ── Standalone hardcoded pages
     {
         id: 'manual.page.plugin',

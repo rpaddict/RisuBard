@@ -50,6 +50,7 @@ export const settingsSections: SettingsNavigationSection[] = [
             { id: 'risubard-wiki-prompt', route: SettingsRoute.RisuBardWikiPrompt, scope: 'full' },
             { id: 'risubard-grimoire-prompt', route: SettingsRoute.RisuBardGrimoirePrompt, scope: 'full' },
             { id: 'risubard-input-assistant', route: SettingsRoute.RisuBardInputAssistant, scope: 'full' },
+            { id: 'risubard-assistant-prompt', route: SettingsRoute.RisuBardAssistantPrompt, scope: 'full' },
         ],
     },
     {

@@ -8,6 +8,7 @@ import { readPersistentJson, removePersistentKey, writePersistentJson } from '..
 import { requestChatData } from '../process/request/request'
 import { fetchRequestLogs, requestLogEnabled } from '../requestLog'
 import { getUserName } from '../util'
+import { resolveAssistantPrompt } from './assistantPrompts'
 import {
     blocksToReread,
     buildPromptAssistantMessages,
@@ -276,6 +277,7 @@ export async function sendPromptAssistant(input: PromptAssistantSendInput): Prom
     if (!input.project.sendFullPreset && blockCount > 0) {
         input.onStage?.({ step: 'select' })
         const selection = await requestAssistantText(buildPromptAssistantSelectionMessages({
+            systemPrompt: resolveAssistantPrompt(getDatabase().risuBardAssistantPrompts, 'promptAssistantSelect'),
             preset: serializePresetForAssistant(input.preset, { include: new Set(), preview: true }),
             chatLog,
             history,
@@ -286,6 +288,7 @@ export async function sendPromptAssistant(input: PromptAssistantSendInput): Prom
     }
     input.onStage?.({ step: 'answer', blocks })
     const text = await requestAssistantText(buildPromptAssistantMessages({
+        systemPrompt: resolveAssistantPrompt(getDatabase().risuBardAssistantPrompts, 'promptAssistant'),
         preset: serializePresetForAssistant(input.preset, blocks === 'all' ? {} : { include: new Set(blocks) }),
         chatLog,
         sentRequest: input.sentRequest,

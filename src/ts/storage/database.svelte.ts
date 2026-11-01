@@ -74,6 +74,7 @@ import {
 } from '../risubard/wikiEmbeddingSettings';
 import { createTogglePresetBaseline, type TogglePresetBaseline } from './togglePresetBaseline';
 import type { CanonicalTurnReceipt } from '../risubard/memoryWiki';
+import type { AssistantPromptOverrides } from '../risubard/assistantPrompts';
 import {
     normalizeAutosaveInterval,
     normalizeAutosaveRetention,
@@ -2016,6 +2017,7 @@ export interface Database{
     risuBardInputAssistantSettings?: InputAssistantSettings
     risuBardInputAssistantPromptPresets?: BardLoreInstructionPreset[]
     risuBardInputAssistantPromptPresetId?: string
+    risuBardAssistantPrompts?: AssistantPromptOverrides
     textAreaTextSize:number
     combineTranslation:boolean
     dynamicAssets:boolean

@@ -15,6 +15,12 @@ describe('model response quality', () => {
             .toThrow(expect.objectContaining({ reason: 'truncated' }))
     })
 
+    it.each(['SAFETY', 'content_filter', 'refusal'])
+    ('names the provider finish reason when generation is blocked: %s', (finishReason) => {
+        expect(() => readModelResponseText({ type: 'success', result: 'partial', finishReason }))
+            .toThrow(`모델 제공자가 응답 생성을 중단했습니다. (종료 사유: ${finishReason})`)
+    })
+
     it.each(['', '   ', '<think>unfinished', '<Thoughts>only reasoning</Thoughts>'])
     ('rejects empty or reasoning-only responses: %s', (result) => {
         expect(() => readModelResponseText({ type: 'success', result }))

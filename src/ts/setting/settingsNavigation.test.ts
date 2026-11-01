@@ -61,6 +61,7 @@ describe('settings navigation registry', () => {
             'risubard-wiki-prompt',
             'risubard-grimoire-prompt',
             'risubard-input-assistant',
+            'risubard-assistant-prompt',
         ])
         expect(isSettingsNavigationItemActive(common!, SettingsRoute.RisuBardChat)).toBe(true)
     })

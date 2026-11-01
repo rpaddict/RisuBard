@@ -553,6 +553,8 @@ export const PROMPT_ASSISTANT_SELECT_PROMPT = `너는 RisuBard "프롬프트 비
 - 다른 말 없이 JSON 하나만 출력한다. 예: {"all": false, "blocks": [3, 17, 18]}`
 
 export interface PromptAssistantRequestInput {
+    /** Overrides the built-in prompt for the step being built. */
+    systemPrompt?: string
     preset: string
     chatLog?: string
     sentRequest?: string
@@ -577,7 +579,7 @@ export function buildPromptAssistantSelectionMessages(input: Omit<PromptAssistan
     const material = [input.preset]
     if (input.chatLog) material.push(input.chatLog)
     return [
-        { role: 'system', content: `${PROMPT_ASSISTANT_SELECT_PROMPT}\n\n${material.join('\n\n')}` },
+        { role: 'system', content: `${input.systemPrompt ?? PROMPT_ASSISTANT_SELECT_PROMPT}\n\n${material.join('\n\n')}` },
         ...historyMessages(input.history),
         { role: 'user', content: withNotice(input.userText, input.notice) },
     ]
@@ -623,7 +625,7 @@ export function buildPromptAssistantMessages(input: PromptAssistantRequestInput)
     if (input.chatLog) material.push(input.chatLog)
     if (input.sentRequest) material.push(`<sent_request>\n${input.sentRequest}\n</sent_request>`)
     return [
-        { role: 'system', content: `${PROMPT_ASSISTANT_SYSTEM_PROMPT}\n\n${material.join('\n\n')}` },
+        { role: 'system', content: `${input.systemPrompt ?? PROMPT_ASSISTANT_SYSTEM_PROMPT}\n\n${material.join('\n\n')}` },
         ...historyMessages(input.history),
         { role: 'user', content: withNotice(input.userText, input.notice) },
     ]

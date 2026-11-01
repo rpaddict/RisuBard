@@ -30,6 +30,7 @@ describe('SettingsNavigation', () => {
             expect.objectContaining({ id: 'risubard-wiki-prompt', route: SettingsRoute.RisuBardWikiPrompt }),
             expect.objectContaining({ id: 'risubard-grimoire-prompt', route: SettingsRoute.RisuBardGrimoirePrompt }),
             expect.objectContaining({ id: 'risubard-input-assistant', route: SettingsRoute.RisuBardInputAssistant }),
+            expect.objectContaining({ id: 'risubard-assistant-prompt', route: SettingsRoute.RisuBardAssistantPrompt }),
         ])
     })
 

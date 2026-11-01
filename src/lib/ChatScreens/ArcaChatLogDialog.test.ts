@@ -65,11 +65,34 @@ describe('ArcaChatLogDialog shell', () => {
         expect(component).toContain('white-space: nowrap')
     })
 
-    test('closes on outside clicks and waits for visible rendered message content', () => {
+    test('ignores outside clicks and waits for visible rendered message content', () => {
         const component = source()
 
-        expect(component).toContain('closeOnOutsideClick={true}')
+        expect(component).toContain('closeOnOutsideClick={false}')
         expect(component).toContain('hasVisibleArcaLogContent(body)')
+    })
+
+    test('shows the target range first and builds only on request, with stop and resume', () => {
+        const component = source()
+
+        expect(component).not.toContain('void tick().then(() => generatePreview())\n        }\n        else if (!open)')
+        expect(component).toContain('data-arca-log-target')
+        expect(component).toContain('excerptArcaLogMessage')
+        expect(component).toContain('data-arca-log-stop')
+        expect(component).toContain('onclick={stopGeneration}')
+        expect(component).toContain('getArcaLogCachedBody')
+        expect(component).toContain('setArcaLogCachedBody')
+        expect(component).toContain('createArcaImageLoader')
+        expect(component).toContain('language.arcaChatLog.resumeBuild')
+    })
+
+    test('keeps font size and profile images out of the render key so the frame updates in place', () => {
+        const component = source()
+        const key = component.slice(component.indexOf('const selectionKey'), component.indexOf('const previewTitle'))
+
+        expect(key).not.toContain('risuBardArcaChatFontSizePx')
+        expect(key).not.toContain('risuBardArcaChatShowTitleImage')
+        expect(component).toContain('const previewHtml = $derived(')
     })
 
     test('stages the real chat renderer and copies rich and plain clipboard formats', () => {

@@ -147,6 +147,20 @@ export function summarizeArcaLogMessages(
     return { characters, images }
 }
 
+// Raw text for the target-range list, shown before anything is rendered.
+export function excerptArcaLogMessage(data: string | undefined, maxLength: number): string {
+    const text = (data ?? '')
+        .replace(/<img\b[^>]*>/gi, ' ')
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/(\*{1,3}|_{2,3})(?=\S)([^*_\n]+?)\1/g, '$2')
+        .replace(/[᠎​-‍⁠﻿]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    const characters = Array.from(text)
+    return characters.length > maxLength ? `${characters.slice(0, maxLength).join('')}…` : text
+}
+
 export function hasVisibleArcaLogContent(root: HTMLElement): boolean {
     const visibleText = (root.textContent ?? '')
         .replace(/[\u180E\u200B-\u200D\u2060\uFEFF]/g, '')

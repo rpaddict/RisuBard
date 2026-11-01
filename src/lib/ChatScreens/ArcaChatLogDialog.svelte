@@ -7,6 +7,7 @@
         PanelLeftCloseIcon,
         PanelLeftOpenIcon,
         SparklesIcon,
+        SquareIcon,
     } from '@lucide/svelte'
     import { mount, tick, unmount } from 'svelte'
     import { language } from 'src/lang'
@@ -22,12 +23,20 @@
     import {
         buildArcaLogClipboardHtml,
         buildArcaLogPlainText,
+        excerptArcaLogMessage,
         getArcaLogTurnCount,
         hasVisibleArcaLogContent,
         selectArcaLogMessages,
         summarizeArcaLogMessages,
         type ArcaLogRenderedMessage,
     } from 'src/ts/arcaChatLog'
+    import {
+        createArcaImageLoader,
+        getArcaLogCachedBody,
+        setArcaLogCachedBody,
+        type ArcaLogBodyOptions,
+        type ArcaLogCachedBody,
+    } from 'src/ts/arcaLogRenderCache'
     import { getChatPageCount, normalizeChatPageSize } from 'src/ts/chatPagination'
     import { getCharImage } from 'src/ts/characters'
     import { getFileSrc } from 'src/ts/globalApi.svelte'
@@ -66,16 +75,17 @@
     let draftParagraphSpacingPercent = $state(100)
     let draftImageWidthPercent = $state(60)
     let draftShowProfileImages = $state(true)
-    let previewHtml = $state('')
-    let previewPlainText = $state('')
+    let renderedMessages = $state.raw<ArcaLogRenderedMessage[]>([])
     let preparedKey = $state('')
     let busy = $state(false)
     let copied = $state(false)
     let error = $state('')
     let progress = $state(0)
+    let cacheVersion = $state(0)
     let stageRoot = $state<HTMLElement | null>(null)
     let contentElement = $state<HTMLElement | null>(null)
     let wasOpen = false
+    let lastOpenedChatKey = ''
     let generationToken = 0
 
     const sourceMessages = $derived.by((): LogSource[] => {
@@ -111,18 +121,44 @@
         selectionOptions,
     ))
     const selectionSummary = $derived(summarizeArcaLogMessages(selectedMessages.map(({ message }) => message)))
+    const chatKey = $derived(chat.id ?? chat.name)
+    const bodyOptions = $derived<ArcaLogBodyOptions>({
+        imageWidthPercent: DBState.db.risuBardArcaChatImageWidthPercent,
+        paragraphSpacingPercent: DBState.db.risuBardArcaChatParagraphSpacingPercent,
+        palette: String($ColorSchemeTypeStore),
+    })
+    // Font size and profile images only change the outer frame, so they stay out of the key
+    // and the finished preview updates in place without rendering messages again.
     const selectionKey = $derived([
-        chat.id ?? chat.name,
+        chatKey,
         sourceMessages.length,
         mode,
         mode === 'all' ? 'all' : `${rangeStart}-${rangeEnd}-${pageSize}`,
         includeUserMessages,
-        DBState.db.risuBardArcaChatFontSizePx,
-        DBState.db.risuBardArcaChatParagraphSpacingPercent,
-        DBState.db.risuBardArcaChatImageWidthPercent,
-        DBState.db.risuBardArcaChatShowTitleImage,
+        bodyOptions.imageWidthPercent,
+        bodyOptions.paragraphSpacingPercent,
+        bodyOptions.palette,
     ].join(':'))
-    const previewReady = $derived(Boolean(previewHtml) && preparedKey === selectionKey)
+    const previewTitle = $derived(chat.name.trim() || character.name)
+    const previewHtml = $derived(renderedMessages.length === 0 ? '' : buildArcaLogClipboardHtml({
+        title: previewTitle,
+        messages: renderedMessages,
+        fontSizePx: DBState.db.risuBardArcaChatFontSizePx,
+        showTitleImage: DBState.db.risuBardArcaChatShowTitleImage,
+        colors: themeColors(),
+    }))
+    const previewPlainText = $derived(buildArcaLogPlainText(previewTitle, renderedMessages))
+    const previewReady = $derived(!busy && renderedMessages.length > 0 && preparedKey === selectionKey)
+    const cachedSourceIndexes = $derived.by(() => {
+        void cacheVersion
+        const cached = new Set<number>()
+        for (const { message } of selectedMessages) {
+            if (getArcaLogCachedBody(chatKey, message.sourceIndex, message.role, message.data, bodyOptions)) {
+                cached.add(message.sourceIndex)
+            }
+        }
+        return cached
+    })
     const appearanceDirty = $derived(
         draftFontSizePx !== DBState.db.risuBardArcaChatFontSizePx
         || draftParagraphSpacingPercent !== DBState.db.risuBardArcaChatParagraphSpacingPercent
@@ -220,6 +256,9 @@
     }
 
     function applyAppearanceSettings(): void {
+        const bodiesChange = draftParagraphSpacingPercent !== DBState.db.risuBardArcaChatParagraphSpacingPercent
+            || draftImageWidthPercent !== DBState.db.risuBardArcaChatImageWidthPercent
+        const rebuild = bodiesChange && previewReady
         DBState.db.risuBardArcaChatFontSizePx = normalizeArcaChatFontSizePx(draftFontSizePx)
         DBState.db.risuBardArcaChatParagraphSpacingPercent = normalizeArcaChatParagraphSpacingPercent(
             draftParagraphSpacingPercent,
@@ -227,8 +266,8 @@
         DBState.db.risuBardArcaChatImageWidthPercent = normalizeArcaChatImageWidthPercent(draftImageWidthPercent)
         DBState.db.risuBardArcaChatShowTitleImage = draftShowProfileImages
         copied = false
-        preparedKey = ''
-        void tick().then(() => generatePreview())
+        // Body-level changes on a finished log rebuild it; everything else just updates the frame.
+        if (rebuild) void tick().then(() => generatePreview())
     }
 
     function cancelAppearanceSettings(): void {
@@ -239,7 +278,6 @@
         includeUserMessages = !includeUserMessages
         DBState.db.risuBardArcaChatIncludeUserMessages = includeUserMessages
         copied = false
-        preparedKey = ''
     }
 
     function selectRangeMode(nextMode: 'all' | 'page' | 'turn'): void {
@@ -247,7 +285,6 @@
         rangeStart = 1
         rangeEnd = nextMode === 'page' ? pageCount : nextMode === 'turn' ? turnCount : 1
         copied = false
-        preparedKey = ''
     }
 
     function persistDialogSize(target: HTMLElement): void {
@@ -260,14 +297,19 @@
         const token = ++generationToken
         const selection = [...selectedMessages]
         const requestedKey = selectionKey
+        const requestedChatKey = chatKey
+        const options = { ...bodyOptions }
+        const stage = stageRoot
         busy = true
         copied = false
         error = ''
         progress = 0
         preparedKey = ''
+        renderedMessages = []
 
         try {
             const simpleCharacter = createSimpleCharacter(character)
+            const loadImage = createArcaImageLoader(url => resolveArcaImageSource(url))
             const [characterIcon, personaIcon, characterImage, personaImage] = await Promise.all([
                 resolveIcon(character.image),
                 resolveIcon(userIcon),
@@ -280,74 +322,86 @@
                 if (token !== generationToken) return
                 const selected = selection[index]
                 const source = selected.message
-                const host = document.createElement('div')
-                stageRoot.replaceChildren(host)
-                const instance = mount(Chat, {
-                    target: host,
-                    props: {
-                        message: source.data,
-                        name: source.role === 'user' ? currentUsername : character.name,
-                        isLastMemory: false,
-                        img: source.role === 'user' ? personaImage : characterImage,
-                        idx: source.sourceIndex,
-                        totalLength: chat.message.length,
-                        messageGenerationInfo: source.generationInfo,
-                        role: source.role,
-                        character: simpleCharacter,
-                        firstMessage: source.firstMessage === true,
-                        largePortrait: source.role === 'user' ? false : character.largePortrait,
-                    },
+                const isUser = source.role === 'user'
+                const body = getArcaLogCachedBody(requestedChatKey, source.sourceIndex, source.role, source.data, options)
+                    ?? await renderMessageBody(source, stage, simpleCharacter, isUser ? personaImage : characterImage, options, loadImage)
+                if (token !== generationToken) return
+                setArcaLogCachedBody(requestedChatKey, source.sourceIndex, source.role, source.data, options, body)
+                cacheVersion += 1
+                rendered.push({
+                    number: selected.number,
+                    role: source.role,
+                    displayName: isUser ? currentUsername : character.name,
+                    badge: isUser
+                        ? undefined
+                        : (source.generationInfo
+                            ? capitalize(getModelInfo(source.generationInfo.model).shortName)
+                            : 'AI'),
+                    iconDataUrl: isUser ? personaIcon : characterIcon,
+                    ...body,
                 })
-
-                try {
-                    const body = await waitForRenderedBody(host, !source.data.trim())
-                    const bodyHtml = await exportArcaHtml(body, {
-                        imageWidthPercent: DBState.db.risuBardArcaChatImageWidthPercent,
-                        paragraphSpacingPercent: DBState.db.risuBardArcaChatParagraphSpacingPercent,
-                        semanticPalette: $ColorSchemeTypeStore,
-                        renderComplexBlock: renderArcaComplexBlock,
-                    })
-                    const plainText = body.innerText.trim() || body.textContent?.trim() || source.data
-                    const isUser = source.role === 'user'
-                    rendered.push({
-                        number: selected.number,
-                        role: source.role,
-                        displayName: isUser ? currentUsername : character.name,
-                        badge: isUser
-                            ? undefined
-                            : (source.generationInfo
-                                ? capitalize(getModelInfo(source.generationInfo.model).shortName)
-                                : 'AI'),
-                        iconDataUrl: isUser ? personaIcon : characterIcon,
-                        bodyHtml,
-                        plainText,
-                    })
-                }
-                finally {
-                    await unmount(instance)
-                    stageRoot.replaceChildren()
-                }
                 progress = index + 1
             }
 
             if (token !== generationToken) return
-            const title = chat.name.trim() || character.name
-            previewHtml = buildArcaLogClipboardHtml({
-                title,
-                messages: rendered,
-                fontSizePx: DBState.db.risuBardArcaChatFontSizePx,
-                showTitleImage: DBState.db.risuBardArcaChatShowTitleImage,
-                colors: themeColors(),
-            })
-            previewPlainText = buildArcaLogPlainText(title, rendered)
+            renderedMessages = rendered
             preparedKey = requestedKey
         }
         catch (cause) {
+            if (token !== generationToken) return
             console.error('Arca chat log generation failed:', cause)
             error = cause instanceof Error ? cause.message : String(cause)
         }
         finally {
             if (token === generationToken) busy = false
+        }
+    }
+
+    async function renderMessageBody(
+        source: LogSource,
+        stage: HTMLElement,
+        simpleCharacter: ReturnType<typeof createSimpleCharacter>,
+        image: string,
+        options: ArcaLogBodyOptions,
+        loadImage: (url: string) => Promise<string>,
+    ): Promise<ArcaLogCachedBody> {
+        const host = document.createElement('div')
+        // A stopped run may still be finishing its message, so each run removes only its own host.
+        stage.appendChild(host)
+        const instance = mount(Chat, {
+            target: host,
+            props: {
+                message: source.data,
+                name: source.role === 'user' ? currentUsername : character.name,
+                isLastMemory: false,
+                img: image,
+                idx: source.sourceIndex,
+                totalLength: chat.message.length,
+                messageGenerationInfo: source.generationInfo,
+                role: source.role,
+                character: simpleCharacter,
+                firstMessage: source.firstMessage === true,
+                largePortrait: source.role === 'user' ? false : character.largePortrait,
+            },
+        })
+
+        try {
+            const body = await waitForRenderedBody(host, !source.data.trim())
+            const bodyHtml = await exportArcaHtml(body, {
+                imageWidthPercent: options.imageWidthPercent,
+                paragraphSpacingPercent: options.paragraphSpacingPercent,
+                semanticPalette: $ColorSchemeTypeStore,
+                renderComplexBlock: renderArcaComplexBlock,
+                loadImage,
+            })
+            return {
+                bodyHtml,
+                plainText: body.innerText.trim() || body.textContent?.trim() || source.data,
+            }
+        }
+        finally {
+            await unmount(instance)
+            host.remove()
         }
     }
 
@@ -376,32 +430,37 @@
         }
     }
 
+    // Finished messages stay in the render cache, so the next build resumes from here.
+    function stopGeneration(): void {
+        generationToken += 1
+        busy = false
+        renderedMessages = []
+    }
+
     function close(next: boolean): void {
-        if (!next) {
-            generationToken += 1
-            busy = false
-            stageRoot?.replaceChildren()
-        }
+        if (!next && busy) stopGeneration()
         onOpenChange(next)
     }
 
     $effect(() => {
         if (open && !wasOpen) {
             wasOpen = true
-            mode = 'all'
-            includeUserMessages = normalizeArcaChatIncludeUserMessages(
-                DBState.db.risuBardArcaChatIncludeUserMessages,
-            )
-            sidebarOpen = true
+            // Reopening the same chat keeps the chosen range and any finished log.
+            if (lastOpenedChatKey !== chatKey) {
+                lastOpenedChatKey = chatKey
+                mode = 'all'
+                includeUserMessages = normalizeArcaChatIncludeUserMessages(
+                    DBState.db.risuBardArcaChatIncludeUserMessages,
+                )
+                sidebarOpen = true
+                rangeStart = 1
+                rangeEnd = 1
+                renderedMessages = []
+                preparedKey = ''
+            }
             resetAppearanceDraft()
-            rangeStart = 1
-            rangeEnd = 1
-            previewHtml = ''
-            previewPlainText = ''
-            preparedKey = ''
             error = ''
             copied = false
-            void tick().then(() => generatePreview())
         }
         else if (!open) {
             wasOpen = false
@@ -410,7 +469,7 @@
 </script>
 
 <ShDialog {open} onOpenChange={close} size="xl" tier="base"
-    closeOnEscape={!busy} closeOnOutsideClick={true}
+    closeOnEscape={!busy} closeOnOutsideClick={false}
     bind:contentElement
     contentClass="overflow-hidden gap-3"
     contentStyle={dialogContentStyle}
@@ -544,25 +603,57 @@
                 </div>
                 {#if previewReady}
                     <span class="arca-log-ready"><CheckIcon size={14} />{language.arcaChatLog.ready}</span>
+                {:else if busy}
+                    <span class="arca-log-busy" role="status">
+                        <LoaderCircleIcon size={14} class="animate-spin" />{progress} / {selectedMessages.length}
+                    </span>
                 {/if}
             </header>
+            {#if busy}
+                <div class="arca-log-progress"><span style:width={`${selectedMessages.length ? progress / selectedMessages.length * 100 : 0}%`}></span></div>
+            {/if}
 
             <div class="arca-log-preview" data-arca-log-preview>
-                {#if busy}
-                    <div class="arca-log-state" role="status">
-                        <LoaderCircleIcon size={30} class="animate-spin" />
-                        <strong>{language.arcaChatLog.generating}</strong>
-                        <span>{progress} / {selectedMessages.length}</span>
-                        <div class="arca-log-progress"><span style:width={`${selectedMessages.length ? progress / selectedMessages.length * 100 : 0}%`}></span></div>
-                    </div>
-                {:else if error}
-                    <div class="arca-log-state arca-log-error" role="alert">
-                        <strong>{language.arcaChatLog.failed}</strong><span>{error}</span>
-                    </div>
-                {:else if previewHtml}
+                {#if previewReady}
                     <div class="arca-log-paper">{@html previewHtml}</div>
                 {:else}
-                    <div class="arca-log-state"><SparklesIcon size={30} /><span>{language.arcaChatLog.emptyPreview}</span></div>
+                    {#if error}
+                        <div class="arca-log-error" role="alert">
+                            <strong>{language.arcaChatLog.failed}</strong><span>{error}</span>
+                        </div>
+                    {/if}
+                    <div class="arca-log-target" data-arca-log-target>
+                        <div class="arca-log-target-heading">
+                            <div>
+                                <h4>{language.arcaChatLog.targetHeading}</h4>
+                                <p>{language.arcaChatLog.targetHelp}</p>
+                            </div>
+                            {#if cachedSourceIndexes.size > 0}
+                                <span class="arca-log-built-count" data-arca-log-built-count>
+                                    {language.arcaChatLog.alreadyBuilt} {cachedSourceIndexes.size} / {selectedMessages.length}
+                                </span>
+                            {/if}
+                        </div>
+                        {#if selectedMessages.length === 0}
+                            <p class="arca-log-target-empty">{language.arcaChatLog.targetEmpty}</p>
+                        {:else}
+                            <ol>
+                                {#each selectedMessages as selected, index (selected.message.sourceIndex)}
+                                    {@const boundary = index === 0 || index === selectedMessages.length - 1}
+                                    <li class:boundary class:built={cachedSourceIndexes.has(selected.message.sourceIndex)}>
+                                        <div class="arca-log-target-meta">
+                                            <span class="arca-log-target-number">{String(selected.number).padStart(2, '0')}</span>
+                                            <strong>{selected.message.role === 'user' ? currentUsername : character.name}</strong>
+                                            {#if index === 0}<em>{language.arcaChatLog.from}</em>{/if}
+                                            {#if index === selectedMessages.length - 1 && index !== 0}<em>{language.arcaChatLog.to}</em>{/if}
+                                            {#if cachedSourceIndexes.has(selected.message.sourceIndex)}<CheckIcon size={14} aria-label={language.arcaChatLog.alreadyBuilt} />{/if}
+                                        </div>
+                                        <p>{excerptArcaLogMessage(selected.message.data, boundary ? 280 : 120)}</p>
+                                    </li>
+                                {/each}
+                            </ol>
+                        {/if}
+                    </div>
                 {/if}
             </div>
         </section>
@@ -571,17 +662,24 @@
     <div class="arca-log-export-stage" aria-hidden="true" bind:this={stageRoot}></div>
 
     {#snippet footer()}
-        <ShButton variant="ghost" disabled={busy} onclick={() => close(false)}>{language.cancel}</ShButton>
-        <ShButton variant="primary" data-arca-log-submit disabled={busy || selectedMessages.length === 0}
-            onclick={() => void copyPreparedLog()}>
-            {#if busy}
+        {#if busy}
+            <ShButton variant="ghost" data-arca-log-stop onclick={stopGeneration}>
+                <SquareIcon size={14} />{language.arcaChatLog.stop}
+            </ShButton>
+            <ShButton variant="primary" data-arca-log-submit disabled>
                 <LoaderCircleIcon size={16} class="animate-spin" />{language.arcaChatLog.generating}
-            {:else if previewReady}
-                {#if copied}<CheckIcon size={16} />{language.arcaChatLog.copiedShort}{:else}<CopyIcon size={16} />{language.arcaChatLog.copy}{/if}
-            {:else}
-                <SparklesIcon size={16} />{language.arcaChatLog.createPreview}
-            {/if}
-        </ShButton>
+            </ShButton>
+        {:else}
+            <ShButton variant="ghost" onclick={() => close(false)}>{language.cancel}</ShButton>
+            <ShButton variant="primary" data-arca-log-submit disabled={selectedMessages.length === 0}
+                onclick={() => void copyPreparedLog()}>
+                {#if previewReady}
+                    {#if copied}<CheckIcon size={16} />{language.arcaChatLog.copiedShort}{:else}<CopyIcon size={16} />{language.arcaChatLog.copy}{/if}
+                {:else}
+                    <SparklesIcon size={16} />{cachedSourceIndexes.size > 0 && cachedSourceIndexes.size < selectedMessages.length ? language.arcaChatLog.resumeBuild : language.arcaChatLog.buildLog}
+                {/if}
+            </ShButton>
+        {/if}
     {/snippet}
 </ShDialog>
 
@@ -641,12 +739,26 @@
     .arca-log-ready { display: inline-flex; align-items: center; gap: .25rem; padding: .25rem .5rem; border: 1px solid var(--color-success-border); border-radius: 999px; background: var(--color-success-bg); color: var(--color-success); font-size: .6875rem; }
     .arca-log-preview { min-height: 0; flex: 1; overflow: auto; padding: 1rem; background: color-mix(in srgb, var(--color-bgcolor) 78%, var(--color-shadow)); scrollbar-gutter: stable; }
     .arca-log-paper { width: min(100%, 760px); margin: 0 auto; filter: drop-shadow(0 18px 30px color-mix(in srgb, var(--color-shadow) 22%, transparent)); }
-    .arca-log-state { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .65rem; color: var(--color-textcolor2); text-align: center; }
-    .arca-log-state strong { color: var(--color-textcolor); }
-    .arca-log-state span { font-size: .75rem; }
-    .arca-log-error { color: var(--color-danger); }
-    .arca-log-progress { width: min(15rem, 70%); height: .25rem; overflow: hidden; border-radius: 999px; background: var(--color-selected); }
-    .arca-log-progress span { display: block; height: 100%; border-radius: inherit; background: var(--color-primary); transition: width .2s ease; }
+    .arca-log-busy { display: inline-flex; align-items: center; gap: .35rem; color: var(--color-textcolor2); font-size: .75rem; font-variant-numeric: tabular-nums; }
+    .arca-log-progress { flex: 0 0 auto; height: .1875rem; overflow: hidden; background: var(--color-selected); }
+    .arca-log-progress span { display: block; height: 100%; background: var(--color-primary); transition: width .2s ease; }
+    .arca-log-error { display: flex; flex-direction: column; gap: .25rem; width: min(100%, 760px); margin: 0 auto .75rem; padding: .75rem .9rem; border: 1px solid var(--color-danger); border-radius: .75rem; color: var(--color-danger); font-size: .8125rem; }
+    .arca-log-target { width: min(100%, 760px); margin: 0 auto; }
+    .arca-log-target-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .5rem .75rem; margin-bottom: .75rem; }
+    .arca-log-target-heading h4 { margin: 0; color: var(--color-textcolor); font-size: 1rem; font-weight: 700; }
+    .arca-log-target-heading p { margin-top: .25rem; color: var(--color-textcolor2); font-size: .75rem; line-height: 1.55; }
+    .arca-log-built-count { flex: 0 0 auto; padding: .25rem .55rem; border: 1px solid var(--color-success-border); border-radius: 999px; background: var(--color-success-bg); color: var(--color-success); font-size: .6875rem; font-variant-numeric: tabular-nums; }
+    .arca-log-target-empty { padding: 1.5rem 0; color: var(--color-textcolor2); font-size: .8125rem; text-align: center; }
+    .arca-log-target ol { display: flex; flex-direction: column; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+    .arca-log-target li { min-width: 0; padding: .45rem .7rem; border: 1px solid transparent; border-radius: .625rem; background: var(--color-darkbg); }
+    .arca-log-target li.boundary { padding: .7rem .85rem; border-color: var(--color-borderc); }
+    .arca-log-target-meta { display: flex; align-items: center; gap: .5rem; min-width: 0; color: var(--color-textcolor2); font-size: .6875rem; }
+    .arca-log-target-meta strong { overflow: hidden; color: var(--color-textcolor); font-size: .78rem; white-space: nowrap; text-overflow: ellipsis; }
+    .arca-log-target-meta em { padding: .05rem .4rem; border-radius: 999px; background: color-mix(in srgb, var(--color-primary) 18%, transparent); color: var(--color-textcolor); font-style: normal; font-weight: 700; }
+    .arca-log-target-meta :global(svg) { flex: 0 0 auto; color: var(--color-success); }
+    .arca-log-target-number { min-width: 1.5rem; font-variant-numeric: tabular-nums; }
+    .arca-log-target li p { margin-top: .2rem; overflow: hidden; color: var(--color-textcolor2); font-size: .75rem; line-height: 1.5; white-space: nowrap; text-overflow: ellipsis; }
+    .arca-log-target li.boundary p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; color: var(--color-textcolor); white-space: normal; }
     .arca-log-export-stage { position: fixed; left: -100000px; top: 0; width: 760px; pointer-events: none; }
 
     @media (max-width: 640px) {

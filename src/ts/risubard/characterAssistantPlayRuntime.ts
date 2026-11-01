@@ -6,6 +6,7 @@
 import { get, writable } from 'svelte/store'
 import { v4 } from 'uuid'
 import { DBState, selectedCharID } from '../stores.svelte'
+import { resolveAssistantPrompt } from './assistantPrompts'
 import { newChatModelDefaults, type character, type Chat } from '../storage/database.svelte'
 import { changeChatTo, requestImmediateSave } from '../globalApi.svelte'
 import { changeChar } from '../characters'
@@ -162,6 +163,7 @@ function lastReply(target: character, chat: Chat): string {
 
 async function askPlayer(options: StartPlayOptions, target: character, chat: Chat, lore: PlayLoreEntry[], wiki: CapturedChatContext['wiki'], turn: number, signal: AbortSignal) {
     const formated = buildPlayerMessages({
+        systemPrompt: resolveAssistantPrompt(DBState.db.risuBardAssistantPrompts, 'characterAssistantPlayer'),
         instruction: options.instruction,
         personaName: getUserName({ character: target, chat }),
         personaPrompt: getPersonaPrompt({ character: target, chat }) ?? '',

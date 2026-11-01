@@ -46,6 +46,8 @@
         readOnly = false,
         simple = false,
         critical = false,
+        lockName = false,
+        conditions = true,
         onScrollTopChange = () => {},
         onReplace,
         onOpenToggleSetup,
@@ -57,6 +59,9 @@
         readOnly?: boolean
         simple?: boolean
         critical?: boolean
+        lockName?: boolean
+        /** False for text sent without CBS processing, where toggle conditions would do nothing. */
+        conditions?: boolean
         onScrollTopChange?: (scrollTop: number) => void
         onReplace: (item: PromptItem) => void
         onOpenToggleSetup: () => void
@@ -509,12 +514,12 @@
                         type="button"
                         class="editor-title-button"
                         class:editor-title-button--critical={critical}
-                        disabled={readOnly}
+                        disabled={readOnly || lockName}
                         onclick={beginNameEdit}
                         title={language.name}
                     >
                         <span class="truncate">{item.name?.trim() || language.promptV2.editor}</span>
-                        {#if !readOnly}<PencilIcon size={13} />{/if}
+                        {#if !readOnly && !lockName}<PencilIcon size={13} />{/if}
                     </button>
                 {/if}
             </div>
@@ -580,7 +585,7 @@
 
         {#if textSource && parsedText}
         <div class="editor-toolbar">
-            {#if textSource && parsedText?.editable && !readOnly}
+            {#if textSource && parsedText?.editable && !readOnly && conditions}
                 <div class="toolbar-control">
                     <ShButton size="sm" variant="secondary" onclick={() => activationDialogOpen = true}>
                         <SlidersHorizontalIcon size={15} />
@@ -894,7 +899,7 @@
                 </section>
             {/if}
 
-            {#if textSource && parsedText?.editable}
+            {#if textSource && parsedText?.editable && conditions}
                 <details class="editor-card mt-4">
                     <summary class="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
                         <span class="flex items-center gap-2"><BracesIcon size={15} class="text-textcolor2" />{language.promptV2.variableLibrary}</span>

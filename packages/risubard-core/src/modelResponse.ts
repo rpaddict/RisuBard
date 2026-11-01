@@ -20,13 +20,14 @@ export class ModelOutputError extends Error {
     validationHint?: string
     constructor(
         public readonly reason: 'empty' | 'truncated' | 'invalid-structure' | 'blocked',
-        validationHint?: string
+        validationHint?: string,
+        public readonly providerFinishReason?: string
     ) {
         const baseMessage = {
             empty: 'AI가 최종 답변 없이 빈 응답을 반환했습니다.',
             truncated: 'AI 응답이 출력 한도에서 잘렸습니다. 출력 토큰 한도를 늘리거나 한 번에 처리할 양을 줄여 주세요.',
             'invalid-structure': 'AI 응답 형식이 올바르지 않습니다. 검증되지 않은 내용은 저장하지 않았습니다.',
-            blocked: '모델 제공자가 응답 생성을 중단했습니다.',
+            blocked: `모델 제공자가 응답 생성을 중단했습니다.${providerFinishReason ? ` (종료 사유: ${providerFinishReason.slice(0, 64)})` : ''}`,
         }[reason]
         const boundedHint = validationHint?.slice(0, 512)
         super(baseMessage)
@@ -55,7 +56,7 @@ export function readModelResponseText(response: ModelResponse): string {
     const finish = response.finishReason?.toLowerCase()
     let failure: ModelOutputError | undefined
     if (['content_filter', 'safety', 'refusal', 'recitation', 'blocklist', 'prohibited_content'].includes(finish ?? '')) {
-        failure = new ModelOutputError('blocked')
+        failure = new ModelOutputError('blocked', undefined, response.finishReason)
     } else if (['length', 'max_tokens', 'max_output_tokens'].includes(finish ?? '')) {
         failure = new ModelOutputError('truncated')
     }
