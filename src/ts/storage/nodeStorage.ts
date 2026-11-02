@@ -218,6 +218,16 @@ export class RisuAccountImportError extends Error {
     }
 }
 
+/** The server's `{ error }` reason as " (reason)", or "" when the body has none. */
+async function readServerErrorReason(response: Response): Promise<string> {
+    try {
+        const reason = (await response.json())?.error
+        return typeof reason === 'string' && reason ? ` (${reason})` : ''
+    } catch {
+        return ''
+    }
+}
+
 export class NodeStorage{
     importProgressId?: string
 
@@ -1354,7 +1364,7 @@ export class NodeStorage{
             headers: { 'x-chat-id': chatId },
         })
         if (da.status === 404) return null
-        if (da.status < 200 || da.status >= 300) throw new Error(`fetchChatContent error: ${da.status}`)
+        if (da.status < 200 || da.status >= 300) throw new Error(`fetchChatContent error: ${da.status}${await readServerErrorReason(da)}`)
         const buffer = new Uint8Array(await da.arrayBuffer())
         return normalizeChat(await decodeRisuSave(buffer))
     }
@@ -1378,7 +1388,7 @@ export class NodeStorage{
                 { headers: { 'x-chat-id': chatId } },
             )
             if (da.status < 200 || da.status >= 300) {
-                throw new Error(`fetchChatContent page error: ${da.status}`)
+                throw new Error(`fetchChatContent page error: ${da.status}${await readServerErrorReason(da)}`)
             }
 
             const buffer = new Uint8Array(await da.arrayBuffer())
@@ -1393,7 +1403,7 @@ export class NodeStorage{
             return this.fetchFullChatContent(chaId, chatIndex, chatId)
         }
         if (firstResponse.status < 200 || firstResponse.status >= 300) {
-            throw new Error(`fetchChatContent page error: ${firstResponse.status}`)
+            throw new Error(`fetchChatContent page error: ${firstResponse.status}${await readServerErrorReason(firstResponse)}`)
         }
         const firstBuffer = new Uint8Array(await firstResponse.arrayBuffer())
         const firstPage = await decodeRisuSave(firstBuffer) as ChatContentPageEnvelope<Message, Omit<Chat, 'message'>>

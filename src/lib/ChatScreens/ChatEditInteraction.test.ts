@@ -320,4 +320,31 @@ describe('message edit button', () => {
 
         expect(document.querySelector<HTMLTextAreaElement>('.message-edit-area')).not.toBeNull()
     })
+
+    test('keeps older messages editable after the list re-renders', async () => {
+        const character = DBState.db.characters[0]
+        const state = new SvelteMap<string, any>([['messages', [
+            { role: 'char', chatId: 'a', data: 'first' },
+            { role: 'user', chatId: 'b', data: 'second' },
+        ]]])
+        const chat = { id: 'room', get message() { return state.get('messages') } }
+        character.chats = [chat] as any
+        mounted = mount(Chats, { target: document.body, props: {
+            get messages() { return chat.message }, currentCharacter: character,
+            onReroll: vi.fn(), unReroll: vi.fn(), currentUsername: 'User', userIcon: '', pageStart: 0,
+            get pageEnd() { return chat.message.length },
+        } })
+        const settle = async () => { await tick(); await tick(); await tick() }
+        await settle()
+        // A reply arrives and is then rerolled away: the list effect runs twice after the first mount.
+        state.set('messages', [...state.get('messages'), { role: 'char', chatId: 'c', data: 'third' }])
+        await settle()
+        state.set('messages', state.get('messages').slice(0, 2))
+        await settle()
+
+        const first = document.querySelector('[data-chat-index="0"]')!
+        first.querySelector<HTMLButtonElement>('.button-icon-edit')!.click()
+        await settle()
+        expect(first.querySelector('.message-edit-area')).not.toBeNull()
+    })
 })

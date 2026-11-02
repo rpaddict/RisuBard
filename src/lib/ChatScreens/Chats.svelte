@@ -152,6 +152,11 @@
                 b.classList.add('chat-message-container');
                 const swipes = message.swipes;
                 const swipeId = message.swipeId ?? 0;
+                // Mounting inside this $effect would make the message a child of it. When the effect
+                // re-runs, Svelte detaches it while an update may still be pending, and the message
+                // stops reacting (the edit button did nothing until the bot was reopened).
+                queueMicrotask(() => {
+                if(!b.isConnected || mountInstances.has(currentHash)) return
                 const inst = mount(Chat, {
                     target: b,
                     props: {
@@ -189,6 +194,7 @@
 
                 })
                 mountInstances.set(currentHash, inst);
+                })
                 const nextElement = nextHash === 0 ? null : chatBody.querySelector(`[x-hashed="${nextHash}"]`);
                 if(nextElement){
                     chatBody.insertBefore(b, nextElement?.nextSibling);

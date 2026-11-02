@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     alertConfirm: vi.fn(), alertConfirmMulti: vi.fn(),
     createWriteStream: vi.fn(), exportBackup: vi.fn(), settingsBackupEstimate: vi.fn(),
     notifySuccess: vi.fn(), notifyInfo: vi.fn(), requestImmediateSave: vi.fn(),
+    getDatabase: vi.fn(), fetchChatFromServer: vi.fn(),
 }))
 
 vi.mock('../alert', () => ({
@@ -12,13 +13,13 @@ vi.mock('../alert', () => ({
     alertStore: { set: vi.fn() }, notifyError: vi.fn(), waitAlert: vi.fn(),
 }))
 vi.mock('../globalApi.svelte', () => ({
-    downloadFile: vi.fn(), LocalWriter: class {},
+    downloadFile: vi.fn(), LocalWriter: class { async init() { return true } async writeBackup() {} async close() {} },
     forageStorage: { exportBackup: mocks.exportBackup, settingsBackupEstimate: mocks.settingsBackupEstimate },
     requestImmediateSave: mocks.requestImmediateSave,
 }))
 vi.mock('../storage/risuSave', () => ({ encodeRisuSaveLegacy: vi.fn() }))
-vi.mock('../storage/database.svelte', () => ({ getDatabase: vi.fn(() => ({ characters: [] })) }))
-vi.mock('../storage/chatStorage', () => ({ fetchChatFromServer: vi.fn() }))
+vi.mock('../storage/database.svelte', () => ({ getDatabase: mocks.getDatabase }))
+vi.mock('../storage/chatStorage', () => ({ fetchChatFromServer: mocks.fetchChatFromServer }))
 vi.mock('src/lang', () => ({ language: {
     backupDownloadRequested: 'Check browser downloads',
     backupSettingsOnlyConfirm: () => 'Confirm',
@@ -29,7 +30,7 @@ vi.mock('src/lang', () => ({ language: {
 } }))
 vi.mock('streamsaver', () => ({ createWriteStream: mocks.createWriteStream }))
 
-import { SaveLocalBackup, SaveLocalBackupForUpstream, SaveSettingsOnlyBackup } from './backuplocal'
+import { SaveLocalBackup, SaveLocalBackupForUpstream, SavePartialLocalBackup, SaveSettingsOnlyBackup } from './backuplocal'
 
 describe('local backup download handoff', () => {
     beforeEach(() => {
@@ -82,5 +83,22 @@ describe('local backup download handoff', () => {
         expect(mocks.exportBackup).toHaveBeenCalledWith({ mode: 'settings', moduleAssets: false })
         expect(mocks.alertMd).toHaveBeenCalledWith('Download requested without module assets')
         expect(mocks.notifySuccess).not.toHaveBeenCalled()
+    })
+})
+
+describe('partial local backup', () => {
+    beforeEach(() => {
+        vi.resetAllMocks()
+        mocks.alertConfirm.mockResolvedValue(true)
+    })
+
+    it('names the chat and keeps the server reason when a chat cannot be read', async () => {
+        mocks.getDatabase.mockReturnValue({ characters: [{
+            chaId: 'cha-1', name: 'Alice', chats: [{ id: 'chat-1', name: 'Old chat', _placeholder: true }],
+        }] })
+        mocks.fetchChatFromServer.mockRejectedValue(new Error('fetchChatContent page error: 500 (Cold storage restore failed)'))
+        await expect(SavePartialLocalBackup()).rejects.toThrow(
+            'Could not read chat "Alice" / "Old chat" (chat-1) from the server: fetchChatContent page error: 500 (Cold storage restore failed). Backup aborted to prevent data loss.',
+        )
     })
 })

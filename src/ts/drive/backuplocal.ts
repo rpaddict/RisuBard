@@ -238,7 +238,13 @@ export async function SavePartialLocalBackup(){
         for (let i = 0; i < char.chats.length; i++) {
             const chat = char.chats[i]
             if (chat._placeholder && chat.id) {
-                const full = await fetchChatFromServer(char.chaId, i, chat.id)
+                let full: unknown
+                try {
+                    full = await fetchChatFromServer(char.chaId, i, chat.id)
+                } catch (error) {
+                    const reason = error instanceof Error ? error.message : String(error)
+                    throw new Error(`Could not read chat "${char.name}" / "${chat.name}" (${chat.id}) from the server: ${reason}. Backup aborted to prevent data loss.`)
+                }
                 if (full) {
                     char.chats[i] = full as Chat
                 } else {
