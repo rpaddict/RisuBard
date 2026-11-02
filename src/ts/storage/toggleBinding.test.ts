@@ -99,6 +99,19 @@ describe('per-chat toggle pinning', () => {
         expect(db.globalChatVariables.toggle_one).toBe('1')
     })
 
+    test('pinning keeps the values of the bot\'s own custom toggles', () => {
+        character.customModuleToggle = 'mood=Mood=select=Calm,Angry'
+        db.globalChatVariables.toggle_mood = '1'
+
+        pinToggleValuesToChat(chat, db, character)
+        expect(chat.GLGlobalVariables.toggle_mood).toBe('1')
+
+        chat.GLGlobalVariables.toggle_mood = '0'
+        pinToggleValuesToChat(chat, db, character)
+        expect(chat.GLGlobalVariables.toggle_mood).toBe('0')
+        expect(chat.togglePresetBaseline.values.toggle_mood).toBe('0')
+    })
+
     test('resets pinned values exactly to the stored baseline', () => {
         applyTogglePresetToChat({ name: 'Story', values: { toggle_one: 'preset' } }, db, character, chat)
         chat.GLGlobalVariables = { toggle_one: 'changed', toggle_extra: 'orphan' }

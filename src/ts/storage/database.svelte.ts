@@ -1372,7 +1372,8 @@ export function getToggleKeys(db:Database = getDatabase(), char:character = getC
         .map((module) => module.customModuleToggle ?? '')
         .filter(Boolean)
         .join('\n')
-    return parseToggleKeysFromTemplate(`${getActivePromptOverlayToggleTemplate(db)}\n${moduleToggleTemplate}`)
+    // The bot's own toggles are listed too, or pinning a chat drops their values.
+    return parseToggleKeysFromTemplate(`${getActivePromptOverlayToggleTemplate(db)}\n${moduleToggleTemplate}\n${char?.customModuleToggle ?? ''}`)
 }
 
 export function snapshotToggleValues(db:Database = getDatabase()):Record<string, string>{
