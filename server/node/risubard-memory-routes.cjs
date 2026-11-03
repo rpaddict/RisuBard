@@ -1054,6 +1054,38 @@ function registerRisuBardMemoryRoutes(app, options) {
     )
 
     app.post(
+        '/api/risubard/memory/wiki/event/story-times',
+        async (req, res, next) => {
+            try {
+                if (!await options.auth(req, res)) return
+                if (!hasExactKeys(req.body, ['characterId', 'chatId', 'updates'])
+                    || !hasBoundedId(req.body.characterId)
+                    || !hasBoundedId(req.body.chatId)
+                    || !Array.isArray(req.body.updates)
+                    || req.body.updates.length > 512
+                    || !req.body.updates.every((update) => hasExactKeys(update, [
+                        'documentId', 'expectedContentHash', 'storyTime',
+                    ])
+                        && hasBoundedId(update.documentId)
+                        && hasBoundedId(update.expectedContentHash)
+                        && update.storyTime !== null
+                        && typeof update.storyTime === 'object')) {
+                    res.status(400).send({
+                        error: 'Invalid Markdown wiki story time request',
+                    })
+                    return
+                }
+                res.send(await options.service.setWikiEventStoryTimes(
+                    req.body
+                ))
+            }
+            catch (error) {
+                next(error)
+            }
+        }
+    )
+
+    app.post(
         '/api/risubard/memory/wiki/event/retract-sources',
         async (req, res, next) => {
             try {

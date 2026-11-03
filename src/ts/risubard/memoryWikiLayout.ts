@@ -23,6 +23,10 @@ const DEFAULT_AVAILABLE_WORKSPACE_HEIGHT = 10_000
 const DEFAULT_TREE_HEIGHT = 176
 const MIN_TREE_HEIGHT = 96
 const MIN_EDITOR_HEIGHT = 192
+const DEFAULT_TREE_WIDTH = 272
+const MIN_TREE_WIDTH = 192
+const MAX_TREE_WIDTH = 640
+const MIN_EDITOR_WIDTH = 320
 
 export function normalizeMemoryWikiDockRatio(value: unknown): number {
     const ratio = finiteOr(value, DEFAULT_DOCK_RATIO)
@@ -63,6 +67,16 @@ export function normalizeMemoryWikiTreeHeight(
         MIN_TREE_HEIGHT,
         available - MIN_EDITOR_HEIGHT
     )
+}
+
+/** Desktop file tree width; the editor beside it keeps a readable minimum. */
+export function normalizeMemoryWikiTreeWidth(
+    value: unknown,
+    availableWidth = DEFAULT_AVAILABLE_WORKSPACE_HEIGHT
+): number {
+    const available = Math.round(finiteOr(availableWidth, DEFAULT_AVAILABLE_WORKSPACE_HEIGHT))
+    const maximum = Math.max(MIN_TREE_WIDTH, Math.min(MAX_TREE_WIDTH, available - MIN_EDITOR_WIDTH))
+    return clamp(Math.round(finiteOr(value, DEFAULT_TREE_WIDTH)), MIN_TREE_WIDTH, maximum)
 }
 
 function finiteOr(value: unknown, fallback: number): number {

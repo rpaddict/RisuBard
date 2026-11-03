@@ -1,6 +1,7 @@
 import type { NarrativeMemoryWikiMarkdown } from './memoryWiki'
 import { isWikiHeadingLabel } from './wikiWritingLanguage'
 import { createEventOrder, type EventOrderMessage } from './eventOrder'
+import { formatStoryTimeLabel } from '../../../server/node/risubard-memory-metadata'
 
 type MarkdownDocument = Omit<NarrativeMemoryWikiMarkdown['documents'][number], 'content'> & {
     content?: string
@@ -15,6 +16,8 @@ export interface StorySoFarEntry {
     id: string
     title: string
     created: string
+    /** Story day from day 0 and any in-story date, such as "+2일, 7월 넷째 주 월요일". */
+    time: string
     summary: string[]
     source: StorySourceRef
 }
@@ -64,6 +67,7 @@ export function buildStorySoFar(
             id: document.id,
             title: document.title,
             created: document.created ?? document.updated,
+            time: formatStoryTimeLabel(document.retrievalMetadata?.storyTime),
             summary,
             source: sourceFor(document),
         }))

@@ -46,6 +46,31 @@ describe('Markdown narrative wiki', () => {
         expect(cleared.grade).toBeUndefined()
     })
 
+    test('writes story times onto events without touching their text, and skips changed or non-event pages', async () => {
+        const root = await fs.mkdtemp(join(tmpdir(), 'risubard-md-wiki-'))
+        temporaryDirectories.push(root)
+        const wiki = createMarkdownNarrativeWiki(root)
+        const scope = { characterId: 'character', chatId: 'chat' }
+        const event = await wiki.saveConfirmedTurn({ ...scope, sourceMessageIds: ['assistant-1'],
+            markdown: '## 등교\n\n### 이야기 요약\n\n- 학교로 갔다.',
+            retrievalMetadata: { keywords: ['학교'], storyTime: { day: null, evidence: 'x', precision: 'unknown' } } })
+        const alice = await wiki.saveCanonicalDocument({ ...scope, type: 'character', title: 'Alice',
+            sourceMessageIds: ['assistant-1'], markdown: '## Alice\n\nAlice guards the north gate.' })
+        const storyTime = { day: 2, evidence: '다음 날', precision: 'explicit' as const, calendar: '7월 넷째 주 화요일' }
+        const result = await wiki.setEventStoryTimes({ ...scope, updates: [
+            { documentId: event!.id, expectedContentHash: event!.contentHash, storyTime },
+            { documentId: alice.id, expectedContentHash: alice.contentHash, storyTime },
+            { documentId: event!.id, expectedContentHash: 'stale', storyTime },
+        ] })
+        expect(result).toEqual({ updated: [event!.id], skipped: [alice.id, event!.id] })
+        const [saved] = await wiki.readDocumentBodies('character', 'chat', [event!.id])
+        expect(saved.retrievalMetadata).toEqual({ keywords: ['학교'], storyTime })
+        expect(saved).toMatchObject({ content: event!.content, updated: event!.updated })
+        await expect(wiki.setEventStoryTimes({ ...scope, updates: [{ documentId: event!.id,
+            expectedContentHash: saved.contentHash, storyTime: { day: 1, evidence: 'x', precision: 'flashback' } as never }] }))
+            .rejects.toThrow()
+    })
+
     test('answers recall from the catalog and picks up external edits for the next recall', async () => {
         const root = await fs.mkdtemp(join(tmpdir(), 'risubard-md-wiki-'))
         temporaryDirectories.push(root)

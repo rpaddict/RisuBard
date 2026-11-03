@@ -57,7 +57,9 @@
     } from 'src/ts/risubard/wikiFileTree'
     import { publishRisuBardMemoryActivity } from 'src/ts/risubard/memoryActivity'
     import { copyWikiDocumentToLorebook } from 'src/ts/risubard/wikiLorebookCopy'
-    import { normalizeMemoryWikiTreeHeight } from 'src/ts/risubard/memoryWikiLayout'
+    import { normalizeMemoryWikiTreeHeight, normalizeMemoryWikiTreeWidth } from 'src/ts/risubard/memoryWikiLayout'
+    import { rankWikiLinkCandidates, relinkWikiLink } from 'src/ts/risubard/wikiLinkRepair'
+    import { formatStoryTimeLabel } from '../../../server/node/risubard-memory-metadata'
     import type { StorySourceRef } from 'src/ts/risubard/storySoFar'
     import { createEventOrder, type EventOrderMessage } from 'src/ts/risubard/eventOrder'
 
@@ -165,6 +167,11 @@
     let folderLimits = $state<Record<string, number>>({})
     let markdownTextarea = $state<HTMLTextAreaElement | null>(null)
     let treeHeight = $state(normalizeMemoryWikiTreeHeight(undefined))
+    let treeWidth = $state(normalizeMemoryWikiTreeWidth(DBState.db.risuBardWikiTreeWidth))
+    // A missing link the user is reconnecting, and whether the file tree picks its new target.
+    let linkRepair = $state<{ sourceId: string; target: string } | null>(null)
+    let pickingLinkTarget = $state(false)
+    let danglingListOpen = $state(false)
     let restoredTreeExpanded = false
     let restoredEditorExpanded = true
 
@@ -325,6 +332,78 @@
             status: resolution.status,
             message: wikiLinkDescription(target, resolution),
         }
+        if (resolution.status === 'missing' && selected && !creating) {
+            linkRepair = { sourceId: selected.id, target }
+        }
+    }
+
+    let eventSequences = $derived(new Map(documents
+        .filter((document) => document.type === 'event' && document.sequence !== undefined)
+        .map((document) => [document.id, document.sequence!])))
+    let repairCandidates = $derived(linkRepair
+        ? rankWikiLinkCandidates(linkRepair.target,
+            documents.filter((document) => document.id !== linkRepair!.sourceId), 4)
+        : [])
+
+    function closeLinkRepair() {
+        linkRepair = null
+        pickingLinkTarget = false
+        wikiLinkDiagnostic = null
+    }
+
+    function candidateLabel(document: { id: string; title: string; sequence?: number }): string {
+        const sequence = eventSequences.get(document.id) ?? document.sequence
+        return sequence === undefined ? document.title : `#${sequence} ${document.title}`
+    }
+
+    /** Points the open document's missing link at another document and saves a clean page at once. */
+    async function relinkTo(documentId: string) {
+        const repair = linkRepair
+        const target = documents.find((document) => document.id === documentId)
+        if (!repair || !target || readOnly || saving || selected?.id !== repair.sourceId) return
+        // A title several documents share would stay ambiguous; link those by id and keep the wording.
+        const byTitle = describeWikiLinkTarget(target.title, documents).status === 'resolved'
+            && !/[\[\]|#\n]/u.test(target.title)
+        const wasDirty = dirty
+        const result = relinkWikiLink(markdown, repair.target, byTitle ? target.title : target.id,
+            { keepWording: !byTitle })
+        if (result.count === 0) {
+            error = `본문에서 [[${repair.target}]] 링크를 찾지 못했습니다.`
+            return
+        }
+        markdown = result.markdown
+        closeLinkRepair()
+        if (wasDirty) {
+            notice = `링크 ${result.count}개를 “${target.title}”에 연결했습니다. 저장하면 반영됩니다.`
+            return
+        }
+        if (await save()) notice = `링크 ${result.count}개를 “${target.title}”에 연결하고 저장했습니다.`
+    }
+
+    async function openDanglingLink(link: { sourceId: string; target: string }) {
+        const source = documents.find((document) => document.id === link.sourceId)
+        if (!source) return
+        danglingListOpen = false
+        if (source.id !== selectedId || creating) {
+            if (dirty && !await confirmDiscardDraft()) return
+            loadDocument(source)
+        }
+        treeExpanded = false
+        editorExpanded = true
+        markdownPreview = true
+        error = ''
+        notice = ''
+        wikiLinkDiagnostic = { status: 'missing', message: `연결된 문서가 없습니다: ${link.target}` }
+        linkRepair = { sourceId: source.id, target: link.target }
+    }
+
+    function chooseTreeDocument(documentId: string) {
+        if (pickingLinkTarget) {
+            void relinkTo(documentId)
+            return
+        }
+        const document = documents.find((item) => item.id === documentId)
+        if (document) void selectDocument(document).then(() => tick()).then(highlightEditorMatch)
     }
 
     function onWikiLinkKeydown(event: KeyboardEvent) {
@@ -424,6 +503,7 @@
     }
 
     function loadDocument(document: WikiDocument) {
+        if (linkRepair && linkRepair.sourceId !== document.id) closeLinkRepair()
         if (document.content === undefined) {
             // Show the selection at once; the body arrives through the documents prop.
             selectedId = document.id
@@ -453,7 +533,7 @@
         loadedMarkdown = document.content
         error = ''
         notice = ''
-        wikiLinkDiagnostic = null
+        if (!linkRepair) wikiLinkDiagnostic = null
         onSelected?.(document.id)
     }
 
@@ -493,6 +573,7 @@
     }
 
     function resetNewDraft() {
+        closeLinkRepair()
         selectedId = ''
         creating = true
         type = 'character'
@@ -536,6 +617,30 @@
         setTreeHeight(treeHeight + (event.key === 'ArrowDown' ? 24 : -24))
     }
 
+    function resizeTreeWidth(event: PointerEvent) {
+        event.preventDefault()
+        if (!wikiEditorElement) return
+        const bounds = wikiEditorElement.getBoundingClientRect()
+        if (bounds.width <= 0) return
+        const update = (move: PointerEvent) => {
+            treeWidth = normalizeMemoryWikiTreeWidth(move.clientX - bounds.left, bounds.width)
+        }
+        const stop = () => {
+            window.removeEventListener('pointermove', update)
+            DBState.db.risuBardWikiTreeWidth = treeWidth
+        }
+        window.addEventListener('pointermove', update)
+        window.addEventListener('pointerup', stop, { once: true })
+    }
+
+    function resizeTreeWidthByKeyboard(event: KeyboardEvent) {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        treeWidth = normalizeMemoryWikiTreeWidth(treeWidth + (event.key === 'ArrowRight' ? 24 : -24),
+            wikiEditorElement?.clientWidth || undefined)
+        DBState.db.risuBardWikiTreeWidth = treeWidth
+    }
+
     function setEditorFocus(focused: boolean) {
         if (focused === editorFocus) return
         if (focused) {
@@ -567,6 +672,10 @@
     }
 
     function closeContextMenuOnEscape(event: KeyboardEvent) {
+        if (event.key === 'Escape' && pickingLinkTarget) {
+            pickingLinkTarget = false
+            return
+        }
         if (event.key !== 'Escape' || !contextDocumentId) return
         event.preventDefault()
         closeContextMenu()
@@ -884,6 +993,7 @@
     data-editor-focus={editorFocus}
     bind:this={wikiEditorElement}
     style:--wiki-tree-height={`${treeHeight}px`}
+    style:--wiki-tree-width={`${treeWidth}px`}
 >
     <div class="portrait-panel-header tree-panel-header">
         <button
@@ -908,6 +1018,15 @@
         ></button>
     {/if}
     <nav id="risubard-wiki-file-tree" class="file-tree" aria-label="위키 파일 트리" data-wiki-file-tree>
+        <button
+            type="button"
+            class="tree-width-resizer"
+            data-wiki-tree-width-resizer
+            aria-label="문서 목록 너비 조절"
+            title="드래그하거나 좌우 방향키로 문서 목록 너비 조절"
+            onpointerdown={resizeTreeWidth}
+            onkeydown={resizeTreeWidthByKeyboard}
+        ><span aria-hidden="true"></span></button>
         <div class="tree-toolbar">
             <strong>문서</strong>
             <ShButton size="sm" variant="ghost" onclick={startNew} aria-label="새 문서" disabled={locked}>
@@ -949,7 +1068,13 @@
                 >{treeSort === 'name' ? '이름순' : '최근 수정순'}</button>
             </div>
         {/if}
-        <div class="tree-list" data-wiki-search-results>
+        {#if pickingLinkTarget && linkRepair}
+            <div class="link-pick-banner" role="status" data-wiki-link-pick>
+                <span>[[{linkRepair.target}]]에 연결할 문서를 고르세요</span>
+                <button type="button" onclick={() => pickingLinkTarget = false}>취소</button>
+            </div>
+        {/if}
+        <div class="tree-list" class:picking={pickingLinkTarget} data-wiki-search-results>
         {#if searchQuery && filteredDocuments.length === 0}
             <p class="tree-empty">“{searchQuery}”을 포함한 문서가 없습니다.</p>
         {/if}
@@ -977,15 +1102,13 @@
                                         type="button"
                                         class="file-select"
                                         class:active={selectedId === child.documentId}
-                                        onclick={() => {
-                                            const document = documents.find((item) => item.id === child.documentId)
-                                            if (document) void selectDocument(document).then(() => tick()).then(highlightEditorMatch)
-                                        }}
+                                        onclick={() => chooseTreeDocument(child.documentId)}
                                         oncontextmenu={(event) => openContextMenu(event, child.documentId)}
                                         aria-label={documentLabel(child.documentId, child.title, child.readOnly)}
                                     >
                                         {#if child.readOnly}<FileLock2Icon size={13} />
                                         {:else}<FileIcon size={13} />{/if}
+                                        {#if eventSequences.has(child.documentId)}<span class="event-sequence" data-wiki-event-sequence>#{eventSequences.get(child.documentId)}</span>{/if}
                                         <span class="document-title" class:context-excluded={contextModes.get(child.documentId) === 'never'} title={child.title}>{child.title}</span>
                                         {@render contextBadge(child.documentId)}
                                         {@render recentUpdateBadge(child.documentId)}
@@ -1018,10 +1141,7 @@
                         type="button"
                         class="root-file file-select"
                         class:active={selectedId === node.documentId}
-                        onclick={() => {
-                            const document = documents.find((item) => item.id === node.documentId)
-                            if (document) void selectDocument(document).then(() => tick()).then(highlightEditorMatch)
-                        }}
+                        onclick={() => chooseTreeDocument(node.documentId)}
                         oncontextmenu={(event) => openContextMenu(event, node.documentId)}
                         aria-label={documentLabel(node.documentId, node.title)}
                     >
@@ -1033,9 +1153,28 @@
             {/if}
         {/each}
         </div>
+        {#if danglingListOpen && health.danglingLinks.length > 0}
+            <ul id="risubard-wiki-dangling-list" class="dangling-list" aria-label="끊어진 링크 목록" data-wiki-dangling-list>
+                {#each health.danglingLinks as link, index (`${link.sourceId}:${index}`)}
+                    {@const source = documents.find((document) => document.id === link.sourceId)}
+                    <li>
+                        <button type="button" onclick={() => openDanglingLink(link)} disabled={!source}>
+                            <span class="dangling-target">[[{link.target}]]</span>
+                            <small>{source?.title ?? link.sourceId}</small>
+                        </button>
+                    </li>
+                {/each}
+            </ul>
+        {/if}
         <div class="wiki-health" aria-label="위키 건강도" data-wiki-health>
             <span>{documents.length} 문서</span>
-            <span>끊어진 링크 {health.danglingLinks.length}</span>
+            {#if health.danglingLinks.length > 0}
+                <button type="button" class="health-action" aria-expanded={danglingListOpen}
+                    aria-controls="risubard-wiki-dangling-list" data-wiki-dangling-toggle
+                    onclick={() => danglingListOpen = !danglingListOpen}>끊어진 링크 {health.danglingLinks.length}</button>
+            {:else}
+                <span>끊어진 링크 0</span>
+            {/if}
             <span>연결 없음 {health.unlinkedDocumentIds.length}</span>
             <span>본문 중복 {health.duplicatePassages?.length ?? 0}</span>
         </div>
@@ -1140,7 +1279,7 @@
                     {/if}
                     {#if selected.retrievalMetadata.storyTime}
                         {@const time = selected.retrievalMetadata.storyTime}
-                        <span title={time.evidence}>작중 시간: {time.day === null ? '미상' : `시작 기준 ${time.day}일`}{time.precision === 'origin' ? ' (기준점)' : ''}</span>
+                        <span title={time.evidence} data-wiki-story-time>작중 시간: {formatStoryTimeLabel(time)}</span>
                     {/if}
                 </div>
             {/if}
@@ -1281,9 +1420,31 @@
                 spellcheck="false"
             ></textarea>
         {/if}
+        {#if linkRepair && selected?.id === linkRepair.sourceId && !creating}
+            <div class="link-repair" data-wiki-link-repair>
+                <div class="link-repair-head">
+                    <span>끊어진 링크 <strong>[[{linkRepair.target}]]</strong>를 다시 연결</span>
+                    <button type="button" class="link-repair-close" onclick={closeLinkRepair}>닫기</button>
+                </div>
+                <div class="link-repair-options">
+                    {#each repairCandidates as candidate (candidate.id)}
+                        <button type="button" data-wiki-link-candidate={candidate.id}
+                            disabled={readOnly || saving}
+                            title={`${candidate.title} (유사도 ${Math.round(candidate.score * 100)}%)`}
+                            onclick={() => relinkTo(candidate.id)}>{candidateLabel(candidate)}</button>
+                    {:else}
+                        <span class="link-repair-empty">비슷한 제목의 문서가 없습니다.</span>
+                    {/each}
+                    <button type="button" class="link-repair-pick" aria-pressed={pickingLinkTarget}
+                        data-wiki-link-pick-toggle disabled={readOnly || saving}
+                        onclick={() => { pickingLinkTarget = !pickingLinkTarget; treeExpanded = pickingLinkTarget }}>
+                        {pickingLinkTarget ? '목록에서 고르는 중' : '목록에서 고르기'}</button>
+                </div>
+            </div>
+        {/if}
         <div class="editor-status" aria-live="polite">
             {#if error}<span class="error">{error}</span>
-            {:else if wikiLinkDiagnostic}<span
+            {:else if wikiLinkDiagnostic && !linkRepair}<span
                 class="wiki-link-diagnostic"
                 class:wiki-link-diagnostic--ambiguous={wikiLinkDiagnostic.status === 'ambiguous'}
                 data-wiki-link-diagnostic
@@ -1332,9 +1493,9 @@
 {/if}
 
 <style>
-    .wiki-editor { display: grid; grid-template-columns: minmax(12rem, 17rem) minmax(0, 1fr); min-height: 27rem; border-bottom: 1px solid var(--risu-theme-darkborderc); }
+    .wiki-editor { display: grid; grid-template-columns: minmax(12rem, min(var(--wiki-tree-width, 17rem), calc(100% - 20rem))) minmax(0, 1fr); min-height: 27rem; border-bottom: 1px solid var(--risu-theme-darkborderc); }
     .portrait-panel-header, .editor-section-resizer, .tree-scrim { display: none; }
-    .file-tree { min-width: 0; display: flex; flex-direction: column; overflow: hidden; padding: .55rem; border-right: 1px solid var(--risu-theme-darkborderc); background: color-mix(in srgb, var(--risu-theme-darkbg) 96%, var(--color-bgcolor)); }
+    .file-tree { position: relative; min-width: 0; display: flex; flex-direction: column; overflow: hidden; padding: .55rem; border-right: 1px solid var(--risu-theme-darkborderc); background: color-mix(in srgb, var(--risu-theme-darkbg) 96%, var(--color-bgcolor)); }
     .tree-toolbar, .editor-title-row { display: flex; align-items: center; gap: .5rem; }
     .tree-toolbar { justify-content: space-between; padding: .2rem .25rem .6rem; }
     .tree-search { display: flex; gap: .35rem; padding: 0 .25rem .6rem; }
@@ -1370,6 +1531,35 @@
     .file-row.dangling-link { background: color-mix(in srgb, var(--risu-theme-draculared) 10%, transparent); }
     .file-row.dangling-link .file-select { color: var(--risu-theme-draculared); }
     .file-row.duplicate-passage { box-shadow: inset 2px 0 color-mix(in srgb, var(--color-warning) 75%, transparent); }
+    .event-sequence { flex: 0 0 auto; color: var(--risu-theme-textcolor2); font-variant-numeric: tabular-nums; font-size: .68rem; }
+    .tree-width-resizer { position: absolute; top: 0; right: -1px; bottom: 0; width: .45rem; padding: 0; border: 0; background: transparent; cursor: col-resize; touch-action: none; z-index: 2; }
+    .tree-width-resizer span { display: block; width: 2px; height: 100%; margin-left: auto; background: transparent; transition: background-color .15s; }
+    .tree-width-resizer:hover span, .tree-width-resizer:focus-visible span { background: var(--risu-theme-primary); }
+    .tree-width-resizer:focus-visible { outline: none; }
+    /* The dock's height grip reaches 1.9rem up over this footer; clickable chips sit above it. */
+    .wiki-health .health-action { position: relative; z-index: 5; border: 1px solid color-mix(in srgb, var(--risu-theme-draculared) 60%, var(--risu-theme-darkborderc)); border-radius: 999px; padding: .16rem .38rem; color: var(--risu-theme-draculared); }
+    .wiki-health .health-action:hover, .wiki-health .health-action[aria-expanded="true"] { background: color-mix(in srgb, var(--risu-theme-draculared) 14%, transparent); }
+    .dangling-list { flex: 0 1 auto; max-height: 12rem; overflow-y: auto; margin: .45rem 0 0; padding: .3rem; list-style: none; border: 1px solid var(--risu-theme-darkborderc); border-radius: .4rem; background: var(--risu-theme-bgcolor); }
+    .dangling-list button { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; padding: .35rem .45rem; border-radius: .32rem; text-align: left; font-size: .72rem; color: var(--risu-theme-textcolor); }
+    .dangling-list button:hover { background: color-mix(in srgb, var(--risu-theme-primary) 13%, transparent); }
+    .dangling-list .dangling-target { color: var(--risu-theme-draculared); overflow-wrap: anywhere; }
+    .dangling-list small { color: var(--risu-theme-textcolor2); font-size: .66rem; }
+    .link-pick-banner { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; padding: .4rem .5rem; border: 1px solid var(--risu-theme-primary); border-radius: .4rem; background: color-mix(in srgb, var(--risu-theme-primary) 12%, transparent); font-size: .7rem; color: var(--risu-theme-textcolor); }
+    .link-pick-banner span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .link-pick-banner button { flex: 0 0 auto; padding: .15rem .45rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: .3rem; }
+    .tree-list.picking .file-select { cursor: copy; }
+    .link-repair { position: relative; z-index: 5; margin: 0 .75rem; padding: .5rem .6rem; border: 1px solid color-mix(in srgb, var(--risu-theme-draculared) 50%, var(--risu-theme-darkborderc)); border-radius: .45rem; background: color-mix(in srgb, var(--risu-theme-draculared) 6%, transparent); font-size: .72rem; }
+    .link-repair-head { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .4rem; color: var(--risu-theme-textcolor2); }
+    .link-repair-head > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .link-repair-head strong { color: var(--risu-theme-draculared); font-weight: 600; }
+    .link-repair-close { flex: 0 0 auto; color: var(--risu-theme-textcolor2); font-size: .68rem; }
+    .link-repair-options { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .link-repair-options button { max-width: 100%; padding: .3rem .55rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: .35rem; text-align: left; color: var(--risu-theme-textcolor); overflow-wrap: anywhere; }
+    .link-repair-options button:hover:not(:disabled) { border-color: var(--risu-theme-primary); background: color-mix(in srgb, var(--risu-theme-primary) 12%, transparent); }
+    .link-repair-options button:disabled { opacity: .5; }
+    .link-repair-options .link-repair-pick { border-style: dashed; color: var(--risu-theme-textcolor2); }
+    .link-repair-options .link-repair-pick[aria-pressed="true"] { border-style: solid; border-color: var(--risu-theme-primary); color: var(--risu-theme-textcolor); }
+    .link-repair-empty { align-self: center; color: var(--risu-theme-textcolor2); }
     .document-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .document-title.context-excluded { color: var(--color-textcolor2); }
     .context-mode-badge { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .2rem; color: var(--color-textcolor2); font-size: .65rem; line-height: 1.4; white-space: nowrap; }
@@ -1595,6 +1785,7 @@
         .wiki-editor.mobile-layout .root-file,
         .wiki-editor.mobile-layout .folder-children button { min-height: 2.75rem; }
         .wiki-editor.mobile-layout .editor-section-resizer,
+        .wiki-editor.mobile-layout .tree-width-resizer,
         .wiki-editor.mobile-layout .editor-panel-header { display: none; }
         .wiki-editor.mobile-layout .editor-pane { display: flex; grid-row: 2; min-height: 0; overflow: hidden; }
         .wiki-editor.mobile-layout .editor-title-row {

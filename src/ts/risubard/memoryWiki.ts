@@ -8,7 +8,7 @@ import {
     validateNarrativeGraphState,
 } from '../../../packages/risubard-core/src/narrativeGraph'
 import { invokeBrowserFetch } from './browserFetch'
-import { normalizeMemoryRetrievalMetadata, type MemoryRetrievalMetadata } from '../../../server/node/risubard-memory-metadata'
+import { normalizeMemoryRetrievalMetadata, type MemoryRetrievalMetadata, type MemoryStoryTime } from '../../../server/node/risubard-memory-metadata'
 import type {
     NarrativeGraphViewSnapshot,
 } from './memoryGraphView'
@@ -958,6 +958,47 @@ export async function setWikiDocumentGrade(input: {
         throw new Error('Invalid wiki grade receipt')
     }
     return value as unknown as NarrativeMemoryWikiMarkdown['documents'][number]
+}
+
+/** Saves recomputed story times onto events; events changed since they were read are skipped. */
+export async function setWikiEventStoryTimes(input: {
+    characterId: string
+    chatId: string
+    updates: ReadonlyArray<{ documentId: string; expectedContentHash: string; storyTime: MemoryStoryTime }>
+    fetchImpl: typeof fetch
+    createAuth(): Promise<string>
+}): Promise<{ updated: string[]; skipped: string[] }> {
+    const body = {
+        characterId: requiredMutationString(input.characterId, 'Character ID', 1_024),
+        chatId: requiredMutationString(input.chatId, 'Chat ID', 1_024),
+        updates: input.updates.map((update) => ({
+            documentId: requiredMutationString(update.documentId, 'Document ID', 1_024),
+            expectedContentHash: requiredMutationString(update.expectedContentHash, 'Content hash', 128),
+            storyTime: update.storyTime,
+        })),
+    }
+    const response = await invokeBrowserFetch(
+        input.fetchImpl,
+        '/api/risubard/memory/wiki/event/story-times',
+        {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'content-type': 'application/json',
+                'risu-auth': await input.createAuth(),
+            },
+            body: JSON.stringify(body),
+        }
+    )
+    if (!response.ok) {
+        throw new Error(`Wiki story time update failed with status ${response.status}`)
+    }
+    const value: unknown = await response.json()
+    if (!isRecord(value) || !Array.isArray(value.updated) || !Array.isArray(value.skipped)
+        || ![...value.updated, ...value.skipped].every((id) => typeof id === 'string')) {
+        throw new Error('Invalid wiki story time receipt')
+    }
+    return { updated: value.updated as string[], skipped: value.skipped as string[] }
 }
 
 export async function trashWikiDocument(input: {

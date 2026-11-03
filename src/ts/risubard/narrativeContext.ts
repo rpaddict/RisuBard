@@ -64,7 +64,8 @@ const NARRATIVE_EVIDENCE_RULES = [
     '- Treat retrieved sources as evidence of what happened. Preserve established facts, chronology, viewpoint knowledge, and unresolved uncertainty; never replace them with an unsupported continuation.',
     '- When sources disagree, trust them in this order: the recent transcript, original historical chat evidence, event documents, canon documents, the story arc plot. An event labeled with a larger story order number happened later.',
     '- Prefer direct historical chat evidence and event documents for exact past details, and current canonical state for present facts.',
-    '- Character canon records durable state and may compress several scenes into one sentence; it does not establish when they happened. A trailing (#N) on a canon line names the event that recorded it. For what happened most recently, use the recent transcript first, then the story flow and turn labels, before any canon summary.',
+    '- Character canon records durable state and may compress several scenes into one sentence; it does not establish when they happened. A trailing (#N) on a canon line names the event that recorded it, with that event\'s story day when known. For what happened most recently, use the recent transcript first, then the story flow and turn labels, before any canon summary.',
+    '- Story time counts days from day 0, the first recorded event; a flashback is set before the present day and does not move it. Use these labels, not relative words inside a summary, to tell which day something happened on.',
     '- Where the story has changed what the character description or lorebook says, follow this memory; use the lorebook for what the story has not changed. Leave details the sources do not settle uncertain.',
 ].join('\n')
 

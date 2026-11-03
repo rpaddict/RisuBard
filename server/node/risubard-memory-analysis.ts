@@ -37,7 +37,7 @@ import type { MarkdownWikiDocument } from './risubard-markdown-wiki'
 import { repairRebootEventLinks } from './risubard-reboot-event-links'
 import { repairBrokenWikiLinks } from '../../src/ts/risubard/wikiLinkRepair'
 import { combinedMemoryInstruction, combinedMemorySchema, parseCombinedMemory } from './risubard-combined-memory'
-import { resolveMemoryRetrievalMetadata, type MemoryRetrievalMetadata } from './risubard-memory-metadata'
+import { groundTemporalHint, resolveMemoryRetrievalMetadata, type MemoryRetrievalMetadata } from './risubard-memory-metadata'
 import {
     formatCanonicalUpdateFailureWarning,
     formatCanonicalDeferredWarning,
@@ -1362,7 +1362,7 @@ export function createMemoryAnalysisRunner(
                     'Top-level fields must be exactly schemaVersion, turns, stateChanges, characterKnowledge, persistentFacts, openContinuity, and canonicalUpdateCandidates.',
                     `Return exactly ${turnGroups.length} turns in the same order as rebootTurns.`,
                     'Each turns item must contain title, establishedEvents, keywords and temporalHint. Do not return assistantMessageId; the program binds trusted message IDs by position.',
-                    'Each temporalHint describes elapsed days since the previous turns item, or previousStoryEvent for the first item. Quote evidence from that turn only.',
+                    'Each temporalHint places its turn: elapsed days since the previous turns item, or previousStoryEvent for the first item, plus timeline, flashback distance and any in-story date written in that turn. Quote evidence from that turn only.',
                     'Do not return top-level title, establishedEvents, or drafts.',
                     'Include every required shared array even when it is empty.',
                 ].join('\n')
@@ -1575,12 +1575,10 @@ export function createMemoryAnalysisRunner(
             for (const event of eventDrafts) {
                 if (turnGroups
                     && event.draft.establishedEvents.length === 0) continue
-                const temporalHint = event.draft.temporalHint
-                const groundedHint = temporalHint && temporalHint.evidence.trim()
-                    && snapshot.messages.some((message) => message.role === 'assistant'
-                        && event.sourceMessageIds.includes(message.messageId)
-                        && message.content.includes(temporalHint.evidence.trim()))
-                    ? temporalHint : undefined
+                // Time skips are often typed by the user, so every source message of the turn counts.
+                const groundedHint = groundTemporalHint(event.draft.temporalHint, snapshot.messages
+                    .filter((message) => event.sourceMessageIds.includes(message.messageId))
+                    .map((message) => message.content).join('\n'))
                 const previousVersion = turnGroups
                     ? documents.find((document) => document.type === 'event'
                         && document.sourceMessageIds.length === event.sourceMessageIds.length
@@ -2291,11 +2289,6 @@ export function createMemoryAnalysisRunner(
                                         .map((section) => `${section.heading} ${section.count}`).join(', ')})`)
                                 }
                             }
-                            // Writers misquote event titles by a word or two; point such links at the real title. No model call.
-                            if (!entry.storyArcPlan) {
-                                const linkRepair = repairBrokenWikiLinks(rewritten, [...documents, ...savedEvents])
-                                rewritten = linkRepair.markdown
-                            }
                             let maintenanceNote: string | undefined
                             // A reboot replays the whole story, so its cards need the same upkeep as live turns.
                             if (entry.target && entry.candidate.type !== 'scene' && !entry.storyArcPlan
@@ -2352,6 +2345,12 @@ export function createMemoryAnalysisRunner(
                                     if (maintained.markdown) rewritten = maintained.markdown
                                     maintenanceNote = maintained.note
                                 }
+                            }
+                            // Writers misquote event titles by a word or two; point such links at the real title. No model call.
+                            // It runs after upkeep, which rewrites the card and can shorten titles again.
+                            if (!entry.storyArcPlan) {
+                                const linkRepair = repairBrokenWikiLinks(rewritten, [...documents, ...savedEvents])
+                                rewritten = linkRepair.markdown
                             }
                             try {
                                 signal?.throwIfAborted()

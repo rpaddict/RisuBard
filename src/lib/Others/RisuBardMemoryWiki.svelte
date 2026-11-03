@@ -79,6 +79,7 @@
     import type { StorySourceRef } from 'src/ts/risubard/storySoFar'
     import { alertConfirm, alertConfirmMulti, alertError, notifyInfo, notifySuccess } from 'src/ts/alert'
     import { canCompressCanonDocument, type CanonCompressionPreview } from 'src/ts/risubard/canonCompression'
+    import type { StoryTimeBackfillPlan, StoryTimeBackfillResult } from 'src/ts/risubard/storyTimeBackfill'
     import {
         resolveWikiRebootViewChatId,
         type WikiRebootBatchSize,
@@ -120,6 +121,12 @@
         onApplyCanonCompression?: (
             previews: readonly CanonCompressionPreview[]
         ) => Promise<{ applied: string[]; failed: Array<{ title: string; reason: string }> }>
+        onPrepareStoryTimeBackfill?: (catalog: readonly WikiCatalogDocument[]) => Promise<StoryTimeBackfillPlan>
+        onRunStoryTimeBackfill?: (
+            plan: StoryTimeBackfillPlan,
+            onProgress?: (done: number, total: number) => void,
+            stop?: AbortSignal
+        ) => Promise<StoryTimeBackfillResult>
     }
 
     type MemoryWikiLayout = 'desktop' | 'mobile'
@@ -141,6 +148,8 @@
         onNavigateOocMessage,
         onPreviewCanonCompression,
         onApplyCanonCompression,
+        onPrepareStoryTimeBackfill,
+        onRunStoryTimeBackfill,
     }: Props = $props()
     // The dock loads a table of contents; page bodies, story summaries and
     // export data are fetched only when a view needs them.
@@ -389,6 +398,61 @@
             compressMessage = `적용하지 못했습니다: ${cause instanceof Error ? cause.message : String(cause)}`
         }
         compressPhase = 'done'
+    }
+
+    type StoryTimePhase = 'preparing' | 'confirm' | 'running' | 'done'
+    let storyTimeOpen = $state(false)
+    let storyTimePhase = $state<StoryTimePhase>('preparing')
+    let storyTimePlan = $state<StoryTimeBackfillPlan | null>(null)
+    let storyTimeProgress = $state('')
+    let storyTimeMessage = $state('')
+    let storyTimeStop: AbortController | null = null
+
+    async function openStoryTimeBackfill() {
+        if (!onPrepareStoryTimeBackfill) return
+        storyTimeOpen = true
+        storyTimePhase = 'preparing'
+        storyTimePlan = null
+        storyTimeMessage = ''
+        try {
+            storyTimePlan = await onPrepareStoryTimeBackfill(markdownDocuments)
+            storyTimePhase = storyTimePlan.eventCount > 0 ? 'confirm' : 'done'
+            if (storyTimePlan.eventCount === 0) storyTimeMessage = '날짜를 다시 매길 사건이 없습니다. 모든 사건에 날짜가 있습니다.'
+        }
+        catch (cause) {
+            storyTimeMessage = `사건을 불러오지 못했습니다: ${cause instanceof Error ? cause.message : String(cause)}`
+            storyTimePhase = 'done'
+        }
+    }
+
+    async function runStoryTimeBackfill() {
+        if (!onRunStoryTimeBackfill || !storyTimePlan) return
+        storyTimePhase = 'running'
+        storyTimeStop = new AbortController()
+        const total = storyTimePlan.batches.length
+        storyTimeProgress = `0 / ${total}`
+        try {
+            const result = await onRunStoryTimeBackfill(storyTimePlan, (done) => {
+                storyTimeProgress = `${done} / ${total}`
+            }, storyTimeStop.signal)
+            const counts = result.counts
+            storyTimeMessage = [
+                `사건 ${result.updated}개에 날짜를 매겼습니다.`,
+                `날짜 확정 ${counts.origin + counts.explicit}개, 그날 이후 ${counts.after}개, 회상 ${counts.flashback}개, 미상 ${counts.unknown}개.`,
+                result.skipped > 0 ? `그사이 바뀐 사건 ${result.skipped}개는 건너뛰었습니다.` : '',
+                result.failedBatches > 0 ? `요청 ${result.failedBatches}번이 실패해 그 사건들은 그대로 두었습니다: ${result.firstError ?? ''}` : '',
+                '마음에 들지 않으면 되돌리기 버튼으로 되돌릴 수 있습니다.',
+            ].filter(Boolean).join('\n')
+        }
+        catch (cause) {
+            storyTimeMessage = storyTimeStop.signal.aborted
+                ? '중단했습니다. 이미 저장한 사건은 남아 있으며, 되돌리기 버튼으로 되돌릴 수 있습니다.'
+                : `다시 매기지 못했습니다: ${cause instanceof Error ? cause.message : String(cause)}`
+        }
+        storyTimeStop = null
+        storyTimePhase = 'done'
+        await loadWiki()
+        await refreshBardChatUndoStatus()
     }
 
     /** OOC 메모장에서 고른 메시지를 원본 채팅에서 지운다. 연결된 BardWiki 사건도 함께 철회한다. */
@@ -1102,6 +1166,7 @@
                             {rebootButtonLabel}
                         </ShDropdownMenuItem>
                         <ShDropdownMenuItem data-wiki-compress disabled={!onPreviewCanonCompression || !!rebootJob || transferBlocked || compressibleCharacters.length === 0} onclick={() => openCompression()}>정본 압축</ShDropdownMenuItem>
+                        <ShDropdownMenuItem data-wiki-story-time-backfill disabled={!onPrepareStoryTimeBackfill || !!rebootJob || transferBlocked} onclick={() => void openStoryTimeBackfill()}>사건 날짜 다시 매기기</ShDropdownMenuItem>
                         <ShDropdownMenuItem data-wiki-new-chat disabled={transferBlocked} onclick={startWithWiki}>이 위키로 새 챗 시작</ShDropdownMenuItem>
                         <ShDropdownMenuItem data-wiki-export disabled={transferBlocked} onclick={() => { exportScope = `${characterId}\u0000${chatId}`; exportOpen = true }}>위키 내보내기</ShDropdownMenuItem>
                         <ShDropdownMenuItem data-wiki-import disabled={transferBlocked} onclick={() => { importScope = { characterId, chatId }; importInput?.click() }}>위키 들여오기</ShDropdownMenuItem>
@@ -1522,6 +1587,44 @@
             {:else}
                 <p class="compress-result">{compressMessage}</p>
                 <div class="compress-actions"><ShButton size="sm" onclick={() => compressOpen = false}>닫기</ShButton></div>
+            {/if}
+        </div>
+    </ShDialog>
+{/if}
+
+{#if storyTimeOpen}
+    <ShDialog
+        open={true}
+        onOpenChange={(value) => { if (!value && storyTimePhase !== 'running' && storyTimePhase !== 'preparing') storyTimeOpen = false }}
+        size="default"
+        tier="top"
+    >
+        {#snippet title()}사건 날짜 다시 매기기{/snippet}
+        <div class="compress-dialog" data-wiki-story-time-dialog>
+            {#if storyTimePhase === 'preparing'}
+                <div class="ledger-state" role="status">
+                    <LoaderCircleIcon class="animate-spin" size={24} />
+                    <span>날짜가 없는 사건을 찾는 중...</span>
+                </div>
+            {:else if storyTimePhase === 'confirm' && storyTimePlan}
+                {@const first = storyTimePlan.batches[0]?.[0]}
+                <p>날짜가 미상인 첫 사건{first ? ` (#${first.sequence} ${first.title})` : ''}부터 끝까지, 사건 원문을 AI가 다시 읽고 0일 기준 날짜, 회상, 상태창 날짜를 매깁니다. 사건 본문은 바뀌지 않으며, 적용한 뒤에도 되돌릴 수 있습니다.</p>
+                <p class="compress-cost" data-wiki-story-time-cost>사건 {storyTimePlan.eventCount.toLocaleString()}개, AI 호출 {storyTimePlan.batches.length.toLocaleString()}회, 입력 약 {storyTimePlan.inputTokens.toLocaleString()}토큰이 듭니다(분석 모델 사용).</p>
+                <div class="compress-actions">
+                    <ShButton size="sm" variant="ghost" onclick={() => storyTimeOpen = false}>닫기</ShButton>
+                    <ShButton size="sm" data-wiki-story-time-run onclick={() => void runStoryTimeBackfill()}>시작</ShButton>
+                </div>
+            {:else if storyTimePhase === 'running'}
+                <div class="ledger-state" role="status">
+                    <LoaderCircleIcon class="animate-spin" size={24} />
+                    <span>날짜를 매기는 중... 요청 {storyTimeProgress}</span>
+                </div>
+                <div class="compress-actions">
+                    <ShButton size="sm" variant="ghost" data-wiki-story-time-stop onclick={() => storyTimeStop?.abort()}>중단</ShButton>
+                </div>
+            {:else}
+                <p class="compress-result" data-wiki-story-time-result>{storyTimeMessage}</p>
+                <div class="compress-actions"><ShButton size="sm" onclick={() => storyTimeOpen = false}>닫기</ShButton></div>
             {/if}
         </div>
     </ShDialog>

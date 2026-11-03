@@ -187,8 +187,24 @@ describe('progressive Markdown inquiry', () => {
                 retrievalMetadata: { keywords: ['춤'], storyTime: { day: 7, precision: 'explicit', evidence: '일주일 뒤' } },
             })],
         })
-        expect(result.sources.some((source) => source.content.includes('Story day relative to first recorded event: 7'))).toBe(true)
+        expect(result.sources.some((source) => source.content.includes('[Story time: day +7 from the story start]'))).toBe(true)
         expect(result.sources.every((source) => source.tokens <= 256)).toBe(true)
+    })
+    test('adds the story day to a canon line\'s event mark', () => {
+        const result = inquireMarkdownDocuments({
+            currentInput: '길버트는 지금 어때?',
+            documents: [document({
+                id: 'event.dance', type: 'event', title: '춤', relativePath: 'events/dance.md', sequence: 20,
+                content: '## 춤\n길버트와 왈츠를 추었다.',
+                retrievalMetadata: { keywords: ['춤'], storyTime: { day: 1, precision: 'explicit', evidence: '다음 날' } },
+            }), document({
+                id: 'character.gilbert', type: 'character', title: '길버트', relativePath: 'characters/gilbert.md',
+                content: '## 길버트\n\n### 현재 상태\n\n왈츠를 춘 뒤 들떠 있다. (#20)\n\n오래된 흉터가 있다. (#3)',
+            })],
+        })
+        const card = result.sources.find((source) => source.id.includes('characters/gilbert.md'))
+        expect(card?.content).toContain('(#20, day +1)')
+        expect(card?.content).toContain('(#3)')
     })
     test('recalls a missing dance partner using retrieval keywords without extra model calls', () => {
         const result = inquireMarkdownDocuments({

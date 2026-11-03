@@ -126,4 +126,13 @@ describe('story so far projection', () => {
         }
     )
 
+    it('labels each event with its story day and written date', () => {
+        const entries = buildStorySoFar([
+            event({ id: 'dated', retrievalMetadata: { keywords: [], storyTime: {
+                day: 2, evidence: '다음 날', precision: 'explicit', calendar: '7월 넷째 주 월요일',
+            } } }),
+            event({ id: 'plain', created: '2026-08-16T00:00:00.000Z' }),
+        ])
+        expect(entries.map((entry) => entry.time)).toEqual(['+2일, 7월 넷째 주 월요일', ''])
+    })
 })

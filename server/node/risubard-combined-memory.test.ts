@@ -162,9 +162,15 @@ describe('combined semantic and canonical writing', () => {
         expect(result.analyze).toHaveBeenCalledTimes(2)
         expect(result.saveCanonicalDocument).toHaveBeenCalledTimes(1)
     })
-    test.each([{ priorUnknown: true }, { ungrounded: true }])('does not invent story days without a continuous evidence chain: %o', async (options) => {
-        const result = await run(options)
+    test('does not invent a story day without any dated event before it', async () => {
+        const result = await run({ priorUnknown: true })
         expect(result.saveConfirmedTurn.mock.calls[0][0].retrievalMetadata.storyTime.day).toBeNull()
+    })
+    test('records an ungrounded skip only as "on or after" the previous day', async () => {
+        const result = await run({ ungrounded: true })
+        expect(result.saveConfirmedTurn.mock.calls[0][0].retrievalMetadata.storyTime).toMatchObject({
+            precision: 'after', evidence: 'time skip of unknown length',
+        })
     })
     test('maps a partial inline batch to the right candidate after fallback', async () => {
         const result = await run({ partial: true })

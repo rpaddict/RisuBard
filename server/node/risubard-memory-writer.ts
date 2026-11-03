@@ -5,7 +5,7 @@ import {
 import englishContract from '../../src/ts/risubard/skills/bardwiki-memory-writer/references/english-contract.md?raw'
 import { normalizeWikiWritingLanguage, wikiWritingHeadings, type WikiWritingLanguage } from '../../src/ts/risubard/wikiWritingLanguage'
 import { normalizeCanonicalSectionHeading } from './risubard-markdown-section-patch'
-import { normalizeMemoryRetrievalKeywords, type SemanticTemporalHint } from './risubard-memory-metadata'
+import { normalizeMemoryRetrievalKeywords, STORY_TIME_UNITS, type SemanticTemporalHint, type StoryTimeUnit } from './risubard-memory-metadata'
 
 const itemString = { type: 'string', minLength: 1, maxLength: 500 }
 const canonicalTypes = [
@@ -37,10 +37,15 @@ export const memoryWriterDraftSchema = JSON.stringify({
         title: { type: 'string', minLength: 1, maxLength: 160 },
         keywords: { type: 'array', maxItems: 24, items: { type: 'string', minLength: 1, maxLength: 80 } },
         temporalHint: {
-            type: 'object', additionalProperties: false, required: ['elapsedDays', 'evidence'],
+            type: 'object', additionalProperties: false,
+            required: ['elapsedDays', 'evidence', 'timeline', 'flashbackAmount', 'flashbackUnit', 'calendar'],
             properties: {
                 elapsedDays: { type: ['integer', 'null'], minimum: 0 },
                 evidence: { type: 'string', maxLength: 240 },
+                timeline: { type: 'string', enum: ['present', 'flashback'] },
+                flashbackAmount: { type: ['integer', 'null'], minimum: 0 },
+                flashbackUnit: { type: 'string', enum: ['day', 'month', 'year'] },
+                calendar: { type: 'string', maxLength: 120 },
             },
         },
         establishedEvents: {
@@ -391,10 +396,13 @@ function boundedArray(
     return value
 }
 
-function parseTemporalHint(value: unknown): SemanticTemporalHint | undefined {
+export function parseTemporalHint(value: unknown): SemanticTemporalHint | undefined {
     if (value === undefined) return undefined
     if (!isRecord(value)) throw new Error('temporalHint must be an object')
-    exactKeys(value, ['elapsedDays', 'evidence'], 'temporalHint')
+    // Drafts saved before flashbacks and in-story dates carry only the first two fields.
+    const extended = ['timeline', 'flashbackAmount', 'flashbackUnit', 'calendar']
+    exactKeys(value, ['elapsedDays', 'evidence',
+        ...(extended.some((key) => Object.hasOwn(value, key)) ? extended : [])], 'temporalHint')
     if (value.elapsedDays !== null
         && (!Number.isSafeInteger(value.elapsedDays)
             || (value.elapsedDays as number) < 0)) {
@@ -404,9 +412,23 @@ function parseTemporalHint(value: unknown): SemanticTemporalHint | undefined {
         || (value.elapsedDays !== null && !value.evidence.trim())) {
         throw new Error('temporalHint.evidence is invalid')
     }
+    if (value.timeline === undefined) {
+        return { elapsedDays: value.elapsedDays as number | null, evidence: value.evidence }
+    }
+    if ((value.timeline !== 'present' && value.timeline !== 'flashback')
+        || (value.flashbackAmount !== null && (!Number.isSafeInteger(value.flashbackAmount)
+            || (value.flashbackAmount as number) < 0))
+        || !STORY_TIME_UNITS.includes(value.flashbackUnit as StoryTimeUnit)
+        || typeof value.calendar !== 'string' || value.calendar.length > 120) {
+        throw new Error('temporalHint timeline fields are invalid')
+    }
     return {
         elapsedDays: value.elapsedDays as number | null,
         evidence: value.evidence,
+        timeline: value.timeline,
+        flashbackAmount: value.flashbackAmount as number | null,
+        flashbackUnit: value.flashbackUnit as StoryTimeUnit,
+        calendar: value.calendar,
     }
 }
 

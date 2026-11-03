@@ -14,6 +14,7 @@ import {
 import {
     normalizeMemoryRetrievalMetadata,
     type MemoryRetrievalMetadata,
+    type MemoryStoryTime,
 } from './risubard-memory-metadata'
 
 export { eventSequences } from './risubard-event-sequence'
@@ -2101,6 +2102,51 @@ export function createMarkdownNarrativeWiki(
             await writeAtomically(fileSystem, file, prepared.contents)
             await rebuildIndex(input.characterId, input.chatId)
             return prepared.document
+        },
+
+        /**
+         * Writes story times onto events without touching their text. Like grading this is
+         * metadata, so `updated` stays; an event changed since the caller read it is skipped.
+         */
+        async setEventStoryTimes(input: {
+            characterId: string
+            chatId: string
+            updates: ReadonlyArray<{
+                documentId: string
+                expectedContentHash: string
+                storyTime: MemoryStoryTime
+            }>
+        }): Promise<{ updated: string[]; skipped: string[] }> {
+            if (!Array.isArray(input.updates) || input.updates.length > 512) {
+                throw new Error('Invalid story time updates')
+            }
+            const workspace = workspaceFor(input.characterId, input.chatId)
+            const documents = new Map((await loadDocuments(input.characterId, input.chatId))
+                .map((document) => [document.id, document]))
+            const updated: string[] = []
+            const skipped: string[] = []
+            for (const update of input.updates) {
+                const document = documents.get(required(update.documentId, 'Document ID'))
+                if (!document || document.type !== 'event' || document.status === 'retracted'
+                    || document.contentHash !== update.expectedContentHash) {
+                    skipped.push(update.documentId)
+                    continue
+                }
+                const retrievalMetadata = normalizeMemoryRetrievalMetadata({
+                    keywords: document.retrievalMetadata?.keywords ?? [],
+                    storyTime: update.storyTime,
+                })
+                const { contentHash: _contentHash, ...stored } = document
+                const prepared = prepareDocument({ ...stored, retrievalMetadata })
+                await writeAtomically(
+                    fileSystem,
+                    join(workspace.directory, ...document.relativePath.split('/')),
+                    prepared.contents
+                )
+                updated.push(document.id)
+            }
+            if (updated.length > 0) await rebuildIndex(input.characterId, input.chatId)
+            return { updated, skipped }
         },
 
         async trashDocument(input: {

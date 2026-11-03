@@ -79,8 +79,18 @@ import {
     retractWikiEvent,
     saveManualWikiDocument,
     trashWikiDocument,
+    loadWikiDocumentBodies,
+    setWikiEventStoryTimes,
 } from '../risubard/memoryWiki';
 import { announceRisuBardMemoryUpdated } from '../risubard/memoryEvents';
+import {
+    planStoryTimeBackfill,
+    runStoryTimeBackfill,
+    selectStoryTimeBackfillEvents,
+    type StoryTimeBackfillPlan,
+    type StoryTimeBackfillResult,
+} from '../risubard/storyTimeBackfill';
+import { directWikiTokens } from '../risubard/directWikiBlocks';
 import {
     applyCanonCompression,
     previewCanonCompression,
@@ -1454,6 +1464,103 @@ export async function applyCurrentCanonCompression(
             catch { /* Preserve the original failure. */ }
         }
         throw cause
+    }
+}
+
+/** Finds the undated events of the current chat and plans the requests that place them again; nothing is sent. */
+export async function prepareCurrentStoryTimeBackfill(
+    catalog: readonly WikiCatalogDocument[]
+): Promise<StoryTimeBackfillPlan> {
+    const character = DBState.db.characters[get(selectedCharID)]
+    const chat = character?.chats[character.chatPage]
+    if (!character || !chat) throw new Error('현재 채팅을 찾을 수 없습니다.')
+    const characterId = character.chaId
+    const chatId = ensureNarrativeSessionChatId(chat, v4)
+    const { prior, targets, sequences } = selectStoryTimeBackfillEvents(catalog)
+    const bodies = new Map((await loadWikiDocumentBodies({
+        characterId, chatId, fetchImpl: fetch, createAuth: () => forageStorage.createAuth(),
+        documentIds: [...(prior.length > 0 ? [prior.at(-1)!.id] : []), ...targets.map((document) => document.id)],
+    })).map((document) => [document.id, document]))
+    const messages = new Map(chat.message.map((message) => [message.chatId, message]))
+    return planStoryTimeBackfill({
+        prior: prior.map((document) => bodies.get(document.id) ?? document),
+        targets: targets.flatMap((document) => {
+            const body = bodies.get(document.id)
+            return body ? [body] : []
+        }),
+        sequences,
+        sourceTextFor: (messageIds) => messageIds.flatMap((id) => {
+            const message = messages.get(id)
+            return message && typeof message.data === 'string'
+                ? [`${message.role === 'user' ? 'User' : 'Assistant'}: ${message.data}`] : []
+        }).join('\n\n'),
+        countTokens: directWikiTokens,
+    })
+}
+
+/** Places the planned events again with the analysis model and saves them with an undo point. */
+export async function runCurrentStoryTimeBackfill(
+    plan: StoryTimeBackfillPlan,
+    onProgress?: (done: number, total: number) => void,
+    stop?: AbortSignal
+): Promise<StoryTimeBackfillResult> {
+    const character = DBState.db.characters[get(selectedCharID)]
+    const chat = character?.chats[character.chatPage]
+    if (!character || !chat) throw new Error('현재 채팅을 찾을 수 없습니다.')
+    const characterId = character.chaId
+    const chatId = ensureNarrativeSessionChatId(chat, v4)
+    const settings = resolvedRisuBardSettings(chat, true)
+    const createAuth = () => forageStorage.createAuth()
+    const operation = `story-time:${characterId}:${chatId}`
+    const generation = beginWikiGeneration(operation)
+    const signal = stop && typeof AbortSignal.any === 'function' ? AbortSignal.any([generation, stop]) : generation
+    let undoStarted = false
+    try {
+        const result = await runStoryTimeBackfill({
+            plan, signal, onProgress,
+            request: async (prompt) => readModelResponseText(await requestWithProviderOutputLimit(
+                {
+                    formated: [
+                        { role: 'system' as const, content: prompt.system },
+                        { role: 'user' as const, content: prompt.input },
+                    ],
+                    useStreaming: false,
+                    noMultiGen: true,
+                    tools: [],
+                    maxTokens: settings.risuBardAnalysisTokenLimit,
+                    temperature: 0,
+                    bias: {},
+                    extractJson: '',
+                    schema: prompt.schema,
+                    logSource: 'wiki-admin' as const,
+                    logPurpose: 'bardwiki-admin' as const,
+                    realChatId: chatId,
+                },
+                (attempt) => requestChatData(attempt, settings.risuBardModelMode, signal)
+            )),
+            save: async (updates) => {
+                if (!undoStarted) {
+                    await beginBardChatUndo({ characterId, chatId, fetchImpl: fetch, createAuth })
+                    undoStarted = true
+                }
+                return setWikiEventStoryTimes({ characterId, chatId, updates, fetchImpl: fetch, createAuth })
+            },
+        })
+        publishRisuBardMemoryActivity({
+            characterId, chatId,
+            operation: result.failedBatches > 0 ? 'error' : 'wiki-save',
+            timestamp: Date.now(),
+            message: `사건 날짜 다시 매기기: ${result.updated}건 저장${result.failedBatches > 0 ? `, 요청 ${result.failedBatches}건 실패` : ''}`,
+        })
+        return result
+    }
+    finally {
+        if (undoStarted) {
+            try { await finalizeBardChatUndo({ characterId, chatId, fetchImpl: fetch, createAuth }) }
+            catch { /* Preserve the original outcome. */ }
+            announceRisuBardMemoryUpdated({ characterId, chatId })
+        }
+        endWikiGeneration(operation)
     }
 }
 

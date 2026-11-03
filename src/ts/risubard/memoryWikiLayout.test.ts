@@ -3,6 +3,7 @@ import {
     normalizeMemoryWikiDockRatio,
     normalizeMemoryWikiDialogSize,
     normalizeMemoryWikiTreeHeight,
+    normalizeMemoryWikiTreeWidth,
     normalizeMemoryWikiWorkspaceHeight,
 } from './memoryWikiLayout'
 
@@ -19,6 +20,15 @@ describe('memory wiki dialog layout', () => {
         expect(normalizeMemoryWikiWorkspaceHeight(120, 900)).toBe(288)
         expect(normalizeMemoryWikiWorkspaceHeight(800, 900)).toBe(680)
         expect(normalizeMemoryWikiWorkspaceHeight(460.6, 900)).toBe(461)
+    })
+
+    test('keeps a resized desktop file tree between readable bounds', () => {
+        expect(normalizeMemoryWikiTreeWidth(undefined, 1200)).toBe(272)
+        expect(normalizeMemoryWikiTreeWidth(80, 1200)).toBe(192)
+        expect(normalizeMemoryWikiTreeWidth(2000, 1200)).toBe(640)
+        expect(normalizeMemoryWikiTreeWidth(600, 800)).toBe(480)
+        expect(normalizeMemoryWikiTreeWidth(400, 300)).toBe(192)
+        expect(normalizeMemoryWikiTreeWidth(300.4, 1200)).toBe(300)
     })
 
     test('keeps a portrait file tree useful without crowding out the editor', () => {

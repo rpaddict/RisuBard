@@ -1969,6 +1969,7 @@ export interface Database{
     risuBardModelMode?: 'memory' | 'model'
     risuBardAutoWikiEnabled?: boolean
     risuBardWikiMarkdownPreview?: boolean
+    risuBardWikiTreeWidth?: number
     risuBardRecentMessageCount?: number
     risuBardResponseMessageCount?: number
     risuBardResponseIncludeUserMessages?: boolean

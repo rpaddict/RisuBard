@@ -1192,7 +1192,7 @@ describe('RisuBardMemoryWiki', () => {
         await vi.waitFor(() => expect(document.querySelector('[data-wiki-export]')).not.toBeNull())
         const toolLabels = [...document.querySelectorAll('[data-slot="dropdown-menu-item"]')].map(item => item.textContent?.trim())
         expect(document.querySelector('[data-slot="dropdown-menu-item"]')?.hasAttribute('data-risubard-wiki-reboot')).toBe(true)
-        expect(toolLabels.slice(1, 5)).toEqual(['정본 압축', '이 위키로 새 챗 시작', '위키 내보내기', '위키 들여오기'])
+        expect(toolLabels.slice(1, 6)).toEqual(['정본 압축', '사건 날짜 다시 매기기', '이 위키로 새 챗 시작', '위키 내보내기', '위키 들여오기'])
         const exportItem = document.querySelector<HTMLElement>('[data-wiki-export]')!
         exportItem.focus()
         exportItem.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))

@@ -47,6 +47,7 @@
                     <span class="chapter-mark">{String(index + 1).padStart(2, '0')}</span>
                     <article class="story-card">
                         <div class="entry-body">
+                            {#if entry.time}<p class="entry-time" data-story-time>{entry.time}</p>{/if}
                             <div class="entry-heading">
                                 <strong id={`story-title-${index}`}>{entry.title}</strong>
                                 <button
@@ -114,6 +115,7 @@
     .entry-edit:hover { border-color: var(--risu-theme-primary); color: var(--risu-theme-primary); background: color-mix(in srgb, var(--risu-theme-primary) 10%, transparent); }
     .source-button { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; width: 100%; padding: .45rem 1rem; border: 0; border-top: 1px solid color-mix(in srgb, var(--risu-theme-borderc) 18%, transparent); color: var(--risu-theme-textcolor2); background: color-mix(in srgb, var(--risu-theme-darkbg) 45%, transparent); font-size: .75rem; }
     .source-button:hover { color: var(--risu-theme-primary); }
+    .entry-time { margin: 0 0 .2rem; color: color-mix(in srgb, var(--risu-theme-primary) 75%, var(--risu-theme-textcolor)); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
     .entry-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .45rem; color: var(--risu-theme-textcolor2); }
     .entry-heading strong { color: var(--risu-theme-textcolor); font-family: Georgia, 'Noto Serif KR', serif; font-size: .95rem; }
     .story-line { display: block; margin: 0; font-family: Georgia, 'Noto Serif KR', serif; font-size: .9rem; line-height: 1.72; }

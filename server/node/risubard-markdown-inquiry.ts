@@ -8,6 +8,7 @@ import { selectMarkdownExcerpt } from './risubard-markdown-excerpt'
 import { isStoryArcChapterTitle, isStoryArcTitle } from '../../src/ts/risubard/wikiWritingLanguage'
 import { normalizeWikiRetrievalLimits, wikiPageTokenCap, type WikiRetrievalLimits } from '../../src/ts/risubard/wikiRetrievalLimits'
 import { RESOLVED_SOURCE_SCORE } from '../../src/ts/risubard/historicalSourceRecall'
+import { describeStoryTimeForModel, storyTimeStamp, type MemoryStoryTime } from './risubard-memory-metadata'
 
 const MAX_SELECTED_DOCUMENTS = 12
 // Client validation accepts at most 44 sources per inquiry.
@@ -505,6 +506,12 @@ export function inquireMarkdownDocuments(
     const base = catalogBase(input.documents)
     const sequences = eventSequences(input.documents)
     const latestSequence = Math.max(0, ...sequences.values())
+    const eventTimes = new Map<number, MemoryStoryTime>()
+    for (const document of input.documents) {
+        const sequence = sequences.get(document.id)
+        const time = document.retrievalMetadata?.storyTime
+        if (sequence !== undefined && time) eventTimes.set(sequence, time)
+    }
     // Hub pages link to many events; expand toward relevant, then recent ones.
     const neighborRank = new Map<string, number>()
     const rankNeighbor = (id: string): number => {
@@ -836,15 +843,20 @@ export function inquireMarkdownDocuments(
                 }
             }
         }
+        // A canon line's (#N) names the event that set it; its story day says when.
+        if (candidate.document.type !== 'event' && eventTimes.size > 0) {
+            content = content.replace(/\(#(\d{1,6})\)/gu, (match, value: string) => {
+                const stamp = storyTimeStamp(eventTimes.get(Number(value)))
+                return stamp ? `(#${value}, ${stamp})` : match
+            })
+        }
         const sequence = sequences.get(candidate.document.id)
         const labels = candidate.document.type === 'event'
             ? [
                 timeline.sourceLabel(candidate.document),
                 sequence === undefined ? undefined
                     : `[Story order: event #${sequence} of ${latestSequence}${sequence === latestSequence ? ', the latest' : ''}]`,
-                candidate.document.retrievalMetadata?.storyTime
-                    ? `[Story day relative to first recorded event: ${candidate.document.retrievalMetadata.storyTime.day ?? 'unknown'}; calendar date unspecified]`
-                    : undefined,
+                describeStoryTimeForModel(candidate.document.retrievalMetadata?.storyTime),
             ].filter((label): label is string => label !== undefined)
             : []
         const boundedContent = truncateToTokenBudget(

@@ -160,6 +160,41 @@ describe('memory analysis runner', () => {
         expect(analyze.mock.calls[0][0].input).not.toContain('sourceMessageOrder')
     })
 
+    test.each([
+        ['copied', '7월 넷째 주 화요일 오전 8시', '7월 넷째 주 화요일 오전 8시'],
+        ['invented', '8월 1일', undefined],
+    ] as const)('takes a time skip typed by the user and keeps only a %s in-story date that the turn states', async (_case, calendar, saved) => {
+        const analyze = vi.fn(async (_request: MemoryAnalysisModelRequest) => JSON.stringify({
+            schemaVersion: 1, title: '등교', establishedEvents: ['아침에 학교로 갔다.'],
+            stateChanges: [], characterKnowledge: [], persistentFacts: [], openContinuity: [],
+            canonicalUpdateCandidates: [], keywords: ['등교'],
+            temporalHint: { elapsedDays: 1, evidence: '다음 날  아침', timeline: 'present',
+                flashbackAmount: null, flashbackUnit: 'day', calendar },
+        }))
+        const saveConfirmedTurn = vi.fn(async () => undefined)
+        const runner = createMemoryAnalysisRunner({
+            memoryService: { loadState: vi.fn(), applyDelta: vi.fn() }, nativeV2Analysis: true,
+            markdownWikiService: {
+                inquire: vi.fn(async () => ({ graphRevision: 0, sources: [] })),
+                loadDocuments: vi.fn(async () => [{
+                    id: 'previous', type: 'event' as const, title: 'previous', sourceMessageIds: ['a1'],
+                    relativePath: 'events/previous.md', content: '## previous', contentHash: 'previous',
+                    retrievalMetadata: { keywords: [], storyTime: { day: 8, precision: 'explicit' as const, evidence: 'Fixture' } },
+                }]),
+                saveConfirmedTurn,
+            }, analyze, onError: vi.fn(),
+        })
+        await runner.run({ characterId: 'character', chatId: 'chat', messages: [
+            { messageId: 'u2', role: 'user', content: '다음 날 아침, 학교로 간다.' },
+            { messageId: 'a2', role: 'assistant', content: '[STATUS|날짜: 7월 넷째 주 화요일|시간: 오전 8시]\n교문이 보였다.' },
+        ] })
+        expect(saveConfirmedTurn).toHaveBeenCalledWith(expect.objectContaining({
+            retrievalMetadata: expect.objectContaining({ storyTime: {
+                day: 9, evidence: '다음 날  아침', precision: 'explicit', ...(saved ? { calendar: saved } : {}),
+            } }),
+        }))
+    })
+
     test.each(['missing', 'alias', 'unconfirmed', 'excluded', 'substring', 'pronoun'] as const)(
         'checks first registration of a named knowledge holder: %s', async (mode) => {
         const saveCanonicalDocument = vi.fn(async () => undefined)

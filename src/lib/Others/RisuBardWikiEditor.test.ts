@@ -188,7 +188,7 @@ describe('RisuBardWikiEditor', () => {
         await tick()
         const metadata = document.querySelector('[data-wiki-retrieval-metadata]')!
         expect(metadata.textContent).toContain('춤, 왈츠')
-        expect(metadata.textContent).toContain('시작 기준 0일')
+        expect(metadata.textContent).toContain('작중 시간: 0일 (시작)')
         expect(metadata.querySelector('input, textarea')).toBeNull()
     })
     it('filters the file tree on submit and selects the first matching text in the editor', async () => {
@@ -488,8 +488,80 @@ describe('RisuBardWikiEditor', () => {
 
         missing.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
         await tick()
-        expect(document.querySelector('[data-wiki-link-diagnostic]')?.textContent)
-            .toBe('연결된 문서가 없습니다: 없는 도시')
+        // A missing link opens the repair box in place of the plain diagnostic.
+        expect(document.querySelector('[data-wiki-link-diagnostic]')).toBeNull()
+        expect(document.querySelector('[data-wiki-link-repair]')?.textContent).toContain('[[없는 도시]]')
+    })
+
+    it('relinks a missing link to a suggested event and saves the clean page', async () => {
+        mocks.db.risuBardWikiMarkdownPreview = true
+        const relinkDocuments = [{
+            ...documents[0],
+            content: '# 라비안\n\n[[성문 앞 승리]] 이후 기사가 되었다. (#7)',
+        }, {
+            ...documents[1],
+            title: '라비안이 성문 앞에서 승리하다',
+            sequence: 7,
+        }]
+        mocks.saveManualWikiDocument.mockImplementation(async (input: any) => ({
+            ...relinkDocuments[0],
+            content: input.markdown,
+            contentHash: 'relinked',
+        }))
+        mounted = mount(RisuBardWikiEditor, {
+            target: document.body,
+            props: { characterId: 'character', chatId: 'chat', documents: relinkDocuments },
+        })
+        await tick()
+
+        expect(document.querySelector('[data-wiki-event-sequence]')?.textContent).toBe('#7')
+        document.querySelector<HTMLElement>('[data-wikilink-status="missing"]')!.click()
+        await tick()
+        const candidate = document.querySelector<HTMLButtonElement>('[data-wiki-link-candidate="event.turn"]')!
+        expect(candidate.textContent).toBe('#7 라비안이 성문 앞에서 승리하다')
+        candidate.click()
+        await vi.waitFor(() => expect(mocks.saveManualWikiDocument).toHaveBeenCalled())
+        expect(mocks.saveManualWikiDocument.mock.calls.at(-1)![0].markdown)
+            .toBe('# 라비안\n\n[[라비안이 성문 앞에서 승리하다]] 이후 기사가 되었다. (#7)')
+        await vi.waitFor(() => expect(document.querySelector('[data-wiki-link-repair]')).toBeNull())
+    })
+
+    it('picks the relink target from the file tree and opens broken links from the health footer', async () => {
+        mocks.db.risuBardWikiMarkdownPreview = false
+        const brokenDocuments = [{
+            ...documents[0],
+            content: '# 라비안\n\n[[완전히 다른 말]]을 기억한다.',
+        }, documents[1]]
+        mocks.saveManualWikiDocument.mockImplementation(async (input: any) => ({
+            ...brokenDocuments[0],
+            content: input.markdown,
+            contentHash: 'picked',
+        }))
+        mounted = mount(RisuBardWikiEditor, {
+            target: document.body,
+            props: {
+                characterId: 'character', chatId: 'chat', documents: brokenDocuments,
+                health: {
+                    danglingLinks: [{ sourceId: 'character.lavian', target: '완전히 다른 말' }],
+                    unlinkedDocumentIds: [],
+                },
+            },
+        })
+        await tick()
+
+        document.querySelector<HTMLButtonElement>('[data-wiki-dangling-toggle]')!.click()
+        await tick()
+        document.querySelector<HTMLButtonElement>('[data-wiki-dangling-list] button')!.click()
+        await tick()
+        expect(document.querySelector('[data-wiki-markdown-preview]')).not.toBeNull()
+        document.querySelector<HTMLButtonElement>('[data-wiki-link-pick-toggle]')!.click()
+        await tick()
+        expect(document.querySelector('[data-wiki-link-pick]')).not.toBeNull()
+        ;[...document.querySelectorAll<HTMLButtonElement>('.file-select')]
+            .find((button) => button.textContent?.includes(documents[1].title))!.click()
+        await vi.waitFor(() => expect(mocks.saveManualWikiDocument).toHaveBeenCalled())
+        expect(mocks.saveManualWikiDocument.mock.calls.at(-1)![0].markdown)
+            .toBe(`# 라비안\n\n[[${documents[1].title}]]을 기억한다.`)
     })
 
     it('opens the responsive document sidebar on demand and closes it from the scrim', async () => {
