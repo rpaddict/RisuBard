@@ -23,7 +23,7 @@ export interface WikiPromptBlock {
 
 export interface WikiPromptPreset {
     schemaVersion: 1
-    writingPolicyVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+    writingPolicyVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11
     id: string
     name: string
     revision: number
@@ -132,17 +132,18 @@ export const OFFICIAL_WIKI_V6_BACKUP_ID = 'official-wiki-261010'
 export const OFFICIAL_WIKI_V7_BACKUP_ID = 'official-wiki-261021'
 export const OFFICIAL_WIKI_V8_BACKUP_ID = 'official-wiki-261027'
 export const OFFICIAL_WIKI_V9_BACKUP_ID = 'official-wiki-261028'
+export const OFFICIAL_WIKI_V10_BACKUP_ID = 'official-wiki-261029'
 export const OFFICIAL_WIKI_CURRENT_ID = 'official-wiki-current'
 export const OFFICIAL_WIKI_ARCHIVE_FOLDER_ID = 'official-wiki-archive'
 // Named like the official presets themselves; the UI language is not loaded yet when this folder is created.
 const OFFICIAL_WIKI_ARCHIVE_FOLDER_NAME = '과거 공식 프리셋'
 // Shipping a new official version: bump the release date, move the previous release to the front of
 // OFFICIAL_WIKI_ARCHIVES, and move archives beyond OFFICIAL_WIKI_ARCHIVE_LIMIT to RETIRED_OFFICIAL_IDS.
-export const OFFICIAL_WIKI_RELEASE = '2026-10-29'
+export const OFFICIAL_WIKI_RELEASE = '2026-11-03'
 export const OFFICIAL_WIKI_ARCHIVE_LIMIT = 3
 const RETIRED_OFFICIAL_IDS: ReadonlySet<string> = new Set([
     OFFICIAL_WIKI_BACKUP_ID, OFFICIAL_WIKI_V2_BACKUP_ID, OFFICIAL_WIKI_V4_BACKUP_ID, OFFICIAL_WIKI_V3_BACKUP_ID,
-    OFFICIAL_WIKI_V5_BACKUP_ID, OFFICIAL_WIKI_V6_BACKUP_ID,
+    OFFICIAL_WIKI_V5_BACKUP_ID, OFFICIAL_WIKI_V6_BACKUP_ID, OFFICIAL_WIKI_V7_BACKUP_ID,
 ])
 
 export function officialWikiPresetName(date: string): string {
@@ -379,7 +380,8 @@ function normalizePreset(value: unknown, idFactory: () => string): WikiPromptPre
             content: '',
         })
     }
-    const writingPolicyVersion = source.writingPolicyVersion === 10 ? 10
+    const writingPolicyVersion = source.writingPolicyVersion === 11 ? 11
+        : source.writingPolicyVersion === 10 ? 10
         : source.writingPolicyVersion === 9 ? 9
         : source.writingPolicyVersion === 8 ? 8
         : source.writingPolicyVersion === 7 ? 7
@@ -593,7 +595,7 @@ const RECALL_DETAIL_V10 = RECALL_BLOCKS.find(block => block.id === 'default-reca
             : line
 ).join('\n')
 
-export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
+function createV10WikiPromptPreset(id: string): WikiPromptPreset {
     const previous = createV9WikiPromptPreset(id)
     return normalizePreset({
         ...previous, writingPolicyVersion: 10, revision: 9,
@@ -602,11 +604,27 @@ export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
     }, () => id)
 }
 
+// Version 11 (2026-11-03) marks a remark or thought nobody else could perceive in the record itself.
+// Without the mark a later reply sees only that the character said it, and someone in the scene knows it.
+const EVIDENCE_SCOPE_V11 = `${RECALL_BLOCKS.find(block => block.id === 'default-evidence-scope')!.content}
+When a character speaks, thinks or acts with no one else present, or so that those present cannot hear or notice, say so in the same sentence, such as: A muttered X alone in the car, and no one heard it. Thoughts, inner monologue, private intentions and solitary remarks are known only to that character. Do not record another character knowing them unless the story shows how, such as overhearing, being told or finding out.`
+
+const RECALL_RESPONSE_V11 = `${RECALL_RESPONSE_V10} A remark, thought or action recorded as unheard or done alone stays unknown to every other character until the story shows them learning it.`
+
+export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
+    const previous = createV10WikiPromptPreset(id)
+    return normalizePreset({
+        ...previous, writingPolicyVersion: 11, revision: 10,
+        blocks: previous.blocks.map(block => block.id === 'default-recall-response' ? { ...block, content: RECALL_RESPONSE_V11 }
+            : block.id === 'default-evidence-scope' ? { ...block, content: EVIDENCE_SCOPE_V11 } : block),
+    }, () => id)
+}
+
 // Newest first; at most OFFICIAL_WIKI_ARCHIVE_LIMIT entries.
 const OFFICIAL_WIKI_ARCHIVES: readonly { id: string; date: string; create: (id: string) => WikiPromptPreset }[] = [
+    { id: OFFICIAL_WIKI_V10_BACKUP_ID, date: '2026-10-29', create: createV10WikiPromptPreset },
     { id: OFFICIAL_WIKI_V9_BACKUP_ID, date: '2026-10-28', create: createV9WikiPromptPreset },
     { id: OFFICIAL_WIKI_V8_BACKUP_ID, date: '2026-10-27', create: createV8WikiPromptPreset },
-    { id: OFFICIAL_WIKI_V7_BACKUP_ID, date: '2026-10-21', create: createV7WikiPromptPreset },
 ]
 
 export function createWikiPromptPreset(id: string, name = 'Wiki Prompt'): WikiPromptPreset {
@@ -644,7 +662,7 @@ export function normalizeWikiPromptPresetState(
         }
         // Only one official preset stays locked; it keeps its stable ID and optional toggles.
         if (official) continue
-        official = normalized.writingPolicyVersion === 10 ? normalized : upgradeOfficialPreset(normalized)
+        official = normalized.writingPolicyVersion === 11 ? normalized : upgradeOfficialPreset(normalized)
         presets.push(official)
     }
     if (!official) {

@@ -121,7 +121,7 @@
                     <label>스텝<input type="number" min="1" max="50" step="1" bind:value={draft.steps} /></label>
                     <label>프롬프트 강도<input type="number" min="0" max="10" step="0.1" bind:value={draft.scale} /></label>
                     <label>CFG 리스케일<input type="number" min="0" max="1" step="0.05" bind:value={draft.cfgRescale} /></label>
-                    <label>샘플러<select bind:value={draft.sampler}><option value="k_euler_ancestral">Euler Ancestral</option><option value="k_euler">Euler</option><option value="k_dpmpp_2m">DPM++ 2M</option><option value="k_dpmpp_2s_ancestral">DPM++ 2S Ancestral</option><option value="k_dpmpp_sde">DPM++ SDE</option><option value="ddim_v3">DDIM</option></select></label>
+                    <label>샘플러<select bind:value={draft.sampler}><option value="k_euler_ancestral">Euler Ancestral</option><option value="k_euler">Euler</option><option value="k_dpmpp_2m">DPM++ 2M</option><option value="k_dpmpp_2m_sde">DPM++ 2M SDE</option><option value="k_dpmpp_2s_ancestral">DPM++ 2S Ancestral</option><option value="k_dpmpp_sde">DPM++ SDE</option><option value="ddim_v3">DDIM</option></select></label>
                 </div></details>
             </fieldset>
             <div class="save-bar">

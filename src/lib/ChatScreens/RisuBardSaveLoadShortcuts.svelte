@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { ArrowRightToLineIcon, LoaderCircleIcon } from '@lucide/svelte'
+    import { ArrowRightToLineIcon, ChevronLeftIcon, ChevronRightIcon, LoaderCircleIcon } from '@lucide/svelte'
     import SolarBoldIcon from 'src/lib/UI/Icons/SolarBoldIcon.svelte'
     import SolarAssetIcon from 'src/lib/UI/Icons/SolarAssetIcon.svelte'
     import feedIcon from 'src/assets/solar-bold/feed-bold.svg'
@@ -17,8 +17,12 @@
         page?: number
         turn?: number
         pageCount?: number
+        /** The 1-based page on screen, not the number typed in the field. */
+        currentPage?: number
         turnCount?: number
         onJump?: () => void | Promise<void>
+        onPreviousPage?: () => void | Promise<void>
+        onNextPage?: () => void | Promise<void>
         onFindReplace?: () => void
         findReplaceDisabled?: boolean
     }
@@ -32,8 +36,11 @@
         page = $bindable(1),
         turn = $bindable(1),
         pageCount = 1,
+        currentPage = 1,
         turnCount = 0,
         onJump = () => {},
+        onPreviousPage = () => {},
+        onNextPage = () => {},
         onFindReplace = () => {},
         findReplaceDisabled = false,
     }: Props = $props()
@@ -57,9 +64,14 @@
     <button type="button" class="toolbar-button" data-chat-find-replace aria-label="찾기/바꾸기" title="찾기/바꾸기" disabled={findReplaceDisabled} onclick={onFindReplace}>
         <SolarBoldIcon name="magnifier" size={19} />
     </button>
-    <span class="toolbar-divider" aria-hidden="true"></span>
-    <label class="jump-field" data-chat-page-jump>
+    <span class="toolbar-divider toolbar-divider--jump" aria-hidden="true"></span>
+    <div class="jump-field" data-chat-page-jump>
         <span>{language.chatPageJumpLabel}</span>
+        {#if pageCount > 1}
+            <button type="button" class="page-step" data-chat-page-previous aria-label={language.chatPagePrevious} title={language.chatPagePrevious} disabled={currentPage <= 1} onclick={() => void onPreviousPage()}>
+                <ChevronLeftIcon size={16} />
+            </button>
+        {/if}
         <input
             type="number"
             min="1"
@@ -74,7 +86,13 @@
                 }
             }}
         />
-    </label>
+        {#if pageCount > 1}
+            <span class="page-total" data-chat-page-total>/ {pageCount}</span>
+            <button type="button" class="page-step" data-chat-page-next aria-label={language.chatPageNext} title={language.chatPageNext} disabled={currentPage >= pageCount} onclick={() => void onNextPage()}>
+                <ChevronRightIcon size={16} />
+            </button>
+        {/if}
+    </div>
     <label class="jump-field" data-chat-turn-jump>
         <span>{language.chatTurnLabel}</span>
         <input
@@ -117,6 +135,16 @@
     .jump-field { display: flex; flex: 0 0 auto; align-items: center; gap: .25rem; color: var(--color-textcolor2); font-size: .7rem; font-weight: 600; white-space: nowrap; }
     .jump-field input { width: 3.25rem; height: 2.25rem; border: 1px solid var(--color-darkborderc); border-radius: .65rem; color: var(--color-textcolor); background: var(--color-darkbg); text-align: center; font-size: .75rem; font-variant-numeric: tabular-nums; outline: none; }
     .jump-field input:disabled { opacity: .45; }
+    .page-step { display: grid; width: 1.75rem; height: 2.25rem; flex: 0 0 1.75rem; place-items: center; border: 0; border-radius: .65rem; color: var(--color-textcolor); background: transparent; transition: color .14s ease, background .14s ease; }
+    .page-step:hover:not(:disabled) { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 16%, transparent); }
+    .page-step:disabled { pointer-events: none; opacity: .35; }
+    .page-step:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+    .page-total { color: var(--color-textcolor); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+    /* Phones cannot fit one row; page and turn controls move to a second row instead of scrolling out of view. */
+    @media (max-width: 32rem) {
+        .save-load-toolbar { flex-wrap: wrap; justify-content: center; row-gap: .25rem; border-radius: 1.25rem; }
+        .toolbar-divider--jump { display: none; }
+    }
     .jump-field input:focus-visible, .toolbar-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
     .jump-button { color: var(--color-primary); }
     @media (prefers-reduced-motion: reduce) { .toolbar-button { transition: none; } }

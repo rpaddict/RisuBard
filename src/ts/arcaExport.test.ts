@@ -239,6 +239,29 @@ describe('exportArcaHtml', () => {
         expect(html).not.toContain('설정');
     });
 
+    it('carries the chat line height over as a ratio, keeping a block that sets its own', async () => {
+        const root = document.createElement('div');
+        root.innerHTML = '<p>첫 줄<br>둘째 줄</p><div class="card"><p>카드</p></div>';
+        const card = root.children[1] as HTMLElement;
+        const styles = new Map<Element, CSSStyleDeclaration>([
+            [root, cssStyle('font-size: 20px; line-height: 40px;')],
+            [card, cssStyle('line-height: 1.45;')],
+        ]);
+
+        const html = await exportArcaHtml(root, {
+            readStyle: element => styles.get(element) ?? cssStyle(''),
+            loadImage: async url => url,
+        });
+        const output = document.createElement('div');
+        output.innerHTML = html;
+        const wrapper = output.firstElementChild as HTMLElement;
+
+        expect(wrapper.style.lineHeight).toBe('2');
+        expect((wrapper.children[0] as HTMLElement).style.lineHeight).toBe('2');
+        expect((wrapper.children[1] as HTMLElement).style.lineHeight).toBe('1.45');
+        expect(wrapper.children[1].querySelector('p')?.style.lineHeight).toBe('');
+    });
+
     it('surfaces complex snapshot failures instead of silently flattening hidden panels', async () => {
         const root = document.createElement('div');
         root.innerHTML = '<div class="unknown-wrapper"><div class="unknown-panel">Hidden panel</div></div>';

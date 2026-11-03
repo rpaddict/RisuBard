@@ -26,6 +26,12 @@ const authoredPalettes = [
             reason: 'The folder surface reflects its explicitly selected named color.',
         },
         {
+            file: 'src/lib/SideBars/ChatManagerDialog.svelte',
+            expression: `class:bg-${color}-500={color === '${color}'}`,
+            utilities: [`bg-${color}-500`],
+            reason: 'The folder dot in the chat manager reflects its explicitly selected named color.',
+        },
+        {
             file: 'src/lib/SideBars/SidebarAvatar.svelte',
             expression: `color === '${color}' ? 'bg-${color}-700/50'`,
             utilities: [`bg-${color}-700/50`],

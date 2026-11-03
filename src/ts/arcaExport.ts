@@ -400,6 +400,29 @@ function applyTopLevelSpacing(container: HTMLElement, paragraphSpacingPercent: n
     });
 }
 
+// The chat line height is a user setting in rem, so it is carried over as a ratio to the font size.
+function readLineHeightRatio(style: CSSStyleDeclaration): string | null {
+    const lineHeight = getStyleValue(style, 'line-height');
+    const fontSize = Number.parseFloat(getStyleValue(style, 'font-size'));
+    if (!lineHeight.endsWith('px') || !(fontSize > 0)) return null;
+    const ratio = Number.parseFloat(lineHeight) / fontSize;
+    return ratio > 0 ? String(Math.round(ratio * 100) / 100) : null;
+}
+
+const LINE_HEIGHT_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
+
+// Text blocks get the line height inline as well, since the editor's own paragraph style
+// would otherwise win over the inherited value. A block with its own line height keeps it.
+function applyLineHeight(parent: HTMLElement, lineHeight: string): void {
+    for (const child of Array.from(parent.children) as HTMLElement[]) {
+        if (child.style.lineHeight) continue;
+        if (LINE_HEIGHT_TAGS.has(child.tagName)) {
+            child.style.lineHeight = lineHeight;
+        }
+        applyLineHeight(child, lineHeight);
+    }
+}
+
 function shouldDropElement(element: HTMLElement): boolean {
     return DROPPED_TAGS.has(element.tagName)
         || element.hasAttribute('contenteditable')
@@ -910,5 +933,10 @@ export async function exportArcaHtml(root: HTMLElement, options: ArcaExportOptio
 
     await exportChildNodes(root, container, resolvedOptions);
     applyTopLevelSpacing(container, options.paragraphSpacingPercent);
+    const lineHeight = readLineHeightRatio(readStyle(root));
+    if (lineHeight && container.childNodes.length > 0) {
+        applyLineHeight(container, lineHeight);
+        return `<div style="line-height: ${lineHeight};">${container.innerHTML.trim()}</div>`;
+    }
     return container.innerHTML.trim();
 }

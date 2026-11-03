@@ -175,11 +175,11 @@ describe('character configuration navigation', () => {
         expect(languageKorean.toggleBindingLabel).toBe('채팅별 프리셋 고정')
     })
 
-    test('keeps eight ordered toolbar actions and moves secondary actions into a menu', () => {
+    test('keeps nine ordered toolbar actions and moves secondary actions into a menu', () => {
         const chatList = source('src/lib/SideBars/SideChatList.svelte')
         const toolbar = chatList.slice(chatList.indexOf('data-chat-list-toolbar'), chatList.indexOf('{#key sorted}'))
         const actions = ['data-sidebar-new-chat', 'data-chat-rename', 'data-chat-copy', 'data-chat-merge',
-            'data-chat-branch', 'data-chat-delete', 'data-chat-new-folder', 'data-chat-more']
+            'data-chat-branch', 'data-chat-delete', 'data-chat-new-folder', 'data-chat-manager-open', 'data-chat-more']
         const positions = actions.map(action => toolbar.indexOf(action))
         expect(positions.every(position => position >= 0)).toBe(true)
         expect(positions).toEqual([...positions].sort((a, b) => a - b))
@@ -188,7 +188,7 @@ describe('character configuration navigation', () => {
         expect(menu).toContain('onSelect={exportAllChats}')
         expect(menu).toContain('onSelect={importChat}')
         expect(menu).toContain('$bookmarkListOpen = true')
-        expect(toolbar.match(/<ShButton\b/g)).toHaveLength(7)
+        expect(toolbar.match(/<ShButton\b/g)).toHaveLength(8)
     })
 
     test('gives the list its own scroll area and keeps the sidebar handle outside scrolling content', () => {

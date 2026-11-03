@@ -2,7 +2,7 @@
     import { onDestroy, untrack } from "svelte";
     import { v4 } from "uuid";
     import Sortable from 'sortablejs/modular/sortable.core.esm.js';
-    import { DownloadIcon, PencilIcon, HardDriveUploadIcon, TrashIcon, SplitIcon, FolderPlusIcon, BookmarkCheckIcon, PackageIcon, CopyIcon, PlusIcon, MergeIcon, EllipsisIcon, XIcon, ListChecksIcon, UserRoundIcon, FolderInputIcon, FolderMinusIcon, ArrowUpIcon, ArrowDownIcon, GripVerticalIcon, ChevronRightIcon, PaletteIcon } from "@lucide/svelte";
+    import { DownloadIcon, PencilIcon, HardDriveUploadIcon, TrashIcon, SplitIcon, FolderPlusIcon, BookmarkCheckIcon, PackageIcon, CopyIcon, PlusIcon, MergeIcon, EllipsisIcon, XIcon, ListChecksIcon, UserRoundIcon, FolderInputIcon, FolderMinusIcon, ArrowUpIcon, ArrowDownIcon, GripVerticalIcon, ChevronRightIcon, PaletteIcon, Maximize2Icon } from "@lucide/svelte";
 
     import type { Chat, ChatFolder, character } from "src/ts/storage/database.svelte";
     import { newChatModelDefaults } from "src/ts/storage/database.svelte";
@@ -32,6 +32,7 @@
     import { doingChat, isAnyGenerating } from "src/ts/process/generationState";
     import { isWikiGenerating } from "src/ts/risubard/wikiGenerationState";
     import ChatMergeDialog from "./ChatMergeDialog.svelte";
+    import ChatManagerDialog from "./ChatManagerDialog.svelte";
     import ShDropdownMenu from '../UI/GUI/ShDropdownMenu.svelte';
     import ShDropdownMenuTrigger from '../UI/GUI/ShDropdownMenuTrigger.svelte';
     import ShDropdownMenuContent from '../UI/GUI/ShDropdownMenuContent.svelte';
@@ -93,6 +94,7 @@
     const chatListHeight = $derived(normalizeChatListHeight(DBState.db.chatListHeight, $SizeStore.h))
     const activeChat = $derived(chara.chats[chara.chatPage])
     let mergeOpen = $state(false)
+    let managerOpen = $state(false)
 
     async function loadMergeChat(id: string): Promise<Chat> {
         const index = chara.chats.findIndex(chat => chat.id === id)
@@ -318,8 +320,12 @@
             chatsStb.push(new Sortable(chat, {
                 group: 'chats',
                 ...sortableOptions,
-                // Rows only drag by their grip, so a long press on the row stays free for selection.
-                handle: '[data-chat-drag-handle]',
+                // A mouse drags the whole row; touch drags only by the grip, so a long press
+                // on the row stays free for selection and a swipe still scrolls.
+                filter: (event: Event, target: HTMLElement) => target.classList.contains('no-sort')
+                    || ((event as PointerEvent).pointerType === 'touch' || event.type.startsWith('touch'))
+                        && !(event.target as Element | null)?.closest('[data-chat-drag-handle]'),
+                preventOnFilter: false,
                 delay: 0,
                 onStart: () => { draggingChat = true },
                 onEnd: async (event) => {
@@ -423,7 +429,9 @@
     }
 
     function selectRangeTo(chatId: string): void {
-        const range = chatIdRange(visibleChatIds, selectionAnchor ?? chatId, chatId)
+        // Without an anchor, the range starts at the open chat, like a file manager.
+        const anchor = selectionAnchor ?? (!$chatDeselected ? chara.chats[chara.chatPage]?.id : null) ?? chatId
+        const range = chatIdRange(visibleChatIds, anchor, chatId)
         selectedChatIds = [...new Set([...selectedChatIds, ...range])]
         selectionAnchor = chatId
     }
@@ -659,6 +667,9 @@
     <ChatMergeDialog open={mergeOpen} chats={chara.chats} loadChat={loadMergeChat}
         onMerge={mergeChats} onOpenChange={(open) => { mergeOpen = open }} />
 {/if}
+{#if managerOpen}
+    <ChatManagerDialog open={managerOpen} bind:chara onOpenChange={(open) => { managerOpen = open }} />
+{/if}
 <div class="flex flex-col w-full" bind:this={rootEle}>
     <section data-current-chat-section class="border-b border-darkborderc pb-2">
         <div data-chat-file-header class="flex min-h-10 items-center gap-1">
@@ -709,7 +720,7 @@
             </ShButton>
         </div>
         {:else}
-        <div data-chat-list-toolbar class="grid grid-cols-8 items-center gap-0.5 border-b border-darkborderc py-1.5">
+        <div data-chat-list-toolbar class="grid grid-cols-9 items-center gap-0.5 border-b border-darkborderc py-1.5">
             <ShButton data-sidebar-new-chat variant="ghost" size="icon-sm" className="min-w-0 w-full" aria-label={language.newChat} title={language.newChat} onclick={createNewChat}>
                 <PlusIcon size={18} />
             </ShButton>
@@ -732,6 +743,9 @@
             </ShButton>
             <ShButton data-chat-new-folder variant="ghost" size="icon-sm" className="min-w-0 w-full" aria-label="새 폴더" title="새 폴더" onclick={() => { createFolder() }}>
                 <FolderPlusIcon size={18} />
+            </ShButton>
+            <ShButton data-chat-manager-open variant="ghost" size="icon-sm" className="min-w-0 w-full" aria-label="챗 목록 크게 보기" title="챗 목록 크게 보기" onclick={() => { managerOpen = true }}>
+                <Maximize2Icon size={18} />
             </ShButton>
             <ShDropdownMenu>
                 <ShDropdownMenuTrigger data-chat-more aria-label="챗 목록 더 보기" title="더 보기"
@@ -767,7 +781,7 @@
                     <span class="truncate">{chat.name}</span>
                 </button>
                 <span data-chat-drag-handle aria-hidden="true" title="끌어서 순서 바꾸기"
-                    class="chat-drag-handle flex shrink-0 cursor-grab items-center self-stretch px-1.5 text-textcolor2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-70">
+                    class="chat-drag-handle hidden shrink-0 cursor-grab items-center self-stretch px-1.5 text-textcolor2 opacity-70 pointer-coarse:flex">
                     <GripVerticalIcon size={16} />
                 </span>
             </div>

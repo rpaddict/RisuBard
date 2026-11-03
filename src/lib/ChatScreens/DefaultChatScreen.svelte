@@ -35,6 +35,8 @@
         executeCurrentNarrativeWikiCommand,
         previewCurrentCanonCompression,
         applyCurrentCanonCompression,
+        prepareCurrentStoryTimeBackfill,
+        runCurrentStoryTimeBackfill,
         forceCurrentNarrativeWikiUpdate,
         retryNarrativeBacklog,
         skipNarrativeBacklogTurn,
@@ -253,6 +255,10 @@ import { isMobile } from 'src/ts/platform'
     let currentChatFmIndex = $derived(currentChatReady ? (currentChatSlot.fmIndex ?? -1) : -1)
     let chatPageSize = $derived(normalizeChatPageSize(DBState.db.chatPageSize))
     let chatBounds = $derived(getChatPageBounds(currentChat.length, chatPageSize, chatPage))
+    let showSaveLoadToolbar = $derived(!!currentCharacter?.chaId
+        && currentCharacter.chaId !== '§playground'
+        && !$chatDeselected
+        && DBState.db.showRisuBardSaveLoadShortcuts !== false)
     let targetPageNumber = $derived(normalizeChatNavigationTarget(
         pageJumpInput,
         chatBounds.pageCount,
@@ -1425,10 +1431,7 @@ import { isMobile } from 'src/ts/platform'
                     style="{DBState.db.fixedChatTextarea ? 'z-index:29;' : ''}"
             >
               <div class="mx-auto w-full {composerWidthClass} px-2">
-                {#if currentCharacter?.chaId
-                    && currentCharacter.chaId !== '§playground'
-                    && !$chatDeselected
-                    && DBState.db.showRisuBardSaveLoadShortcuts !== false}
+                {#if showSaveLoadToolbar}
                     <div data-composer-save-toolbar>
                         <RisuBardSaveLoadShortcuts
                             saving={savingSlot}
@@ -1439,8 +1442,11 @@ import { isMobile } from 'src/ts/platform'
                             bind:page={pageJumpInput}
                             bind:turn={turnJumpInput}
                             pageCount={chatBounds.pageCount}
+                            currentPage={chatBounds.page + 1}
                             turnCount={targetPageTurnNavigation.turnCount}
                             onJump={jumpToPageTurn}
+                            onPreviousPage={() => selectChatPage(chatBounds.page - 1)}
+                            onNextPage={() => selectChatPage(chatBounds.page + 1, chatBounds.page + 1 >= chatBounds.pageCount - 1)}
                             onFindReplace={() => findReplaceOpen = true}
                             findReplaceDisabled={!currentChatReady || !currentChatSlot?.id}
                         />
@@ -1944,7 +1950,8 @@ import { isMobile } from 'src/ts/platform'
                 </button>
             {/if}
 
-            {#if chatBounds.pageCount > 1}
+            <!-- The composer toolbar carries the page controls when it is shown. -->
+            {#if chatBounds.pageCount > 1 && !showSaveLoadToolbar}
                 <nav
                     data-chat-pagination
                     class="mx-auto my-3 flex max-w-xl items-center justify-center gap-2 rounded-full border border-darkborderc bg-darkbg/90 px-3 py-2 text-sm text-textcolor shadow-sm"
@@ -2097,6 +2104,8 @@ import { isMobile } from 'src/ts/platform'
             onExecuteWikiCommand={executeCurrentNarrativeWikiCommand}
             onPreviewCanonCompression={previewCurrentCanonCompression}
             onApplyCanonCompression={applyCurrentCanonCompression}
+            onPrepareStoryTimeBackfill={prepareCurrentStoryTimeBackfill}
+            onRunStoryTimeBackfill={runCurrentStoryTimeBackfill}
             onNavigateStorySource={navigateStorySource}
             onNavigateOocMessage={scrollToMessage}
         />

@@ -26,6 +26,25 @@ describe('bounded chat-page UI connections', () => {
         expect(source).not.toMatch(/loadPages\s*\+=/)
     })
 
+    it('moves previous and next into the composer toolbar and keeps the in-list bar only without it', () => {
+        const source = screen()
+        const toolbar = shortcuts()
+        const pageJump = toolbar.indexOf('data-chat-page-jump')
+        const previous = toolbar.indexOf('data-chat-page-previous')
+        const total = toolbar.indexOf('data-chat-page-total')
+        const next = toolbar.indexOf('data-chat-page-next')
+        const turnJump = toolbar.indexOf('data-chat-turn-jump')
+
+        expect([pageJump, previous, total, next, turnJump].every(index => index >= 0)).toBe(true)
+        expect(pageJump).toBeLessThan(previous)
+        expect(previous).toBeLessThan(total)
+        expect(total).toBeLessThan(next)
+        expect(next).toBeLessThan(turnJump)
+        expect(source).toContain('{#if chatBounds.pageCount > 1 && !showSaveLoadToolbar}')
+        expect(source).toContain('{#if showSaveLoadToolbar}')
+        expect(source).toContain('onNextPage={() => selectChatPage(chatBounds.page + 1, chatBounds.page + 1 >= chatBounds.pageCount - 1)}')
+    })
+
     it('keeps the side navigator compact and places page-turn jump at the toolbar right edge', () => {
         const source = screen()
         const navigator = source.slice(
