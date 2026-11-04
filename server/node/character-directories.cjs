@@ -54,7 +54,10 @@ function createCharacterDirectoryResolver(dataRoot) {
         let current = root;
         for (const segment of path.relative(root, target).split(path.sep)) {
             current = path.join(current, segment);
-            if (fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) throw new Error('Mapped directory uses a symbolic link');
+            let stat;
+            try { stat = fs.lstatSync(current); } catch { break; } // nothing below a missing segment exists
+            // existsSync follows the link, so a dangling link stays allowed as before.
+            if (stat.isSymbolicLink() && fs.existsSync(current)) throw new Error('Mapped directory uses a symbolic link');
         }
         return target;
     }
@@ -109,12 +112,18 @@ function createCharacterDirectoryResolver(dataRoot) {
     }
     function discover(relative, entries) {
         const target = safePath(relative);
-        if (!fs.existsSync(target)) return [];
+        let items;
+        try {
+            items = fs.readdirSync(target, { withFileTypes: true });
+        } catch (error) {
+            if (error?.code === 'ENOENT') return [];
+            throw error;
+        }
         const reverse = new Map(entries.map(entry => [collisionKey(entry.directory), entry]));
         const retired = new Set(entries.filter(entry => entry.id !== entry.directory).map(entry => collisionKey(entry.id)));
         const found = new Set();
         const result = [];
-        for (const item of fs.readdirSync(target, { withFileTypes: true })) {
+        for (const item of items) {
             if (item.isSymbolicLink()) throw new Error('Canonical directory uses a symbolic link');
             if (!item.isDirectory() || item.name.startsWith('.')) continue;
             const key = collisionKey(item.name);

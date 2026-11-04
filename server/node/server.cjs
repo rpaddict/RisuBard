@@ -287,8 +287,10 @@ async function flushPendingDbWithinQueue(options = {}) {
     reportImportProgress('flush');
     // Keep acknowledged edits in memory until the user reviews external edits.
     // A database read (page load) still adopts files edited while the app was closed.
-    if (options.adoptExternal !== true && externalChangesAwaitingReview()) return;
-    if (await adoptSettledExternalProjection()) return;
+    // `reviewCheck`: the caller's checkExternalChangesAwaitingReview() result from just before this call.
+    const check = options.adoptExternal === true ? { pending: false } : options.reviewCheck || checkExternalChangesAwaitingReview();
+    if (check.pending) return;
+    if (await adoptSettledExternalProjection(false, check.revision)) return;
     const trigger = options.deferCompatibility === true ? 'canonical-flush' : 'flush';
     if (saveTimers[DB_HEX_KEY]) {
         clearTimeout(saveTimers[DB_HEX_KEY]);
@@ -1120,8 +1122,16 @@ const externalChangeReview = createExternalChangeReview({ repository: userDataRe
 
 // Files edited outside the app while it holds state. Resumed adoptions keep their old path.
 function externalChangesAwaitingReview() {
-    return canonicalProjectionReady && !liveFilesAdoption && !externalEditSession?.isActive()
-        && canonicalProjectionSync.hasExternalChanges();
+    return checkExternalChangesAwaitingReview().pending;
+}
+
+// `revision` is what the check scanned. Hand it to adoptSettledExternalProjection
+// in the same synchronous step (no await between) so it skips a second scan of
+// every character and chat file.
+function checkExternalChangesAwaitingReview() {
+    if (!canonicalProjectionReady || liveFilesAdoption || externalEditSession?.isActive()) return { pending: false };
+    const { changed, revision } = canonicalProjectionSync.checkExternalChanges();
+    return { pending: changed, revision };
 }
 
 function sendExternalChangesPending(res) {
@@ -1272,7 +1282,8 @@ function persistCanonicalProjection(databaseObject, observationContext = {}) {
 }
 
 // scanned: a reconcile result already produced by an explicit asset-folder scan.
-function adoptExternallyChangedCanonicalProjection(liveOnly = false, scanned = null) {
+// checkedRevision: see checkExternalChangesAwaitingReview.
+function adoptExternallyChangedCanonicalProjection(liveOnly = false, scanned = null, checkedRevision = undefined) {
     if (!canonicalProjectionReady) return null
     // Disabling watchers/polls must not disable mandatory revision reconciliation
     // on ordinary reads and saves (including a missing/stale acceptance record).
@@ -1281,7 +1292,7 @@ function adoptExternallyChangedCanonicalProjection(liveOnly = false, scanned = n
     try {
     const fresh = scanned || (liveCharacterFiles.isEnabled()
         ? liveCharacterFiles.reconcile({ verifyMetadata: liveOnly }) : null)
-        || (!liveOnly && canonicalProjectionSync.loadExternalChanges())
+        || (!liveOnly && canonicalProjectionSync.loadExternalChanges(liveCharacterFiles.isEnabled() ? undefined : checkedRevision))
     if (!fresh && !liveFilesAdoption) return null
     if (!liveFilesAdoption) {
         liveFilesAdoption = {
@@ -1357,9 +1368,10 @@ function adoptExternallyChangedCanonicalProjection(liveOnly = false, scanned = n
     }
 }
 
-async function adoptSettledExternalProjection(liveOnly = false) {
+async function adoptSettledExternalProjection(liveOnly = false, checkedRevision = undefined) {
     for (let attempt = 0; ; attempt++) {
-        try { return adoptExternallyChangedCanonicalProjection(liveOnly) }
+        // A retry runs after a wait, so it scans the files again.
+        try { return adoptExternallyChangedCanonicalProjection(liveOnly, null, attempt === 0 ? checkedRevision : undefined) }
         catch (error) {
             if (error?.code !== 'LIVE_FILES_SETTLING' || attempt >= 7) throw error
             await new Promise(resolve => setTimeout(resolve, 275))
@@ -4712,11 +4724,12 @@ app.post('/api/write', async (req, res, next) => {
                     sendExternalEditModeLocked(res);
                     return;
                 }
-                if (externalChangesAwaitingReview()) {
+                const reviewCheck = checkExternalChangesAwaitingReview();
+                if (reviewCheck.pending) {
                     sendExternalChangesPending(res);
                     return;
                 }
-                const adopted = await adoptSettledExternalProjection();
+                const adopted = await adoptSettledExternalProjection(false, reviewCheck.revision);
                 if (adopted) {
                     sendCanonicalProjectionConflict(res, adopted);
                     return;
@@ -4910,14 +4923,15 @@ app.post('/api/db/flush', async (req, res, next) => {
             }
             // Nothing is written until the user reviews the external edits. Say
             // so instead of reporting a flush that did not happen.
-            if (externalChangesAwaitingReview()) {
+            const reviewCheck = checkExternalChangesAwaitingReview();
+            if (reviewCheck.pending) {
                 res.send({ success: true, paused: true, externalChangesPending: true, etag: dbEtag ?? undefined });
                 return;
             }
             // Interactive saves acknowledge durable canonical files. Legacy
             // readers and ordinary flushes still materialize the complete DB.
             const canonicalOnly = req.query.mode === 'canonical';
-            await flushPendingDbWithinQueue(canonicalOnly ? { materialize: false, deferCompatibility: true } : {});
+            await flushPendingDbWithinQueue(canonicalOnly ? { materialize: false, deferCompatibility: true, reviewCheck } : { reviewCheck });
             res.send({
                 success: true,
                 etag: dbEtag ?? undefined
@@ -4960,11 +4974,12 @@ app.post('/api/patch', async (req, res, next) => {
                     sendExternalEditModeLocked(res);
                     return;
                 }
-                if (externalChangesAwaitingReview()) {
+                const reviewCheck = checkExternalChangesAwaitingReview();
+                if (reviewCheck.pending) {
                     sendExternalChangesPending(res);
                     return;
                 }
-                const adopted = await adoptSettledExternalProjection();
+                const adopted = await adoptSettledExternalProjection(false, reviewCheck.revision);
                 if (adopted) {
                     sendCanonicalProjectionConflict(res, adopted);
                     return;
@@ -6314,11 +6329,12 @@ async function saveChatContentHandler(req, res, next) {
                 sendExternalEditModeLocked(res);
                 return;
             }
-            if (externalChangesAwaitingReview()) {
+            const reviewCheck = checkExternalChangesAwaitingReview();
+            if (reviewCheck.pending) {
                 sendExternalChangesPending(res);
                 return;
             }
-            const adopted = await adoptSettledExternalProjection();
+            const adopted = await adoptSettledExternalProjection(false, reviewCheck.revision);
             if (adopted) {
                 sendCanonicalProjectionConflict(res, adopted);
                 return;

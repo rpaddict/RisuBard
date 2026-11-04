@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openModelPresetList, openModelProfileBrowser, openPersonaList, openPersonaManager, personaSelectCallback, openHypaV3PresetList, openThemePresetList, MobileGUI, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, popUpEditorStore, promptAssistantOpen, characterAssistantOpen } from './ts/stores.svelte';
+    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openModelPresetList, openModelProfileBrowser, openPersonaList, openPersonaManager, personaSelectCallback, openHypaV3PresetList, openThemePresetList, MobileGUI, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, popUpEditorStore, promptAssistantOpen, characterAssistantOpen, readerBoardOpen } from './ts/stores.svelte';
     import Sidebar from './lib/SideBars/Sidebar.svelte';
     import { DBState } from './ts/stores.svelte';
     import { accountImportBlocking } from './ts/stores.svelte';
@@ -7,6 +7,7 @@
     import ChatScreen from './lib/ChatScreens/ChatScreen.svelte';
     import RisuBardPromptAssistant from './lib/Others/RisuBardPromptAssistant.svelte';
     import RisuBardCharacterAssistant from './lib/Others/RisuBardCharacterAssistant.svelte';
+    import RisuBardReaderBoard from './lib/Others/RisuBardReaderBoard.svelte';
     import AlertComp from './lib/Others/AlertComp.svelte';
     import ExternalChangeReview from './lib/Others/ExternalChangeReview.svelte';
     import CharacterUpdateDialog from './lib/Others/CharacterUpdateDialog.svelte';
@@ -81,6 +82,8 @@
     $effect(() => { if ($promptAssistantOpen) promptAssistantMounted = true })
     let characterAssistantMounted = $state(false)
     $effect(() => { if ($characterAssistantOpen) characterAssistantMounted = true })
+    let readerBoardMounted = $state(false)
+    $effect(() => { if ($readerBoardOpen) readerBoardMounted = true })
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -303,6 +306,9 @@
     {/if}
     {#if $loadedStore && characterAssistantMounted}
         <RisuBardCharacterAssistant bind:open={$characterAssistantOpen} />
+    {/if}
+    {#if $loadedStore && readerBoardMounted}
+        <RisuBardReaderBoard bind:open={$readerBoardOpen} />
     {/if}
     <AlertComp />
     <ExternalChangeReview />

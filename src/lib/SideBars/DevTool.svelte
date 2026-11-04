@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { characterAssistantOpen, promptAssistantOpen, selectedCharID } from "src/ts/stores.svelte";
+    import { characterAssistantOpen, promptAssistantOpen, readerBoardOpen, selectedCharID } from "src/ts/stores.svelte";
     import TextInput from "../UI/GUI/TextInput.svelte";
     import NumberInput from "../UI/GUI/NumberInput.svelte";
     import Button from "../UI/GUI/Button.svelte";
@@ -321,10 +321,13 @@
 
 <!-- Only one assistant dock is open at a time. -->
 <div class="flex flex-col items-start">
-<Button className="mt-2" selected={$promptAssistantOpen} onclick={() => { $promptAssistantOpen = !$promptAssistantOpen; if ($promptAssistantOpen) $characterAssistantOpen = false }}>
+<Button className="mt-2" selected={$promptAssistantOpen} onclick={() => { $promptAssistantOpen = !$promptAssistantOpen; if ($promptAssistantOpen) { $characterAssistantOpen = false; $readerBoardOpen = false } }}>
     Prompt Assistant
 </Button>
-<Button className="mt-2" selected={$characterAssistantOpen} onclick={() => { $characterAssistantOpen = !$characterAssistantOpen; if ($characterAssistantOpen) $promptAssistantOpen = false }}>
+<Button className="mt-2" selected={$characterAssistantOpen} onclick={() => { $characterAssistantOpen = !$characterAssistantOpen; if ($characterAssistantOpen) { $promptAssistantOpen = false; $readerBoardOpen = false } }}>
     Character Assistant
+</Button>
+<Button className="mt-2" selected={$readerBoardOpen} onclick={() => { $readerBoardOpen = !$readerBoardOpen; if ($readerBoardOpen) { $promptAssistantOpen = false; $characterAssistantOpen = false } }}>
+    Reader Board
 </Button>
 </div>

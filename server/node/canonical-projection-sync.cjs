@@ -15,8 +15,10 @@ function createCanonicalProjectionSync(options = {}) {
         throw new Error('Canonical projection revision storage is required');
     }
 
-    function loadExternalChanges() {
-        const revision = repository.getProjectionRevision();
+    // `checkedRevision`: the revision checkExternalChanges() just scanned in
+    // the same synchronous step, reused instead of scanning every file again.
+    function loadExternalChanges(checkedRevision) {
+        const revision = checkedRevision === undefined ? repository.getProjectionRevision() : checkedRevision;
         if (!revision || revision === readAcceptedRevision()) return null;
         // Files edited by hand while the app was closed have stale checksums.
         // Validate and adopt them like the retired live file monitor did.
@@ -34,17 +36,22 @@ function createCanonicalProjectionSync(options = {}) {
     const fingerprints = () => typeof repository.getProjectionFingerprints === 'function'
         ? repository.getProjectionFingerprints() : null;
 
-    function hasExternalChanges() {
+    // Also returns the scanned revision for loadExternalChanges().
+    function checkExternalChanges() {
         if (!acceptedFiles) {
             const state = fingerprints();
             if (state) {
                 const unchanged = Boolean(state.revision) && state.revision === readAcceptedRevision();
                 if (unchanged) acceptedFiles = state.files;
-                return Boolean(state.revision) && !unchanged;
+                return { changed: Boolean(state.revision) && !unchanged, revision: state.revision };
             }
         }
         const revision = repository.getProjectionRevision();
-        return Boolean(revision && revision !== readAcceptedRevision());
+        return { changed: Boolean(revision && revision !== readAcceptedRevision()), revision };
+    }
+
+    function hasExternalChanges() {
+        return checkExternalChanges().changed;
     }
 
     // Files added, removed or rewritten since the last accepted revision; null
@@ -133,7 +140,7 @@ function createCanonicalProjectionSync(options = {}) {
         };
     }
 
-    return { accept, beginSave, changedFiles, hasExternalChanges, loadExternalChanges };
+    return { accept, beginSave, changedFiles, checkExternalChanges, hasExternalChanges, loadExternalChanges };
 }
 
 module.exports = { createCanonicalProjectionSync };

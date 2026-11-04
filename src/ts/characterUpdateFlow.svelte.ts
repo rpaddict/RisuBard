@@ -316,7 +316,7 @@ function backupOf(char: character): character {
         ...copy,
         chaId: v4(),
         name: `${char.name ?? ''} ${language.characterUpdate.backupSuffix}`,
-        chats: [{ message: [], note: '', name: 'Chat 1', localLore: [], ...newChatModelDefaults() }],
+        chats: [{ id: v4(), message: [], note: '', name: 'Chat 1', localLore: [], ...newChatModelDefaults() }],
         chatFolders: [],
         chatPage: 0,
         updateBase: undefined,

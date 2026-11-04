@@ -2115,6 +2115,11 @@ export function checkCharOrder() {
     for (let i = 0; i < db.characters.length; i++) {
         const char = db.characters[i]
         const charId = char.chaId
+        // A chat without an ID (a card imported with its chats) makes every
+        // single-chat save fall back to rewriting all characters until a reload.
+        for (const chat of char.chats ?? []) {
+            if (chat && !chat.id) chat.id = v4()
+        }
         if (!char.trashTime) {
             charIdList.push(charId)
         }

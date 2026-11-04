@@ -22,7 +22,7 @@
 
   } from "../../ts/stores.svelte";
     import { setDatabase } from "../../ts/storage/database.svelte";
-    import { characterEditorJumpRequest, DBState, MobileSideBar, risuBardGalleryOpen, SizeStore } from 'src/ts/stores.svelte';
+    import { characterEditorJumpRequest, DBState, MobileSideBar, risuBardGalleryOpen, SizeStore, readerBoardOpen, promptAssistantOpen, characterAssistantOpen } from 'src/ts/stores.svelte';
     import BarIcon from "./BarIcon.svelte";
     import { onMount } from "svelte";
     import { assetStorePending, refreshAssetStorePending } from "../../ts/storage/assetStorePending.svelte";
@@ -1492,6 +1492,9 @@
           {#if currentCharacter.type === 'character'}
             <button type="button" data-risubard-gallery aria-label={language.gallery} use:tooltip={language.gallery} aria-pressed={$risuBardGalleryOpen} class="character-toolbar-button risu-button-lift" class:is-active={$risuBardGalleryOpen} onclick={() => { devTool = false; botMakerMode.set(false); risuBardGalleryOpen.set(true); MobileSideBar.set(0) }}>
               <SolarBoldIcon name="camera-rotate" size={22} />
+            </button>
+            <button type="button" data-reader-board-toggle aria-label="독자 게시판" use:tooltip={'독자 게시판'} aria-pressed={$readerBoardOpen} class="character-toolbar-button risu-button-lift" class:is-active={$readerBoardOpen} onclick={() => { readerBoardOpen.set(!$readerBoardOpen); if ($readerBoardOpen) { promptAssistantOpen.set(false); characterAssistantOpen.set(false) } }}>
+              <SolarBoldIcon name="chat-square-like" size={22} />
             </button>
             <button type="button" data-character-config-tab aria-label={language.scripts} use:tooltip={language.scripts} aria-pressed={$botMakerMode && !devTool && $CharConfigSubMenu === 4} class="character-toolbar-button risu-button-lift" class:is-active={$botMakerMode && !devTool && $CharConfigSubMenu === 4} onclick={() => { devTool = false; risuBardGalleryOpen.set(false); botMakerMode.set(true); CharConfigSubMenu.set(4) }}>
               <SolarBoldIcon name="code-square" size={22} />

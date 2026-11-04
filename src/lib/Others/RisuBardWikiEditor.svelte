@@ -31,7 +31,7 @@
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
     import { canCompressCanonDocument } from 'src/ts/risubard/canonCompression'
     import { v4 } from 'uuid'
-    import { forageStorage, requestImmediateSave } from 'src/ts/globalApi.svelte'
+    import { forageStorage, requestImmediateSave, trackCharacterForSave } from 'src/ts/globalApi.svelte'
     import { DBState } from 'src/ts/stores.svelte'
     import { alertConfirm, alertConfirmMulti } from 'src/ts/alert'
     import {
@@ -939,10 +939,9 @@
         notice = ''
         character.globalLore = result.lorebooks
         try {
-            await requestImmediateSave({
-                forceFullWrite: true,
-                rejectOnFailure: true,
-            })
+            // Only this bot changed; it may not be the selected one.
+            trackCharacterForSave(character.chaId)
+            await requestImmediateSave({ rejectOnFailure: true })
             notice = `로어북 “${result.entry.comment}” ${
                 result.action === 'overwritten' ? '덮어쓰기' : '복사'
             } 완료 · 비활성 상태`

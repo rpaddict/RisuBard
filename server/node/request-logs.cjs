@@ -30,6 +30,7 @@ const PURPOSES = [
     'prompt-assistant',
     'character-assistant',
     'input-assistant',
+    'reader-board',
 ];
 const READ_CHUNK_BYTES = 1024 * 1024;
 const BODY_FIELDS = ['requestHeaders', 'requestBody', 'responseBody'];

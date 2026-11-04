@@ -200,6 +200,61 @@ describe('RisuBardSaveSlotsDialog', () => {
         expect(document.body.querySelector('[data-autosave-strip]')?.textContent).toContain('AUTO 1')
     })
 
+    function manualSlotFixtures() {
+        return [1, 2, 3].map((index) => ({
+            saveId: `save-${index}`, sourceChatId: 'chat-1', sourceChatName: '성문 앞',
+            createdAt: `2026-08-14T0${index}:00:00.000Z`, turnCount: index,
+        })).concat([{
+            saveId: '__risubard_auto__chat-1__0', sourceChatId: 'chat-1', sourceChatName: '성문 앞',
+            createdAt: '2026-08-14T09:00:00.000Z', turnCount: 9,
+        }])
+    }
+
+    test('deletes several manual saves picked with ctrl-click after one confirmation', async () => {
+        mocks.listMemorySaveSlots.mockResolvedValue(manualSlotFixtures())
+        mocks.deleteMemorySaveSlot.mockReset().mockResolvedValue(undefined)
+        render()
+        await vi.waitFor(() => expect(document.body.querySelectorAll('[data-save-slot-kind="manual"]')).toHaveLength(3))
+        const card = (id: string) => document.body.querySelector<HTMLButtonElement>(`[data-save-id="${id}"] .save-slot__select`)!
+        card('save-3').click()
+        card('save-1').dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))
+        await vi.waitFor(() => expect(document.body.querySelector('[data-save-file-checked-count]')?.textContent).toBe('2개 선택'))
+        expect(document.body.querySelector('[data-save-file-delete]')?.getAttribute('aria-label')).toBe('선택한 파일 2개 삭제')
+
+        document.body.querySelector<HTMLButtonElement>('[data-save-file-delete]')!.click()
+
+        await vi.waitFor(() => expect(mocks.alertConfirm).toHaveBeenCalledWith(expect.stringContaining('저장된 파일 2개를 삭제할까요?')))
+        await vi.waitFor(() => expect(document.body.querySelectorAll('[data-save-slot-kind="manual"]')).toHaveLength(1))
+        expect(mocks.deleteMemorySaveSlot.mock.calls.map(([options]) => options.saveId).sort()).toEqual(['save-1', 'save-3'])
+        expect(document.body.querySelector('[data-save-id="save-2"]')).not.toBeNull()
+        expect(document.body.querySelector('[data-save-slot-kind="auto"]')).not.toBeNull()
+        expect(document.body.querySelector('[data-save-file-checked-count]')).toBeNull()
+    })
+
+    test('drag-selects intersecting manual saves and ignores autosaves', async () => {
+        mocks.listMemorySaveSlots.mockResolvedValue(manualSlotFixtures())
+        render()
+        await vi.waitFor(() => expect(document.body.querySelectorAll('[data-save-slot-kind="manual"]')).toHaveLength(3))
+        const browser = document.body.querySelector<HTMLElement>('[data-save-file-browser]')!
+        const rect = (left: number, top: number, size = 100) => () => ({ left, top, right: left + size, bottom: top + size, width: size, height: size, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+        browser.getBoundingClientRect = rect(0, 0, 1000)
+        // Newest first: save-3, save-2, save-1 after the quick placeholder.
+        document.body.querySelector<HTMLElement>('[data-save-id="save-3"]')!.getBoundingClientRect = rect(110, 200)
+        document.body.querySelector<HTMLElement>('[data-save-id="save-2"]')!.getBoundingClientRect = rect(220, 200)
+        document.body.querySelector<HTMLElement>('[data-save-id="save-1"]')!.getBoundingClientRect = rect(330, 200)
+        document.body.querySelector<HTMLElement>('[data-save-slot-kind="auto"]')!.getBoundingClientRect = rect(110, 20)
+
+        browser.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse', clientX: 100, clientY: 10 }))
+        document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', clientX: 250, clientY: 250 }))
+        await vi.waitFor(() => expect(document.body.querySelector('[data-save-marquee]')).not.toBeNull())
+        document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse', clientX: 250, clientY: 250 }))
+
+        await vi.waitFor(() => expect(document.body.querySelector('[data-save-file-checked-count]')?.textContent).toBe('2개 선택'))
+        expect(document.body.querySelector('[data-save-marquee]')).toBeNull()
+        const marked = [...document.body.querySelectorAll('.save-slot--selected')].map((element) => element.getAttribute('data-save-id'))
+        expect(marked.sort()).toEqual(['save-2', 'save-3'])
+    })
+
     test('opens save mode without saving and creates a slot from an empty list', async () => {
         mocks.listMemorySaveSlots.mockResolvedValue([])
         const onSave = vi.fn(async () => ({

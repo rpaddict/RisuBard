@@ -1462,10 +1462,9 @@
 
         currentCharacter.chats.unshift(newChat)
         try {
-            await requestImmediateSave({
-                forceFullWrite: true,
-                rejectOnFailure: true,
-            })
+            // The branch's folder change rides in the patch; only the new chat body is sent.
+            trackChatForSave(currentCharacter.chaId, newChat.id)
+            await requestImmediateSave({ rejectOnFailure: true })
         }
         catch(error){
             currentCharacter.chats.splice(

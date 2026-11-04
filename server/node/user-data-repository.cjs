@@ -181,9 +181,13 @@ function createUserDataRepository(options = {}) {
     function readCanonicalBytes(relativePath) {
         const target = resolveInside(dataRoot, relativePath);
         const bytes = fs.readFileSync(target);
-        const checksumPath = `${target}.sha256`;
-        if (!fs.existsSync(checksumPath)) throw checksumMismatch(relativePath);
-        const expected = fs.readFileSync(checksumPath, 'utf8').trim();
+        let expected;
+        try {
+            expected = fs.readFileSync(`${target}.sha256`, 'utf8').trim();
+        } catch (error) {
+            if (error?.code === 'ENOENT') throw checksumMismatch(relativePath);
+            throw error;
+        }
         const actual = crypto.createHash('sha256').update(bytes).digest('hex');
         if (!/^[a-f0-9]{64}$/i.test(expected) || expected.toLowerCase() !== actual) {
             throw checksumMismatch(relativePath);
@@ -217,7 +221,11 @@ function createUserDataRepository(options = {}) {
             .map(entry => entry.name.slice(0, -'.json'.length));
     }
 
-    function collectCanonicalSourcePaths() {
+    // With `required`, missing character and chat files are not checked here:
+    // each path maps to the error its fingerprint stat reports instead, which
+    // saves one existence check per file on every revision scan.
+    function collectCanonicalSourcePaths(required = null) {
+        const normalize = value => value.split(path.sep).join('/');
         directories.refresh();
         const relativePaths = [];
         if (directories.snapshot().characters.length) relativePaths.push(DIRECTORY_INDEX);
@@ -235,7 +243,8 @@ function createUserDataRepository(options = {}) {
                 relativePaths.push(packagePath);
             }
             const metadataPath = path.join(directories.characterDirectory(characterId), 'metadata.json');
-            if (!fs.existsSync(resolveInside(dataRoot, metadataPath))) {
+            if (required) required.set(normalize(metadataPath), `Canonical character metadata is missing: ${characterId}`);
+            else if (!fs.existsSync(resolveInside(dataRoot, metadataPath))) {
                 const error = new Error(`Canonical character metadata is missing: ${characterId}`);
                 error.code = 'CANONICAL_FILES_CHANGED';
                 throw error;
@@ -244,7 +253,9 @@ function createUserDataRepository(options = {}) {
             for (const chatId of directories.chatIds(characterId)) {
                 const metadata = chatMetadataPath(characterId, chatId);
                 const messages = messagesPath(characterId, chatId);
-                if (!fs.existsSync(resolveInside(dataRoot, metadata))
+                if (required) {
+                    for (const file of [metadata, messages]) required.set(normalize(file), `Canonical chat files are incomplete: ${characterId}/${chatId}`);
+                } else if (!fs.existsSync(resolveInside(dataRoot, metadata))
                     || !fs.existsSync(resolveInside(dataRoot, messages))) {
                     const error = new Error(`Canonical chat files are incomplete: ${characterId}/${chatId}`);
                     error.code = 'CANONICAL_FILES_CHANGED';
@@ -253,25 +264,38 @@ function createUserDataRepository(options = {}) {
                 relativePaths.push(metadata, messages);
             }
         }
-        return relativePaths.map(value => value.split(path.sep).join('/')).sort();
+        return relativePaths.map(normalize).sort();
     }
 
     // A source file's fingerprint: size, modification time and checksum sidecar.
     function sourceFingerprint(relativePath) {
         const target = resolveInside(dataRoot, relativePath);
         const stat = fs.statSync(target, { bigint: true });
-        const checksumPath = `${target}.sha256`;
-        const sidecar = fs.existsSync(checksumPath)
-            ? fs.readFileSync(checksumPath, 'utf8').trim()
-            : 'missing';
+        let sidecar;
+        try {
+            sidecar = fs.readFileSync(`${target}.sha256`, 'utf8').trim();
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+            sidecar = 'missing';
+        }
         return `${relativePath}\0${stat.size}\0${stat.mtimeNs}\0${sidecar}`;
     }
 
     // `files`, when given, collects each source's fingerprint by path.
-    function sourceRevision(relativePaths = collectCanonicalSourcePaths(), files = null) {
+    // `required` maps paths to the error a missing file reports.
+    function sourceRevision(relativePaths = collectCanonicalSourcePaths(), files = null, required = null) {
         const revision = crypto.createHash('sha256');
         for (const relativePath of relativePaths) {
-            const line = sourceFingerprint(relativePath);
+            let line;
+            try {
+                line = sourceFingerprint(relativePath);
+            } catch (error) {
+                const message = error?.code === 'ENOENT' && required?.get(relativePath);
+                if (!message) throw error;
+                const missing = new Error(message);
+                missing.code = 'CANONICAL_FILES_CHANGED';
+                throw missing;
+            }
             if (files) files[relativePath] = line;
             revision.update(`${line}\n`);
         }
@@ -302,10 +326,11 @@ function createUserDataRepository(options = {}) {
     }
 
     function getProjectionRevision(files = null) {
-        const sources = collectCanonicalSourcePaths();
+        const required = new Map();
+        const sources = collectCanonicalSourcePaths(required);
         if (sources.length === 0) return null;
         const revision = crypto.createHash('sha256');
-        revision.update(`sources\0${sourceRevision(sources, files)}\n`);
+        revision.update(`sources\0${sourceRevision(sources, files, required)}\n`);
         for (const relativePath of ['index/sidebar.json', 'index/sidebar.json.sha256']) {
             const target = resolveInside(dataRoot, relativePath);
             try {

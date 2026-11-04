@@ -70,6 +70,12 @@
     const selectedSlot = $derived(slots.find((slot) => slot.saveId === selectedId))
     const selectedPreview = $derived(previewCache[selectedId] ?? [])
     const selectedIsManual = $derived(selectedSlot && classifyMemorySaveId(selectedSlot.saveId).kind === 'manual')
+    let checkedIds = $state<string[]>([])
+    let browserElement = $state<HTMLElement | null>(null)
+    let marquee = $state<{ left: number, top: number, width: number, height: number } | null>(null)
+    let suppressNextClick = false
+    const deleteTargetIds = $derived(checkedIds.length > 0 ? checkedIds : selectedIsManual ? [selectedId] : [])
+    const deleteLabel = $derived(deleteTargetIds.length > 1 ? `선택한 파일 ${deleteTargetIds.length}개 삭제` : '선택한 파일 삭제')
 
     function slotLabel(slot: MemorySaveSlotSummary): string {
         const classification = classifyMemorySaveId(slot.saveId)
@@ -96,9 +102,99 @@
         }
     }
 
-    function selectSlot(saveId: string): void {
+    function selectSlot(saveId: string, event?: MouseEvent): void {
+        const isManual = classifyMemorySaveId(saveId).kind === 'manual'
+        if (isManual && event && (event.ctrlKey || event.metaKey)) {
+            const base = checkedIds.length > 0 ? checkedIds : selectedIsManual ? [selectedId] : []
+            checkedIds = base.includes(saveId) ? base.filter((id) => id !== saveId) : [...base, saveId]
+        } else if (isManual && event?.shiftKey && selectedIsManual) {
+            const order = manualSlots.map((slot) => slot.saveId)
+            const [from, to] = [order.indexOf(selectedId), order.indexOf(saveId)].sort((left, right) => left - right)
+            checkedIds = order.slice(from, to + 1)
+            return
+        } else {
+            checkedIds = []
+        }
         selectedId = saveId
         void ensurePreview(saveId)
+    }
+
+    function isMarked(saveId: string): boolean { return saveId === selectedId || checkedIds.includes(saveId) }
+
+    function startMarquee(event: PointerEvent): void {
+        const browser = browserElement
+        if (!browser || event.button !== 0 || event.pointerType === 'touch' || loadingId) return
+        const target = event.target as HTMLElement
+        if (target.closest('[data-save-file-toolbar], input, label, button:not(.save-slot__select)')) return
+        suppressNextClick = false
+        const additive = event.ctrlKey || event.metaKey
+        const initial = additive ? [...deleteTargetIds] : []
+        const point = (clientX: number, clientY: number) => {
+            const bounds = browser.getBoundingClientRect()
+            return { x: clientX - bounds.left + browser.scrollLeft, y: clientY - bounds.top + browser.scrollTop }
+        }
+        const start = point(event.clientX, event.clientY)
+        let last = { x: event.clientX, y: event.clientY }
+        let dragging = false
+        let hits: string[] = []
+        const update = () => {
+            const current = point(last.x, last.y)
+            const rect = { left: Math.min(start.x, current.x), top: Math.min(start.y, current.y), width: Math.abs(current.x - start.x), height: Math.abs(current.y - start.y) }
+            marquee = rect
+            const bounds = browser.getBoundingClientRect()
+            hits = [...browser.querySelectorAll<HTMLElement>('[data-save-slot-kind="manual"][data-save-id]')].filter((card) => {
+                const box = card.getBoundingClientRect()
+                const left = box.left - bounds.left + browser.scrollLeft
+                const top = box.top - bounds.top + browser.scrollTop
+                return left < rect.left + rect.width && left + box.width > rect.left && top < rect.top + rect.height && top + box.height > rect.top
+            }).map((card) => card.dataset.saveId!)
+            checkedIds = [...new Set([...initial, ...hits])]
+        }
+        const move = (next: PointerEvent) => {
+            last = { x: next.clientX, y: next.clientY }
+            if (!dragging) {
+                if (Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) < 5) return
+                dragging = true
+                window.getSelection()?.removeAllRanges()
+            }
+            const bounds = browser.getBoundingClientRect()
+            if (next.clientY > bounds.bottom - 24) browser.scrollTop += 16
+            else if (next.clientY < bounds.top + 24) browser.scrollTop -= 16
+            update()
+        }
+        const end = () => {
+            document.removeEventListener('pointermove', move)
+            document.removeEventListener('pointerup', end)
+            document.removeEventListener('pointercancel', end)
+            browser.removeEventListener('scroll', onScroll)
+            marquee = null
+            if (dragging) {
+                suppressNextClick = true
+                const focus = hits[0] ?? checkedIds[0]
+                if (focus && !checkedIds.includes(selectedId)) { selectedId = focus; void ensurePreview(focus) }
+            } else if (!target.closest('.save-slot')) {
+                checkedIds = []
+            }
+        }
+        const onScroll = () => { if (dragging) update() }
+        document.addEventListener('pointermove', move)
+        document.addEventListener('pointerup', end)
+        document.addEventListener('pointercancel', end)
+        browser.addEventListener('scroll', onScroll)
+    }
+
+    function consumeMarqueeClick(event: MouseEvent): void {
+        if (!suppressNextClick) return
+        suppressNextClick = false
+        event.preventDefault()
+        event.stopPropagation()
+    }
+
+    function deleteByKeyboard(event: KeyboardEvent): void {
+        if (event.key !== 'Delete' || (event.target as HTMLElement).closest('input, textarea')) return
+        if (deleteTargetIds.length === 0) return
+        event.preventDefault()
+        void deleteSelected()
     }
 
     function firstSelectedId(next: MemorySaveSlotSummary[]): string {
@@ -193,23 +289,38 @@
     }
 
     async function deleteSelected(): Promise<void> {
-        if (!selectedSlot || !selectedIsManual || loadingId) return
-        const target = selectedSlot
+        if (loadingId) return
+        const targets = deleteTargetIds
+            .map((saveId) => slots.find((slot) => slot.saveId === saveId))
+            .filter((slot): slot is MemorySaveSlotSummary => Boolean(slot) && classifyMemorySaveId(slot!.saveId).kind === 'manual')
+        if (targets.length === 0) return
         const sequence = requestSequence
-        loadingId = target.saveId
+        loadingId = '#delete'
+        error = ''
+        const deleted = new Set<string>()
         try {
-            if (!await alertConfirm(`저장된 파일을 삭제할까요?\n${slotLabel(target)}`)) return
+            const names = targets.slice(0, 8).map(slotLabel).join('\n') + (targets.length > 8 ? `\n외 ${targets.length - 8}개` : '')
+            const question = targets.length > 1 ? `저장된 파일 ${targets.length}개를 삭제할까요?` : '저장된 파일을 삭제할까요?'
+            if (!await alertConfirm(`${question}\n${names}`)) return
             if (sequence !== requestSequence || !open) return
-            await deleteMemorySaveSlot({ characterId, saveId: target.saveId, fetchImpl: fetch, createAuth: () => forageStorage.createAuth() })
-            if (sequence !== requestSequence) return
-            slots = slots.filter((slot) => slot.saveId !== target.saveId)
-            delete previewCache[target.saveId]
-            previewCache = { ...previewCache }
-            selectedId = firstSelectedId(slots)
-            if (selectedId) void ensurePreview(selectedId)
+            for (const target of targets) {
+                await deleteMemorySaveSlot({ characterId, saveId: target.saveId, fetchImpl: fetch, createAuth: () => forageStorage.createAuth() })
+                if (sequence !== requestSequence) return
+                deleted.add(target.saveId)
+            }
         } catch (cause) {
             error = cause instanceof Error ? cause.message : String(cause)
         } finally {
+            if (deleted.size > 0 && sequence === requestSequence) {
+                slots = slots.filter((slot) => !deleted.has(slot.saveId))
+                for (const saveId of deleted) delete previewCache[saveId]
+                previewCache = { ...previewCache }
+                checkedIds = checkedIds.filter((saveId) => !deleted.has(saveId))
+                if (deleted.has(selectedId)) {
+                    selectedId = checkedIds[0] ?? firstSelectedId(slots)
+                    if (selectedId) void ensurePreview(selectedId)
+                }
+            }
             loadingId = ''
         }
     }
@@ -245,8 +356,8 @@
 </script>
 
 {#snippet slotCard(slot: MemorySaveSlotSummary, kind: 'auto' | 'quick' | 'manual')}
-    <li data-save-slot-kind={kind} class:save-slot--selected={slot.saveId === selectedId} class="save-slot">
-        <button type="button" class="save-slot__select risu-button-lift" aria-pressed={slot.saveId === selectedId} onclick={() => selectSlot(slot.saveId)}>
+    <li data-save-slot-kind={kind} data-save-id={slot.saveId} class:save-slot--selected={isMarked(slot.saveId)} class="save-slot">
+        <button type="button" class="save-slot__select risu-button-lift" aria-pressed={isMarked(slot.saveId)} onclick={(event) => selectSlot(slot.saveId, event)}>
             <strong>{slotLabel(slot)}</strong>
             <span class="save-slot__turn">TURN {slot.turnCount}</span>
             <span class="save-slot__time"><Clock3Icon size={12} />{savedAt(slot.createdAt)}</span>
@@ -277,7 +388,9 @@
             <div class="save-ledger__empty"><LoaderCircleIcon size={20} class="animate-spin" />저장된 파일을 읽는 중…</div>
         {:else}
             <div data-save-file-workspace class="save-workspace" style={workspaceStyle} bind:this={workspaceElement}>
-                <div class="slot-browser">
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div data-save-file-browser class="slot-browser" class:slot-browser--marquee={marquee} bind:this={browserElement} onpointerdown={startMarquee} onclickcapture={consumeMarqueeClick} onkeydown={deleteByKeyboard}>
+                    {#if marquee}<div data-save-marquee class="slot-marquee" style={`left:${marquee.left}px;top:${marquee.top}px;width:${marquee.width}px;height:${marquee.height}px;`}></div>{/if}
                     <section class="slot-section slot-section--auto" aria-labelledby="autosave-heading">
                         <div class="slot-section__head"><strong id="autosave-heading">AUTOSAVE</strong><span>{autosaveSlots.length}</span></div>
                         <ol data-autosave-strip class="autosave-strip">
@@ -302,7 +415,8 @@
                                     <CheckInput bind:check={loadAsNewChat} name="새 챗으로 불러오기" margin={false} className="save-load-new-chat" />
                                     <span class="save-ledger__divider"></span>
                                 {/if}
-                                <ShButton data-save-file-delete variant="destructive" size="icon-sm" aria-label="선택한 파일 삭제" title="선택한 파일 삭제" disabled={!selectedIsManual || Boolean(loadingId)} onclick={() => void deleteSelected()}><Trash2Icon size={16} /></ShButton>
+                                {#if checkedIds.length > 1}<span data-save-file-checked-count class="save-ledger__count">{checkedIds.length}개 선택</span>{/if}
+                                <ShButton data-save-file-delete variant="destructive" size="icon-sm" aria-label={deleteLabel} title={`${deleteLabel} (Delete)`} disabled={deleteTargetIds.length === 0 || Boolean(loadingId)} onclick={() => void deleteSelected()}>{#if loadingId === '#delete'}<LoaderCircleIcon size={16} class="animate-spin" />{:else}<Trash2Icon size={16} />{/if}</ShButton>
                                 <span class="save-ledger__divider"></span>
                                 <ShButton data-save-file-sort variant="ghost" size="icon-sm" aria-label={sortAscending ? '새 파일을 위로 정렬' : '오래된 파일을 위로 정렬'} title={sortAscending ? '현재: 오래된 파일부터' : '현재: 새 파일부터'} onclick={() => { sortAscending = !sortAscending }}>{#if sortAscending}<ArrowUpIcon size={16} />{:else}<ArrowDownIcon size={16} />{/if}</ShButton>
                             </div>
@@ -357,7 +471,10 @@
     .save-ledger__empty, .save-preview__empty { display: flex; min-height: 8rem; align-items: center; justify-content: center; gap: .45rem; color: var(--color-textcolor2); font-size: .78rem; }
     .save-ledger__empty { flex: 1; border: 1px dashed var(--color-darkborderc); border-radius: .5rem; }
     .save-workspace { display: grid; flex: 1; min-height: 0; }
-    .slot-browser { min-height: 0; overflow-y: auto; padding-right: .35rem; scrollbar-color: var(--color-borderc) transparent; scrollbar-width: thin; }
+    .slot-browser--marquee { user-select: none; }
+    .slot-marquee { position: absolute; z-index: 3; pointer-events: none; border: 1px solid var(--color-primary); border-radius: .25rem; background: color-mix(in srgb, var(--color-primary) 16%, transparent); }
+    .save-ledger__count { margin-right: .3rem; color: var(--color-textcolor2); font-size: .72rem; white-space: nowrap; }
+    .slot-browser { position: relative; min-height: 0; overflow-y: auto; padding-right: .35rem; scrollbar-color: var(--color-borderc) transparent; scrollbar-width: thin; }
     .slot-section + .slot-section { margin-top: .85rem; padding-top: .8rem; border-top: 1px solid var(--color-darkborderc); }
     .slot-section__head, .save-ledger__toolbar, .save-preview__head { display: flex; align-items: center; }
     .slot-section__head { min-height: 2rem; justify-content: space-between; gap: .75rem; margin-bottom: .45rem; }

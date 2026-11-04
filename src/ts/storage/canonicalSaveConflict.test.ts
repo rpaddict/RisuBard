@@ -93,11 +93,12 @@ function chatContentHandler(awaitingReview: boolean, adopt: () => Promise<unknow
         && s.name?.text === 'saveChatContentHandler')!
     expect(route).toBeTruthy()
     return new Function('checkAuth', 'checkActiveSession', 'queueStorageOperation', 'externalEditSession',
-        'externalChangesAwaitingReview', 'sendExternalChangesPending',
+        'checkExternalChangesAwaitingReview', 'sendExternalChangesPending',
         'adoptSettledExternalProjection', 'sendCanonicalProjectionConflict', `${route.getText(ast)}; return saveChatContentHandler`)(
         async () => true, () => true,
         async (fn: any) => fn(), { isActive: () => false },
-        () => awaitingReview, (response: any) => response.status(409).json({ code: 'EXTERNAL_CHANGES_PENDING' }),
+        () => ({ pending: awaitingReview, revision: 'checked-revision' }),
+        (response: any) => response.status(409).json({ code: 'EXTERNAL_CHANGES_PENDING' }),
         adopt,
         (response: any) => response.status(409).json({ code: 'CANONICAL_FILES_CHANGED' }),
     )
@@ -106,10 +107,13 @@ function chatContentHandler(awaitingReview: boolean, adopt: () => Promise<unknow
 test('chat endpoint rejects external changes before accepting a message into its cache', async () => {
     const next = vi.fn()
     const res: any = { status: vi.fn(() => res), json: vi.fn(), send: vi.fn() }
-    const handler = chatContentHandler(false, async () => ({ etag: 'external' }))
+    const adopt = vi.fn(async () => ({ etag: 'external' }))
+    const handler = chatContentHandler(false, adopt)
     await handler({}, res, next)
     expect(next).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(409)
+    // The review check's scan is reused instead of scanning every file again.
+    expect(adopt).toHaveBeenCalledWith(false, 'checked-revision')
 })
 
 test('chat endpoint asks for review instead of adopting external edits', async () => {

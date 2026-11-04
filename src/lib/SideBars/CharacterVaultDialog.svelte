@@ -43,6 +43,7 @@
         getFileSrc,
         requiresFullEncoderReload,
         saveAsset,
+        trackChatForSave,
     } from 'src/ts/globalApi.svelte'
     import { selectSingleFile } from 'src/ts/util'
     import { getCharImage } from 'src/ts/characters'
@@ -417,10 +418,13 @@
             }
             applyCharacterVaultClones(DBState.db, plans)
             applied = true
-            await requestImmediateSave({
-                forceFullWrite: true,
-                rejectOnFailure: true,
-            })
+            // New characters go in the patch; only their chat bodies are sent separately.
+            for (const plan of plans) {
+                for (const chat of plan.clone.chats) {
+                    if (chat.id) trackChatForSave(plan.clone.chaId, chat.id)
+                }
+            }
+            await requestImmediateSave({ rejectOnFailure: true })
             const finalized = await Promise.allSettled(staged.map((fork) =>
                 completeMemoryWikiFork({
                     ...fork,

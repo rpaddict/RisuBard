@@ -24,7 +24,7 @@
     import PersonaBind from "./PersonaBind.svelte";
     import PromptBind from "./PromptBind.svelte";
     import ModelBind from "./ModelBind.svelte";
-    import { changeChatTo, createChatCopyName, requestImmediateSave } from "src/ts/globalApi.svelte";
+    import { changeChatTo, createChatCopyName, requestImmediateSave, trackChatForSave } from "src/ts/globalApi.svelte";
     import { forageStorage } from "src/ts/globalApi.svelte";
     import { completeMemoryWikiFork, forkMemoryWiki } from "src/ts/risubard/memoryWikiFork";
     import { mergeCharacterChats } from "src/ts/risubard/chatMerge";
@@ -105,6 +105,7 @@
 
     async function mergeChats(ids: string[], name: string): Promise<void> {
         const targetCharacter = chara
+        const existingChatIds = new Set(targetCharacter.chats.map(chat => chat.id))
         const merged = await mergeCharacterChats(targetCharacter, ids, name, {
             hydrate: async (id) => {
                 if ($doingChat || $isAnyGenerating || $isWikiGenerating) {
@@ -115,7 +116,11 @@
             },
             snapshot: (chat) => $state.snapshot(chat),
             save: async () => {
-                const pending = requestImmediateSave({ forceFullWrite: true, flushServer: true, rejectOnFailure: true })
+                // Only the merged chat is new; a rollback save sends just the shorter list.
+                for (const chat of targetCharacter.chats) {
+                    if (chat.id && !existingChatIds.has(chat.id)) trackChatForSave(targetCharacter.chaId, chat.id)
+                }
+                const pending = requestImmediateSave({ flushServer: true, rejectOnFailure: true })
                 if (!pending) throw new Error('저장 기능이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.')
                 await pending
             },
@@ -219,10 +224,8 @@
             chara.chats.unshift(newChat)
             chara.chats = chara.chats
             try {
-                await requestImmediateSave({
-                    forceFullWrite: true,
-                    rejectOnFailure: true,
-                })
+                trackChatForSave((chara as character).chaId, newChat.id)
+                await requestImmediateSave({ rejectOnFailure: true })
             }
             catch(error) {
                 chara.chats.splice(chara.chats.indexOf(newChat), 1)

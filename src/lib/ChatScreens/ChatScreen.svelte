@@ -17,7 +17,7 @@
     import RisuBardGallery from '../SideBars/RisuBardGallery.svelte';
     import { ensureChatHydrated } from 'src/ts/storage/chatStorage';
     import { alertConfirm, notifyInfo, notifySuccess } from 'src/ts/alert';
-    import { changeChatTo, createChatCopyName, forageStorage, requestImmediateSave } from 'src/ts/globalApi.svelte';
+    import { changeChatTo, createChatCopyName, forageStorage, requestImmediateSave, trackChatForSave } from 'src/ts/globalApi.svelte';
     import { completeMemoryWikiFork } from 'src/ts/risubard/memoryWikiFork';
     import { countChatTurns, createMemorySaveSlot, deleteMemorySaveSlot, latestChatMessageId, listMemorySaveSlots, prepareMemorySaveLoad, shouldConfirmMemorySaveLoad, type MemorySaveSlotSummary } from 'src/ts/risubard/memorySaveSlots';
     import { autoSaveId, normalizeAutosaveInterval, normalizeAutosaveRetention, obsoleteAutosaveIds, quickSaveId, shouldCreateAutosave } from 'src/ts/risubard/memorySavePolicy';
@@ -241,10 +241,10 @@
         }
         character.chats = character.chats
         try {
-            await requestImmediateSave({
-                forceFullWrite: true,
-                rejectOnFailure: true,
-            })
+            // Chat bodies are stored by ID: send only the loaded chat, not the
+            // whole database (a full write re-encodes and uploads every bot).
+            trackChatForSave(character.chaId, destinationChatId)
+            await requestImmediateSave({ rejectOnFailure: true })
         }
         catch(error){
             if(asNewChat){

@@ -9,6 +9,7 @@ import CharacterVaultDialog from './CharacterVaultDialog.svelte'
 const mocks = vi.hoisted(() => ({
     db: {} as Database,
     requestImmediateSave: vi.fn(async () => undefined),
+    trackChatForSave: vi.fn(),
     selectSingleFile: vi.fn(),
     saveAsset: vi.fn(async () => 'vault-cover'),
     getFileSrc: vi.fn(async () => 'vault-cover-src'),
@@ -36,6 +37,7 @@ vi.mock('src/ts/stores.svelte', () => ({
 }))
 vi.mock('src/ts/globalApi.svelte', () => ({
     requestImmediateSave: mocks.requestImmediateSave,
+    trackChatForSave: mocks.trackChatForSave,
     saveAsset: mocks.saveAsset,
     getFileSrc: mocks.getFileSrc,
     requiresFullEncoderReload: mocks.requiresFullEncoderReload,
@@ -279,10 +281,9 @@ describe('CharacterVaultDialog', () => {
                 characterId: clone.chaId,
                 action: 'finalize',
             })))
-        expect(mocks.requestImmediateSave).toHaveBeenCalledWith({
-            forceFullWrite: true,
-            rejectOnFailure: true,
-        })
+        // Only the cloned chat bodies are sent; the database is not rewritten whole.
+        expect(mocks.trackChatForSave).toHaveBeenCalledWith(clone.chaId, clone.chats[0].id)
+        expect(mocks.requestImmediateSave).toHaveBeenCalledWith({ rejectOnFailure: true })
     })
 
     test('duplicates selected characters without chats or BardWiki calls', async () => {

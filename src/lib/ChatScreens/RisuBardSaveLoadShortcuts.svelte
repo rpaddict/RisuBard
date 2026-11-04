@@ -124,7 +124,9 @@
 </div>
 
 <style>
-    .save-load-toolbar { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: .25rem; margin: 0 auto .5rem; padding: .25rem .5rem; overflow-x: auto; border: 1px solid var(--color-darkborderc); border-radius: 1.5rem; background: var(--color-bgcolor); transition: border-color .14s ease; }
+    /* One row at every width: a narrow screen scrolls the row sideways instead of wrapping it. */
+    .save-load-toolbar { display: flex; flex-wrap: nowrap; width: fit-content; max-width: 100%; align-items: center; gap: .25rem; margin: 0 auto .5rem; padding: .25rem .5rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; border: 1px solid var(--color-darkborderc); border-radius: 1.5rem; background: var(--color-bgcolor); transition: border-color .14s ease; }
+    .save-load-toolbar > * { flex-shrink: 0; }
     .save-load-toolbar:focus-within { border-color: var(--color-textcolor); }
     .toolbar-button { display: grid; width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; place-items: center; border: 0; border-radius: 999px; color: var(--color-textcolor); background: transparent; transition: color .14s ease, background .14s ease; }
     .toolbar-button:hover:not(:disabled) { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 16%, transparent); }
@@ -140,11 +142,6 @@
     .page-step:disabled { pointer-events: none; opacity: .35; }
     .page-step:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
     .page-total { color: var(--color-textcolor); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
-    /* Phones cannot fit one row; page and turn controls move to a second row instead of scrolling out of view. */
-    @media (max-width: 32rem) {
-        .save-load-toolbar { flex-wrap: wrap; justify-content: center; row-gap: .25rem; border-radius: 1.25rem; }
-        .toolbar-divider--jump { display: none; }
-    }
     .jump-field input:focus-visible, .toolbar-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
     .jump-button { color: var(--color-primary); }
     @media (prefers-reduced-motion: reduce) { .toolbar-button { transition: none; } }

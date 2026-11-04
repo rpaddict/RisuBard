@@ -362,34 +362,41 @@ export async function listMemorySaveSlots(input: {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
         throw error
     }
-    const summaries: MemorySaveSlotSummary[] = []
-    for (const entry of entries) {
+    // Every slot of the character is read to find this chat's; read them
+    // concurrently instead of one file at a time.
+    const read = async (entry: (typeof entries)[number]): Promise<MemorySaveSlotSummary | null> => {
         if (!entry.isDirectory()
             || entry.isSymbolicLink()
-            || !entry.name.startsWith(SAVE_DIRECTORY_PREFIX)) continue
+            || !entry.name.startsWith(SAVE_DIRECTORY_PREFIX)) return null
         const directory = join(chatsDirectory, entry.name)
         const manifestPath = join(directory, SAVE_MANIFEST)
         const chatPath = join(directory, SAVE_CHAT)
         try {
-            await safeFile(fileSystem, manifestPath, 'Memory save manifest')
-            await safeFile(fileSystem, chatPath, 'Memory save chat')
+            // Both checks run together; the manifest's failure still wins.
+            const checks = await Promise.allSettled([
+                safeFile(fileSystem, manifestPath, 'Memory save manifest'),
+                safeFile(fileSystem, chatPath, 'Memory save chat'),
+            ])
+            for (const check of checks) if (check.status === 'rejected') throw check.reason
             const manifest = parseManifest(JSON.parse(
                 await fileSystem.readFile(manifestPath, 'utf8')
             ))
-            if (manifest.sourceChatId !== sourceChatId) continue
+            if (manifest.sourceChatId !== sourceChatId) return null
             if (workspaceFor(
                 input.userDataDirectory, input.characterId, manifest.saveId
-            ).directory !== directory) continue
-            summaries.push(summaryOf(manifest))
+            ).directory !== directory) return null
+            return summaryOf(manifest)
         }
         catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
             if (error instanceof SyntaxError
                 || (error instanceof Error
-                    && error.message.startsWith('Invalid memory save'))) continue
+                    && error.message.startsWith('Invalid memory save'))) return null
             throw error
         }
     }
+    const summaries = (await Promise.all(entries.map(read)))
+        .filter((summary): summary is MemorySaveSlotSummary => summary !== null)
     return summaries.sort((left, right) =>
         right.createdAt.localeCompare(left.createdAt)
         || left.saveId.localeCompare(right.saveId)

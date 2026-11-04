@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     setWikiDocumentContextMode: vi.fn(),
     createAuth: vi.fn(async () => 'token'),
     requestImmediateSave: vi.fn(async () => undefined),
+    trackCharacterForSave: vi.fn(),
     alertConfirmMulti: vi.fn(async () => 0),
     alertConfirm: vi.fn(async () => true),
     db: {
@@ -31,6 +32,7 @@ vi.mock('src/ts/risubard/memoryWiki', async (importOriginal) => ({
 vi.mock('src/ts/globalApi.svelte', () => ({
     forageStorage: { createAuth: mocks.createAuth },
     requestImmediateSave: mocks.requestImmediateSave,
+    trackCharacterForSave: mocks.trackCharacterForSave,
 }))
 vi.mock('src/ts/stores.svelte', () => ({
     DBState: { get db() { return mocks.db } },
@@ -677,10 +679,9 @@ describe('RisuBardWikiEditor', () => {
             secondkey: '',
         }))
         expect(mocks.alertConfirmMulti).not.toHaveBeenCalled()
-        expect(mocks.requestImmediateSave).toHaveBeenCalledWith({
-            forceFullWrite: true,
-            rejectOnFailure: true,
-        })
+        // Only the edited bot is saved, even when it is not the selected one.
+        expect(mocks.trackCharacterForSave).toHaveBeenCalledWith(mocks.db.characters[0].chaId)
+        expect(mocks.requestImmediateSave).toHaveBeenCalledWith({ rejectOnFailure: true })
     })
 
     it('asks whether to overwrite or create a suffixed lorebook entry', async () => {

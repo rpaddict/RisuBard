@@ -738,6 +738,7 @@ function convertOffSpecCards(charaData:OldTavernChar|CharacterCardV2Risu, imgp:s
         desc:  data.description ?? '',
         notes: '',
         chats: [{
+            id: uuidv4(),
             message: [],
             note: '',
             name: 'Chat 1',
@@ -1064,6 +1065,7 @@ async function importCharacterCardSpec<T extends boolean = false>(card:Character
         desc: data.description ?? '',
         notes: '',
         chats: [{
+            id: uuidv4(),
             message: [],
             note: '',
             name: 'Chat 1',

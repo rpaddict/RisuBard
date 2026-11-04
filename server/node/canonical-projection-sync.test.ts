@@ -224,4 +224,27 @@ describe('canonical save racing an external edit', () => {
         expect(f.sync.hasExternalChanges()).toBe(true)
         expect(f.desc()).toBe('external')
     })
+
+    it('reuses the revision a check just scanned instead of scanning again', () => {
+        const f = fixture()
+        let scans = 0
+        const scan = f.repository.getProjectionRevision
+        f.repository.getProjectionRevision = () => { scans++; return scan() }
+        const unchanged = f.sync.checkExternalChanges()
+        expect(unchanged).toEqual({ changed: false, revision: expect.any(String) })
+        const before = scans
+        expect(f.sync.loadExternalChanges(unchanged.revision)).toBeNull()
+        expect(scans).toBe(before)
+
+        f.editExternally()
+        const changed = f.sync.checkExternalChanges()
+        expect(changed.changed).toBe(true)
+        expect(f.sync.loadExternalChanges(changed.revision)?.database.characters
+            .find((item: any) => item.chaId === 'bot').desc).toBe('external')
+        // Without a checked revision it still scans by itself.
+        f.sync.accept()
+        const scanned = scans
+        expect(f.sync.loadExternalChanges()).toBeNull()
+        expect(scans).toBe(scanned + 1)
+    })
 })

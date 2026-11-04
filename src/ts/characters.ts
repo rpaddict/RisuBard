@@ -9,7 +9,7 @@ import { checkNullish, findCharacterbyId, findCharacterIndexbyId, getUserName, s
 import { v4 as uuidv4, v4 } from 'uuid';
 import { getImageType } from "./media";
 import { MobileGUIStack, OpenRealmStore, selectedCharID } from "./stores.svelte";
-import { AppendableBuffer, changeChatTo, checkCharOrder, downloadFile, forageStorage, getFileSrc, requestImmediateSave, requiresFullEncoderReload } from "./globalApi.svelte";
+import { AppendableBuffer, changeChatTo, checkCharOrder, downloadFile, forageStorage, getFileSrc, requestImmediateSave, requiresFullEncoderReload, trackChatForSave } from "./globalApi.svelte";
 import { updateInlayScreen } from "./process/inlayScreen";
 import { parseMarkdownSafe } from "./parser/parser.svelte";
 import { translateHTML } from "./translator/translator";
@@ -490,10 +490,9 @@ export async function importChat(){
                     targetCharacter.chatFolders.push(...folders)
                     targetCharacter.chats.unshift(...importedChats)
                     applied = true
-                    await requestImmediateSave({
-                        forceFullWrite: true,
-                        rejectOnFailure: true,
-                    })
+                    // Chat bodies are stored by ID, so only the new chats are sent.
+                    for (const chat of importedChats) trackChatForSave(targetCharacter.chaId, chat.id)
+                    await requestImmediateSave({ rejectOnFailure: true })
                     await Promise.all(staged.map((fork) =>
                         completeMemoryWikiFork({
                             ...fork,
@@ -651,6 +650,7 @@ export function characterFormatUpdate(indexOrCharacter:number|character, arg:{
     let cha = typeof(indexOrCharacter) === 'number' ? getCharacterByIndex(indexOrCharacter) : indexOrCharacter
     if(cha.chats.length === 0){
         cha.chats = [{
+            id: uuidv4(),
             message: [],
             note: '',
             name: 'Chat 1',
@@ -780,6 +780,7 @@ export function createBlankChar():character{
         desc: '',
         notes: '',
         chats: [{
+            id: uuidv4(),
             message: [],
             note: '',
             name: 'Chat 1',

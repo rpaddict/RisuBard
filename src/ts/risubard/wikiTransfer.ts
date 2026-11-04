@@ -89,7 +89,11 @@ export async function startChatWithWiki(input: { characterId: string; chatId: st
                 return value.forkToken
             },
             complete: (forkToken, action) => completeMemoryWikiFork({ characterId: input.characterId, destinationChatId: chat.id!, forkToken, action, fetchImpl: fetch, createAuth: () => api.forageStorage.createAuth() }),
-            save: async () => { await api.requestImmediateSave({ forceFullWrite: true, rejectOnFailure: true }) },
+            // The new chat is stored by ID; a rollback save sends just the shorter list.
+            save: async () => {
+                if (owner.chats.some(item => item.id === chat.id)) api.trackChatForSave(input.characterId, chat.id!)
+                await api.requestImmediateSave({ rejectOnFailure: true })
+            },
         })
         const activeOwner = DBState.db.characters[selIdState.selId]
         if (activeOwner?.chaId === input.characterId && activeOwner.chats[activeOwner.chatPage]?.id === input.chatId) api.changeChatTo(chat.id!)

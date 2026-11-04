@@ -58,6 +58,7 @@ export const promptAssistantOpen = writable(false)
 // Asks the Prompt V2 editor to select and focus a block of the active preset.
 export const promptV2JumpRequest = writable<{ index: number } | null>(null)
 export const characterAssistantOpen = writable(false)
+export const readerBoardOpen = writable(false)
 // Asks the character editor to reveal one item of the selected character.
 // The consumer that reveals it clears the request.
 export type CharacterEditorJumpRequest =

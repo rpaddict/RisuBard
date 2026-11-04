@@ -14,6 +14,7 @@ export type RequestPurpose =
     | 'prompt-assistant'
     | 'character-assistant'
     | 'input-assistant'
+    | 'reader-board'
 
 export const requestPurposeLabels: Record<RequestPurpose, string> = {
     'chat-response': '채팅 답변 생성',
@@ -29,6 +30,7 @@ export const requestPurposeLabels: Record<RequestPurpose, string> = {
     'prompt-assistant': '프롬프트 비서',
     'character-assistant': '캐릭터 비서',
     'input-assistant': '인풋 도우미',
+    'reader-board': '독자 게시판',
 }
 
 export function defaultRequestPurpose(
