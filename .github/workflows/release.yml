@@ -13,9 +13,9 @@ on:
         default: false
         type: boolean
       skip_macos:
-        description: Leave out the macOS package (for GitHub macOS runner outages)
+        description: Leave out the macOS package (off by default since 0.9.91; set false to build it)
         required: false
-        default: false
+        default: true
         type: boolean
 
 concurrency:
