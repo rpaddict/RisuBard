@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_macos:
+        description: Leave out the macOS package (for GitHub macOS runner outages)
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: release-${{ inputs.version }}
@@ -103,19 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            platform: win
-            arch: x64
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-          - os: ubuntu-24.04-arm
-            platform: linux
-            arch: arm64
-          - os: macos-latest
-            platform: macos
-            arch: arm64
+        include: ${{ fromJSON(inputs.skip_macos && '[{"os":"windows-latest","platform":"win","arch":"x64"},{"os":"ubuntu-latest","platform":"linux","arch":"x64"},{"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64"}]' || '[{"os":"windows-latest","platform":"win","arch":"x64"},{"os":"ubuntu-latest","platform":"linux","arch":"x64"},{"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64"},{"os":"macos-latest","platform":"macos","arch":"arm64"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
