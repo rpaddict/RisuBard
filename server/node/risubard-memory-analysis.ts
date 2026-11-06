@@ -1144,6 +1144,27 @@ function analysisNotes(
     return notes
 }
 
+/**
+ * Model calls one analysis run may make, every retry and fallback included.
+ * Retry ladders multiply (analysis, refinement search, canon halves, singles),
+ * so without one bound a single turn could cost dozens of slow calls.
+ */
+export const MEMORY_ANALYSIS_MODEL_CALL_LIMIT = 10
+// Worst case of one analysis: native, native repair, prompt fallback.
+const ANALYSIS_RETRY_LADDER_CALLS = 3
+// A refinement re-analysis runs only if canon still keeps this many calls after it.
+const CANONICAL_CALL_RESERVE = 3
+
+/** Not retryable: canon left over is deferred like any other unanswerable target. */
+export class ModelCallBudgetExhaustedError extends ModelOutputError {
+    constructor(readonly limit: number) {
+        super('invalid-structure')
+        this.name = 'ModelCallBudgetExhaustedError'
+        this.message = `이번 분석의 AI 호출 상한(${limit}회)에 도달했습니다.`
+        this.retryable = false
+    }
+}
+
 export function createMemoryAnalysisRunner(
     options: MemoryAnalysisRunnerOptions
 ) {
@@ -1184,8 +1205,14 @@ export function createMemoryAnalysisRunner(
         signal?: AbortSignal
     ): Promise<MemoryAnalysisRunResult> => {
         const snapshot = snapshotInput(input)
+        let modelCalls = 0
+        const remainingModelCalls = () => MEMORY_ANALYSIS_MODEL_CALL_LIMIT - modelCalls
         const analyzeRaw = (request: MemoryAnalysisModelRequest) => {
             signal?.throwIfAborted()
+            if (remainingModelCalls() <= 0) {
+                throw new ModelCallBudgetExhaustedError(MEMORY_ANALYSIS_MODEL_CALL_LIMIT)
+            }
+            modelCalls += 1
             return options.analyze({
                 ...request,
                 sessionChatId: snapshot.modelSessionChatId ?? snapshot.chatId,
@@ -1471,6 +1498,8 @@ export function createMemoryAnalysisRunner(
                             ))
                 )
                 if (unresolved.length === 0) break
+                if (remainingModelCalls()
+                    < ANALYSIS_RETRY_LADDER_CALLS + CANONICAL_CALL_RESERVE) break
                 const expanded = await options.markdownWikiService.inquire({
                     characterId: snapshot.characterId,
                     chatId: snapshot.chatId,
@@ -1489,8 +1518,19 @@ export function createMemoryAnalysisRunner(
                     (known) => known.id === document.id
                 ))
                 if (discovered.length === 0) break
+                const searchedCandidates = candidateDocuments
                 candidateDocuments = [...candidateDocuments, ...discovered]
-                analyzedDraft = await analyzeParsedDraft()
+                try {
+                    analyzedDraft = await analyzeParsedDraft()
+                }
+                catch (error) {
+                    signal?.throwIfAborted()
+                    // The draft in hand already passed validation; a failed
+                    // refinement must not throw it away and redo the whole turn.
+                    candidateDocuments = searchedCandidates
+                    await reportError(error)
+                    break
+                }
                 modelOutput = analyzedDraft.output
                 draft = analyzedDraft.draft
             }
@@ -1724,6 +1764,7 @@ export function createMemoryAnalysisRunner(
                 }
                 if (inputFailure || error instanceof ModelOutputError) {
                     const reason = inputFailure ? '기존 문서 구조 오류'
+                        : error instanceof ModelCallBudgetExhaustedError ? 'AI 호출 상한 도달'
                         : error instanceof ModelOutputError && !error.retryable ? '공급자 재호출 제한'
                         : `응답 복구 횟수 소진 (${(error as ModelOutputError).reason})`
                     const hint = error instanceof ModelOutputError ? error.validationHint
@@ -2293,7 +2334,9 @@ export function createMemoryAnalysisRunner(
                             // A reboot replays the whole story, so its cards need the same upkeep as live turns.
                             if (entry.target && entry.candidate.type !== 'scene' && !entry.storyArcPlan
                                 && !snapshot.historicalReanalysis
-                                && !snapshot.additionalAnalysis) {
+                                && !snapshot.additionalAnalysis
+                                // Upkeep is optional; an exhausted budget waits for the next turn.
+                                && remainingModelCalls() > 0) {
                                 const attemptKey = `${snapshot.characterId}\u0000${snapshot.chatId}\u0000${entry.target.id}`
                                 // Stored documents keep only their last source IDs, so count IDs unseen at the last attempt.
                                 const currentSources = new Set([...entry.target.sourceMessageIds, ...sourceMessageIds])

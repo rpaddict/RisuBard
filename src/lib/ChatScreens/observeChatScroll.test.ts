@@ -71,3 +71,17 @@ test('still captures another programmatic navigation after a marked jump', () =>
     s.grow(); s.resize()
     expect(s.container.scrollTop).toBe(80)
 })
+
+test('keeps the reading anchor when a collapsing reload clamps the scroll position', () => {
+    const s = setup(); s.frame(); s.capture.mockClear()
+    // The browser clamps scrollTop during layout; restore cannot move it any further.
+    s.restore.mockImplementation(() => {})
+    s.container.scrollTop = 0
+    s.resize()
+    s.container.dispatchEvent(new Event('scroll'))
+    expect(s.capture).not.toHaveBeenCalled()
+    // A later move is still the reader's.
+    s.container.scrollTop = 40
+    s.container.dispatchEvent(new Event('scroll'))
+    expect(s.capture).toHaveBeenCalledOnce()
+})

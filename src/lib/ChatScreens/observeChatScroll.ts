@@ -14,9 +14,11 @@ export function observeChatScroll(container: HTMLElement, capture: () => void, r
     function correct() {
         cancelCorrection()
         if (destroyed || userFrame !== null) return
-        const before = container.scrollTop
         restore()
-        if (container.scrollTop !== before) ownScrollTop = container.scrollTop
+        // A reload that empties a message first shrinks the content, and the browser clamps
+        // scrollTop. Its scroll event arrives after this layout pass; capturing there would
+        // replace the reading anchor with the collapsed layout.
+        ownScrollTop = container.scrollTop
     }
 
     function queueCorrection() {

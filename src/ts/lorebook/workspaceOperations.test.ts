@@ -355,18 +355,19 @@ describe('workspaceOperations', () => {
         expect(result[0].key).toBe('alpha')
     })
 
-    it('moves selected entries in their source order, not sourceIds order, and renumbers a successful move', () => {
+    it('moves selected entries in their source order, not sourceIds order, and keeps user insert orders', () => {
         const entries = [
-            lore({ id: 'a' }),
-            lore({ id: 'b' }),
-            lore({ id: 'c' }),
-            lore({ id: 'target' }),
+            lore({ id: 'a', insertorder: 999 }),
+            lore({ id: 'b', insertorder: 1500 }),
+            lore({ id: 'c', insertorder: 5 }),
+            lore({ id: 'target', insertorder: 100 }),
         ]
 
         const result = moveLorebookEntries(entries, ['c', 'a'], 'target', 'before')
 
         expect(result.map((entry) => entry.id)).toEqual(['b', 'a', 'c', 'target'])
-        expect(result.map((entry) => entry.insertorder)).toEqual([10, 20, 30, 40])
+        expect(result.map((entry) => entry.insertorder)).toEqual([1500, 999, 5, 100])
+        expect(stepLorebookEntries(entries, ['b'], -1).map((entry) => entry.insertorder)).toEqual([1500, 999, 5, 100])
         expect(entries.map((entry) => entry.id)).toEqual(['a', 'b', 'c', 'target'])
     })
 

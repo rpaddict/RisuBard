@@ -134,6 +134,8 @@ describe('BardWiki memory writer skill', () => {
         expect(creation).toContain('important participant')
         expect(creation).toContain('mention in an event or another character')
         expect(creation).toContain('one-off participants')
+        expect(creation).toContain('stops being one-off when they appear again')
+        expect(creation).toContain('even without a proper name')
         expect(updates).toContain('not yet represented')
         expect(updates).toContain('actions sufficiently recorded in the event')
         expect(updates).toContain('Do not propose updates')

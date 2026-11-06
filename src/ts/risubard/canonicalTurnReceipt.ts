@@ -73,7 +73,7 @@ function canonicalValidationHint(error: unknown): string | undefined {
     return normalized ? normalized.slice(0, 320) : undefined
 }
 
-function canonicalFailureCategory(error: unknown): string {
+export function canonicalFailureCategory(error: unknown): string {
     const message = (error instanceof Error ? error.message : String(error))
         .toLocaleLowerCase()
     const errorName = typeof error === 'object' && error !== null

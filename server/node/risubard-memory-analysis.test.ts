@@ -9,7 +9,7 @@ import type {
     MemoryAnalysisInput,
     MemoryAnalysisModelRequest,
 } from './risubard-memory-analysis'
-import { createMemoryAnalysisRunner } from './risubard-memory-analysis'
+import { createMemoryAnalysisRunner, MEMORY_ANALYSIS_MODEL_CALL_LIMIT } from './risubard-memory-analysis'
 import { stampStoryArcCheckpoint } from './risubard-story-arc-writer'
 import { createNarrativeMemoryService } from './risubard-memory-service'
 import { createNarrativeGraphService } from './risubard-graph-service'
@@ -2497,6 +2497,99 @@ describe('memory analysis runner', () => {
         expect(saveCanonicalDocument).toHaveBeenCalledWith(expect.objectContaining({
             documentId: 'location.caesarea-ruins',
         }))
+    })
+
+    test('keeps the validated draft when the refinement search re-analysis fails', async () => {
+        const inquire = vi.fn()
+            .mockResolvedValueOnce({ graphRevision: 0, sources: [] })
+            .mockResolvedValueOnce({ graphRevision: 0, sources: [{
+                id: 'narrative-memory:wiki:locations/폐촌.md',
+                content: '# 케사리아 외곽 폐촌\n\n버려진 마을.',
+            }] })
+        let draftCalls = 0
+        const analyze = vi.fn(async (request: MemoryAnalysisModelRequest) => {
+            if (request.format === 'canonical-batch') {
+                return canonicalBatch('# 케사리아 끝자락 빈촌\n\n새 정보.')
+            }
+            draftCalls += 1
+            if (draftCalls > 1) return '{broken'
+            return JSON.stringify({
+                schemaVersion: 1, title: '폐촌 도착',
+                establishedEvents: ['폐촌에 도착했다.'], stateChanges: [],
+                characterKnowledge: [], persistentFacts: [], openContinuity: [],
+                canonicalUpdateCandidates: [{
+                    type: 'location', title: '케사리아 끝자락 빈촌',
+                    reason: '같은 폐촌의 새 상태', action: 'create',
+                    targetDocumentId: null, confidence: 0.42,
+                }],
+            })
+        })
+        const saveConfirmedTurn = vi.fn(async () => undefined)
+        const runner = createMemoryAnalysisRunner({
+            memoryService: { loadState: vi.fn(), applyDelta: vi.fn() },
+            nativeV2Analysis: true,
+            markdownWikiService: {
+                inquire, saveConfirmedTurn,
+                loadDocuments: vi.fn(async () => [{
+                    id: 'location.caesarea-ruins', type: 'location',
+                    title: '케사리아 외곽 폐촌', relativePath: 'locations/폐촌.md',
+                    content: '# 케사리아 외곽 폐촌\n\n버려진 마을.',
+                    sourceMessageIds: [], contentHash: 'old-hash',
+                }]),
+                saveCanonicalDocument: vi.fn(async (input) => input),
+            },
+            onError: vi.fn(), analyze,
+        })
+        await expect(runner.run({
+            characterId: 'character', chatId: 'chat',
+            messages: [{ messageId: 'assistant-1', role: 'assistant',
+                content: '케사리아 끝자락의 빈촌에 도착했다.' }],
+            additionalSearchLimit: 1,
+        })).resolves.toBeDefined()
+        // One accepted draft, then the full failed refinement ladder.
+        expect(draftCalls).toBe(4)
+        expect(saveConfirmedTurn).toHaveBeenCalledWith(expect.objectContaining({
+            markdown: expect.stringContaining('폐촌에 도착했다.'),
+        }))
+    })
+
+    test('stops at the model call limit and defers the canon left over', async () => {
+        const titles = Array.from({ length: 8 }, (_, index) => `장소 ${index + 1}`)
+        const analyze = vi.fn(async (request: MemoryAnalysisModelRequest) => {
+            if (request.format !== 'memory-draft') return '{broken'
+            return JSON.stringify({
+                schemaVersion: 1, title: '여행',
+                establishedEvents: ['여러 장소를 지났다.'], stateChanges: [],
+                characterKnowledge: [], persistentFacts: [], openContinuity: [],
+                canonicalUpdateCandidates: titles.map((title) => ({
+                    type: 'location', title, reason: '새 장소', action: 'create',
+                    targetDocumentId: null, confidence: 0.9,
+                })),
+            })
+        })
+        const runner = createMemoryAnalysisRunner({
+            memoryService: { loadState: vi.fn(), applyDelta: vi.fn() },
+            nativeV2Analysis: true,
+            markdownWikiService: {
+                inquire: vi.fn(async () => ({ graphRevision: 0, sources: [] })),
+                saveConfirmedTurn: vi.fn(async () => undefined),
+                loadDocuments: vi.fn(async () => []),
+                saveCanonicalDocument: vi.fn(async (input) => input),
+            },
+            onError: vi.fn(), analyze,
+        })
+        const result = await runner.run({
+            characterId: 'character', chatId: 'chat',
+            messages: [{ messageId: 'assistant-1', role: 'assistant',
+                content: titles.join(', ') + '을 지났다.' }],
+            additionalSearchLimit: 0,
+            canonicalTargetLimit: 8,
+        })
+        expect(analyze).toHaveBeenCalledTimes(MEMORY_ANALYSIS_MODEL_CALL_LIMIT)
+        expect(result.canonicalReceipt?.warnings.some((warning) =>
+            warning.includes('AI 호출 상한 도달'))).toBe(true)
+        // Deferred, not queued for a whole-turn retry on the next reply.
+        expect(canonicalTurnNeedsRetry(result.canonicalReceipt!)).toBe(false)
     })
 
     test('records low-confidence and target-conflict warnings without blocking', async () => {

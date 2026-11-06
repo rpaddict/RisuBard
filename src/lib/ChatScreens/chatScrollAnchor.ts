@@ -33,7 +33,9 @@ function getIndexedMessages(container: HTMLElement) {
             index: Number(element.dataset.chatIndex),
             rect: element.getBoundingClientRect(),
         }))
-        .filter((message) => Number.isInteger(message.index) && message.index >= 0)
+        // The pinned first message renders as -1. A chat that has only it still needs an anchor,
+        // or a reload that swaps its content leaves the reverse scroller at the message end.
+        .filter((message) => Number.isInteger(message.index) && message.index >= -1)
 }
 
 function blockIdentity(element: HTMLElement) {
@@ -76,7 +78,7 @@ export function captureChatScrollAnchor(
     contextKey: string,
     messageCount: number,
 ): ChatScrollAnchor | null {
-    if (!contextKey || messageCount <= 0) return null
+    if (!contextKey || messageCount < 0) return null
 
     const containerRect = container.getBoundingClientRect()
     const viewportTop = containerRect.top + 1

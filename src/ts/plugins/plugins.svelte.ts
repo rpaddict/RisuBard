@@ -16,6 +16,7 @@ import { PluginChatOutputListeners, V2_CHAT_OUTPUT_OWNER, createV2ChatOutputApi 
 import type { PluginProviderResponse, PluginProviderStructuredOutput } from './providerStructuredOutput';
 import { createPluginFetchLogging } from './pluginFetchLogging';
 import { installApprovedPlugins } from './pluginDbProxy';
+import { withProviderName } from './providerRegistry';
 
 export const customProviderStore = writable([] as string[])
 export const pluginProviderOwners = new Map<string, string>()
@@ -549,8 +550,7 @@ export const getV2PluginAPIs = (pluginName = '') => {
             setDatabaseLite(db)
         },
         addProvider: (name: string, func: (arg: PluginV2ProviderArgument, abortSignal?: AbortSignal) => Promise<{ success: boolean, content: string }>, options?: PluginV2ProviderOptions) => {
-            let provs = get(customProviderStore)
-            provs.push(name)
+            const provs = withProviderName(get(customProviderStore), name)
             pluginV2.providers.set(name, func)
             pluginV2.providerOptions.set(name, options ?? {})
             if (pluginName) pluginProviderOwners.set(name, pluginName)

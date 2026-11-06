@@ -116,13 +116,13 @@ function emitWorkspace(nodes: WorkspaceNode[]): loreBook[] {
         }
     }
 
-    return positioned.map(({ entry, parentKey }, index) => {
-        const insertorder = (index + 1) * 10
+    // List position is the array order; insertorder is the user's prompt priority and is kept.
+    return positioned.map(({ entry, parentKey }) => {
         const hasParent = !isFolder(entry) && parentKey !== undefined
         const folderUnchanged = hasParent ? entry.folder === parentKey : entry.folder === undefined
-        if (entry.insertorder === insertorder && folderUnchanged) return entry
+        if (folderUnchanged) return entry
 
-        const next = { ...entry, insertorder }
+        const next = { ...entry }
         if (!hasParent) {
             delete next.folder
         }

@@ -132,6 +132,7 @@ import { mergeHistoricalSourceMatches } from '../risubard/historicalSourceEmbedd
 import type { WikiSemanticMatch, WikiSemanticSkip } from '../risubard/wikiEmbeddingIndex';
 import { normalizeArcPlotterRuntimeSettings } from '../risubard/arcPlotterSettings';
 import {
+    canonicalFailureCategory,
     canonicalTurnNeedsRetry,
     canonicalTurnRetryWarning,
     canonicalTurnFailureWarning,
@@ -534,6 +535,7 @@ function findNarrativeMessage(characterId: string, chatId: string, messageId: st
  * overtakes it. The target turn is queued first.
  */
 const narrativeBacklogRuns = new Map<string, Promise<void>>()
+const PROVIDER_OUTAGE_CATEGORIES = new Set(['타임아웃', '호출 제한', '인증 오류', '공급자 서버 오류', '네트워크 오류'])
 
 function processNarrativeBacklog(input: {
     characterId: string
@@ -588,7 +590,9 @@ async function runNarrativeBacklog(input: {
         catch (error) {
             console.warn('[RisuBard memory confirmation]', error)
             // A batch the model cannot answer must not hold every turn back; retry them one by one.
-            if (batch.length > 1 && wikiCancellationEpoch() === epoch) {
+            // A provider outage would fail each turn the same way, so it waits for the next reply.
+            if (batch.length > 1 && wikiCancellationEpoch() === epoch
+                && !PROVIDER_OUTAGE_CATEGORIES.has(canonicalFailureCategory(error))) {
                 batches.unshift(...batch.map((turn) => [turn]))
                 continue
             }

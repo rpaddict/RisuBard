@@ -175,6 +175,28 @@ describe('chat scroll anchor', () => {
         expect(container.scrollTo).not.toHaveBeenCalled()
     })
 
+    test('keeps the top of a first message whose content a reload replaced', () => {
+        // A chat with only its first message: the start picker fits the viewport (scrollTop 0 is the end).
+        const { container, elements } = createChatLayout([{ index: -1, top: 120, bottom: 460 }], 0)
+        const message = elements.get(-1)!
+        message.innerHTML = '<div class="chattext"><p>Pick a start</p></div>'
+        message.querySelector('p')!.getBoundingClientRect = () => rect(160, 200)
+        const anchor = captureChatScrollAnchor(container, 'chat', 0)!
+        expect(anchor).toMatchObject({ messageIndex: -1, offsetTop: 120, atLatest: true })
+
+        // reloadDisplay swaps the picker for a long scene; the reverse scroller keeps its end in view.
+        message.innerHTML = '<div class="chattext"><p>Opening scene</p><p>Scene end</p></div>'
+        const blocks = message.querySelectorAll<HTMLElement>('p')
+        blocks[0].getBoundingClientRect = () => rect(-1540, -1400)
+        blocks[1].getBoundingClientRect = () => rect(300, 460)
+        message.getBoundingClientRect = () => rect(-1580, 460)
+
+        expect(restoreChatScrollAnchor(container, anchor, 'chat', 0)).toBe('restored')
+        expect(container.scrollTo).toHaveBeenCalledWith({ top: -1700, behavior: 'instant' })
+        // The first reply still follows the end.
+        expect(restoreChatScrollAnchor(container, anchor, 'chat', 1)).toBe('new-message')
+    })
+
     test('keeps a reverse chat at its end while a new message lays out', () => {
         const { container } = createChatLayout([{ index: 9, top: -400, bottom: 40 }], -855)
         container.style.flexDirection = 'column-reverse'
