@@ -1,7 +1,7 @@
 {
   "name": "risubard",
   "private": true,
-  "version": "0.9.91",
+  "version": "0.9.92",
   "license": "GPL-3.0-only",
   "packageManager": "pnpm@10.34.1",
   "engines": {
