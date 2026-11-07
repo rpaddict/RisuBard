@@ -35,6 +35,7 @@
 <section
     bind:this={pageElement}
     data-settings-page
+    data-skin-part="settings-page"
     class="settings-standard-page"
     class:settings-standard-page--full-width={fullWidth}
     class:settings-standard-page--resizable={resizable}

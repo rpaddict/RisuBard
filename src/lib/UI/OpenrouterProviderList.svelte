@@ -29,7 +29,7 @@
     <div class="risu-modal-overlay fixed top-0 w-full h-full left-0 bg-overlay/50 z-50 flex justify-center items-center" role="button" tabindex="0" onclick={() => {
         openOptions = false
     }}>
-        <div class="risu-modal-surface w-96 max-w-full max-h-full overflow-y-auto overflow-x-hidden bg-bgcolor p-4 flex flex-col" role="button" tabindex="0" onclick={(e)=>{
+        <div data-skin-part="modal" class="risu-modal-surface w-96 max-w-full max-h-full overflow-y-auto overflow-x-hidden bg-bgcolor p-4 flex flex-col" role="button" tabindex="0" onclick={(e)=>{
             e.stopPropagation()
             onclick?.(e)
         }}>

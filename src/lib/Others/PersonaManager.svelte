@@ -113,7 +113,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="risu-modal-overlay persona-manager-backdrop" onclick={closeFromBackdrop}
     onpointerdowncapture={(event) => { pointerStartedOnBackdrop = event.target === event.currentTarget }}>
-    <dialog open class="risu-modal-surface persona-manager" style={`--persona-manager-width: ${managerWidth}px`} aria-labelledby="persona-manager-title">
+    <dialog open data-skin-part="modal" class="risu-modal-surface persona-manager" style={`--persona-manager-width: ${managerWidth}px`} aria-labelledby="persona-manager-title">
         <header class="risu-modal-header">
             <div class="persona-manager-title">
                 <h1 id="persona-manager-title">{language.persona}</h1>

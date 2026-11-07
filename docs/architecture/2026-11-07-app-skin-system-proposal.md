@@ -71,8 +71,12 @@
 
 ### 3. 부품 훅 (안정 API)
 
-- 주요 영역에 `data-skin-part`를 붙인다: `app-shell`, `sidebar`, `bot-list-item`, `chat-header`, `message`, `message-user`, `message-bot`, `composer`, `button-primary`, `button`, `tab`, `chip`, `input`, `panel`, `modal`, `settings-nav`.
-- 상태는 속성으로 노출한다: `[data-state="active|selected|disabled|generating"]`.
+- 주요 영역에 `data-skin-part`를 붙인다(2단계 완료, 목록과 설명은 `src/ts/gui/uiSkinParts.ts`): `app-shell`, `sidebar-rail`, `rail-icon`, `sidebar-panel`, `chat-screen`, `message`, `composer`, `composer-field`, `button`, `input`, `switch`, `checkbox`, `chip`, `tabs`, `tab`, `modal`, `menu`, `settings-nav`, `settings-page`.
+- 부가 정보는 전용 속성으로 노출한다. 라이브러리가 쓰는 `data-state`와 겹치지 않게 `data-skin-` 접두사를 쓴다.
+  - `data-skin-state`: `active`(선택된 탭, 선택된 봇 아이콘), `checked`(체크박스).
+  - `data-skin-role`: 메시지의 `user`, `bot`.
+  - `data-skin-variant`: 버튼과 칩의 종류(`primary`, `ghost`, `destructive` 등).
+- 채팅 상단 헤더는 지금 화면에 따로 없어 훅을 만들지 않았다. 생성 중 상태(`generating`)는 3단계에서 필요할 때 더한다.
 - 부품 CSS는 이 훅과 토큰만 쓸 수 있다. 적용할 때 `:root[data-skin="<id>"]` 아래로 감싼다. 검사기가 내부 클래스 선택자, `position: fixed`, 원격 `@import`, 핵심 부품 숨기기(`display:none`)를 거부한다.
 - 계약 테스트가 모든 훅이 실제 DOM에 있는지 확인한다. 훅을 없애거나 이름을 바꾸면 `skinApi` 버전을 올린다.
 

@@ -23,7 +23,7 @@
 
 {#if pluginAlertModalStore.open}
     <dialog open class="risu-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-overlay/50">
-        <div class="risu-modal-surface bg-warning-bg rounded-lg shadow-xl max-w-md w-full p-6">
+        <div data-skin-part="modal" class="risu-modal-surface bg-warning-bg rounded-lg shadow-xl max-w-md w-full p-6">
             <h2 class="text-xl font-bold mb-4 text-textcolor">
                 {language.pluginRiskDetectedAlert}
             </h2>

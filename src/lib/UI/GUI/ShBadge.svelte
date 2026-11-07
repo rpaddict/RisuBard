@@ -39,6 +39,6 @@
     };
 </script>
 
-<span class={cn(base, variantClasses[variant], className)} {...rest}>
+<span data-skin-part="chip" data-skin-variant={variant} class={cn(base, variantClasses[variant], className)} {...rest}>
     {@render children?.()}
 </span>

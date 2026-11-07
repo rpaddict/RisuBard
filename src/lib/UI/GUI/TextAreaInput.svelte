@@ -1,4 +1,5 @@
 <div
+    data-skin-part="input"
     class={"border border-darkborderc relative flex flex-col n-scroll focus-within:border-borderc rounded-md shadow-xs text-textcolor bg-transparent focus-within:ring-borderc focus-within:ring-2 focus-within:outline-hidden transition-colors duration-200 z-20 focus-within:z-40"
         + (margin === 'top' ? ' mt-4' : margin === 'bottom' ? ' mb-4' : margin === 'both' ? ' mt-2 mb-2' : '')
         + ((className) ? (' ' + className) : '')}

@@ -88,7 +88,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<main class="flex bg-bgcolor w-full h-full max-w-100vw text-textcolor" ondragover={(e) => {
+<main data-skin-part="app-shell" class="flex bg-bgcolor w-full h-full max-w-100vw text-textcolor" ondragover={(e) => {
     const dropEffect = getMainDropEffect(e)
     e.preventDefault()
     e.dataTransfer.dropEffect = dropEffect

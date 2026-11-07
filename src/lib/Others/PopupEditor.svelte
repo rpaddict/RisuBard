@@ -61,6 +61,7 @@
     onclick={() => (popUpEditorStore.open = false)}
 >
     <div
+        data-skin-part="modal"
         class="risu-modal-surface bg-darkbg rounded-lg p-4 w-11/12 h-11/12 flex flex-col gap-2"
         onclick={(e) => e.stopPropagation()}
     >

@@ -43,6 +43,8 @@
         }}
     />
     <span 
+        data-skin-part="checkbox"
+        data-skin-state={check ? 'checked' : undefined}
         class="w-5 h-5 min-w-5 min-h-5 rounded-md border-2 border-darkborderc flex justify-center items-center {check ? 'bg-darkborderc' : 'bg-darkbutton'} transition-colors duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-borderc"
         aria-hidden="true"
     >

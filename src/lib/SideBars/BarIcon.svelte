@@ -26,9 +26,9 @@
 </script>
 
 {#await additionalStyle}
-  <button onclick={onClick} class="ico" class:active={pressed} class:attention {disabled} aria-label={ariaLabel} aria-pressed={pressed} {title}>{@render children?.()}</button>
+  <button onclick={onClick} data-skin-part="rail-icon" data-skin-state={pressed ? 'active' : undefined} class="ico" class:active={pressed} class:attention {disabled} aria-label={ariaLabel} aria-pressed={pressed} {title}>{@render children?.()}</button>
 {:then as}
-  <button onclick={onClick} class="ico" class:active={pressed} class:attention {disabled} aria-label={ariaLabel} aria-pressed={pressed} {title} style={as}>{@render children?.()}</button>
+  <button onclick={onClick} data-skin-part="rail-icon" data-skin-state={pressed ? 'active' : undefined} class="ico" class:active={pressed} class:attention {disabled} aria-label={ariaLabel} aria-pressed={pressed} {title} style={as}>{@render children?.()}</button>
 {/await}
 
 <style>

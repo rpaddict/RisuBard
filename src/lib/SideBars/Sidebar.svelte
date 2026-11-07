@@ -696,6 +696,7 @@
 </script>
 {#if DBState.db.menuSideBar}
 <div
+  data-skin-part="sidebar-rail"
   class="h-full w-20 min-w-20 flex-col items-center bg-bgcolor text-textcolor shadow-lg relative rs-sidebar"
   class:editMode
   class:risu-sub-sidebar={$sideBarClosing}
@@ -773,6 +774,7 @@
 <div
   bind:this={characterListSidebarElement}
   data-character-list-sidebar
+  data-skin-part="sidebar-rail"
   class="character-list-sidebar h-full min-w-20 shrink-0 flex-col items-center bg-bgcolor text-textcolor shadow-lg relative rs-sidebar"
   style:width={characterListSidebarWidth}
   class:max-xs:hidden={$leftBarCollapsed}
@@ -981,6 +983,8 @@
         />
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <div class="relative"
+            data-skin-part="rail-icon"
+            data-skin-state={char.type === 'normal' && $selectedCharID === char.index && sideBarMode !== 1 ? 'active' : undefined}
             role="button" tabindex="0"
             onpointerdown={(event) => selectPinnedCharacterOnMouse(event, char)}
             onclick={() => {
@@ -1361,6 +1365,7 @@
 {/if}
 <div
   bind:this={sidebarElement}
+  data-skin-part="sidebar-panel"
   data-character-sidebar
   class="setting-area relative h-full min-w-0 shrink-0 flex-col bg-darkbg text-textcolor max-h-full"
   style:width={sidebarWidth}

@@ -41,5 +41,6 @@
     bind:value
     class={cn(base, className)}
     data-slot="input"
+    data-skin-part="input"
     {...rest}
 />

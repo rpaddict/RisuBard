@@ -209,7 +209,7 @@
 <!-- Touch: visible via transparent overlay / Mouse: screen-reader only -->
 {#if $isTouchDevice}
     <div class="relative {className}">
-        <div class="flex {heightClasses[size]} items-center justify-between gap-2 rounded-md border border-darkborderc
+        <div data-skin-part="input" class="flex {heightClasses[size]} items-center justify-between gap-2 rounded-md border border-darkborderc
                     bg-transparent {sizeClasses[size]} text-textcolor select-none pointer-events-none">
             <span class="flex flex-1 text-left truncate">{selectedLabel || ' '}</span>
             <ChevronDownIcon class="size-4 shrink-0 text-textcolor2" />
@@ -229,6 +229,7 @@
     <!-- svelte-ignore a11y_interactive_supports_focus -->
     <div
         bind:this={triggerEl}
+        data-skin-part="input"
         role="combobox"
         aria-label={ariaLabel}
         aria-controls={listboxId}

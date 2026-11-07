@@ -15,6 +15,7 @@
 
 <DropdownMenu.Portal>
     <DropdownMenu.Content
+        data-skin-part="menu"
         bind:ref
         data-slot="dropdown-menu-content"
         {sideOffset}

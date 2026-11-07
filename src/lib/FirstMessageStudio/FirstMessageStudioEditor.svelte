@@ -486,7 +486,7 @@
         if (event.key === 'Escape') onClose()
     }}
 >
-    <section class="risu-modal-surface shell">
+    <section data-skin-part="modal" class="risu-modal-surface shell">
         <header class="risu-modal-header topbar">
             <div class="title-row" data-studio-title-row>
                 <h2>퍼스트 메시지 스튜디오</h2>

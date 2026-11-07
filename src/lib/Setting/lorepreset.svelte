@@ -12,7 +12,7 @@
 </script>
 
 <div class="risu-modal-overlay absolute w-full h-full z-40 bg-overlay/50 flex justify-center items-center">
-    <div class="risu-modal-surface bg-darkbg p-4 break-any rounded-md flex flex-col max-w-full w-96 max-h-full overflow-y-auto">
+    <div data-skin-part="modal" class="risu-modal-surface bg-darkbg p-4 break-any rounded-md flex flex-col max-w-full w-96 max-h-full overflow-y-auto">
         <div class="risu-modal-header flex items-center text-textcolor mb-4">
             <h2 class="mt-0 mb-0">{language.loreBook}</h2>
             <div class="grow flex justify-end">

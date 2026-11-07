@@ -4,6 +4,7 @@
 {#if hideText}
      <!-- new-password disables autofill -->
     <input 
+        data-skin-part="input"
         class={"border border-darkborderc peer focus:border-borderc rounded-md shadow-xs text-textcolor bg-transparent focus:ring-borderc focus:ring-2 focus:outline-hidden transition-colors duration-200" + ((className) ? (' ' + className) : '')} 
         class:text-sm={size === 'sm'}
         class:text-md={size === 'md'}
@@ -37,6 +38,7 @@
 {:else}
 
     <input 
+        data-skin-part="input"
         class={"border border-darkborderc peer focus:border-borderc rounded-md shadow-xs text-textcolor bg-transparent focus:ring-borderc focus:ring-2 focus:outline-hidden transition-colors duration-200" + ((className) ? (' ' + className) : '')} 
         list={list}
         class:text-sm={size === 'sm'}

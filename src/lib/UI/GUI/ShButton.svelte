@@ -77,6 +77,8 @@
         tabindex={disabled ? -1 : undefined}
         class={classes}
         data-slot="button"
+        data-skin-part="button"
+        data-skin-variant={variant}
         {...rest}
     >
         {@render children?.()}
@@ -87,6 +89,8 @@
         {disabled}
         class={classes}
         data-slot="button"
+        data-skin-part="button"
+        data-skin-variant={variant}
         {...rest}
     >
         {@render children?.()}

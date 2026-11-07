@@ -143,6 +143,7 @@
 {:else}
     <nav
         data-settings-navigation
+        data-skin-part="settings-nav"
         class:mobile
         aria-label={language.settings}
     >

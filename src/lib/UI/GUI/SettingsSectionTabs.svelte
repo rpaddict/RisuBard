@@ -25,6 +25,7 @@
 
 <div
     data-settings-section-tabs
+    data-skin-part="tabs"
     class="settings-section-tabs {className}"
     class:prominent={variant === 'prominent'}
     role="tablist"
@@ -33,6 +34,8 @@
     {#each tabs as tab (tab.value)}
         <button
             role="tab"
+            data-skin-part="tab"
+            data-skin-state={selected === tab.value ? 'active' : undefined}
             aria-selected={selected === tab.value}
             class:active={selected === tab.value}
             onclick={() => onSelect(tab.value)}

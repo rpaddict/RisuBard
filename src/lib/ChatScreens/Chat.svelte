@@ -1737,6 +1737,8 @@
 {#if DBState.db.theme === ''}
 <!-- NodeOnly Standard: 전용 외부 구조 -->
 <div class="flex max-w-full justify-center risu-chat"
+     data-skin-part="message"
+     data-skin-role={role === 'user' ? 'user' : 'bot'}
      data-chat-index={idx}
      data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
      style={isLastMemory ? `border-top:${DBState.db.memoryLimitThickness}px solid color-mix(in srgb, var(--color-borderc) 70%, transparent);` : ''}
@@ -1790,6 +1792,8 @@
 {:else}
 <!-- 기존 테마: 공유 외부 구조 -->
 <div class="flex max-w-full justify-center risu-chat"
+     data-skin-part="message"
+     data-skin-role={role === 'user' ? 'user' : 'bot'}
      data-chat-index={idx}
      data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
      style={isLastMemory ? `border-top:${DBState.db.memoryLimitThickness}px solid color-mix(in srgb, var(--color-borderc) 70%, transparent);` : ''}

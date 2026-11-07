@@ -619,6 +619,7 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
+      data-skin-part="modal"
       class="risu-modal-surface flex flex-col w-full max-w-3xl p-3 rounded-lg sm:p-6 bg-darkbg {hypaV3Data
         .summaries.length === 0
         ? 'h-fit'

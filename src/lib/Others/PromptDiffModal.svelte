@@ -1582,7 +1582,7 @@
 
 
 <div class="risu-modal-overlay absolute inset-0 z-50 bg-overlay/60 flex justify-center items-center p-4">
-  <div class="risu-modal-surface bg-darkbg rounded-md w-full max-w-4xl max-h-full overflow-hidden flex flex-col">
+  <div data-skin-part="modal" class="risu-modal-surface bg-darkbg rounded-md w-full max-w-4xl max-h-full overflow-hidden flex flex-col">
     
     <div class="risu-modal-header flex items-center justify-between px-4 py-3 border-b border-darkborderc">
       <div class="flex items-center gap-4 flex-wrap">

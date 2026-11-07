@@ -1427,6 +1427,7 @@ import { isMobile } from 'src/ts/platform'
     {:else}
         {#snippet composerCluster()}
             <div
+                    data-skin-part="composer"
                     class="{DBState.db.fixedChatTextarea ? 'sticky pt-2 pb-2 right-0 bottom-0 bg-bgcolor' : 'mt-2 mb-2'} w-full"
                     style="{DBState.db.fixedChatTextarea ? 'z-index:29;' : ''}"
             >
@@ -1473,7 +1474,7 @@ import { isMobile } from 'src/ts/platform'
                      plugins that locate the composer via div[class*="items-stretch"] (e.g. gemini-cache-keeper)
                      relied on the pre-redesign container class. Keep it so they can still find/anchor their UI,
                      and it scopes the timer re-flow rules in <style> below. -->
-                <div class="flex flex-wrap items-center gap-1 rounded-3xl border border-darkborderc bg-bgcolor px-2 py-1.5 transition-colors focus-within:border-textcolor plugin-compat-items-stretch">
+                <div data-skin-part="composer-field" class="flex flex-wrap items-center gap-1 rounded-3xl border border-darkborderc bg-bgcolor px-2 py-1.5 transition-colors focus-within:border-textcolor plugin-compat-items-stretch">
                 {#if DBState.db.characters[$selectedCharID]?.chaId !== '§playground'}
                     <ShDropdownMenu bind:open={openMenu}>
                         <ShDropdownMenuTrigger>
@@ -1904,7 +1905,7 @@ import { isMobile } from 'src/ts/platform'
              gesture to the viewport; mobile Chrome then collapses its URL bar, the visual viewport
              resizes, and the sticky composer inside this col-reverse scroller gets misanchored
              (bar floats up with a gap below). PWA/standalone has no URL bar, hence unaffected. -->
-        <div class="h-full w-full flex flex-col-reverse overflow-y-auto overscroll-y-contain relative default-chat-screen"
+        <div data-skin-part="chat-screen" class="h-full w-full flex flex-col-reverse overflow-y-auto overscroll-y-contain relative default-chat-screen"
             bind:this={chatScrollContainer}
             use:reverseAutoscroll
             class:nodeonly-standard={DBState.db.theme === ''}

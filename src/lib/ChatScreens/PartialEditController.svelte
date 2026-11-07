@@ -629,7 +629,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) cancelMatchSelection(); }}>
-        <div class="risu-modal-surface partial-match-selection-modal">
+        <div data-skin-part="modal" class="risu-modal-surface partial-match-selection-modal">
             <div class="risu-modal-header match-selection-header">
                 <span class="match-selection-title">{title}</span>
                 <span class="match-count">{matches.length} {language.partialEdit.matchesFound}</span>
@@ -677,7 +677,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) showMatchFailedModal = false; }}>
-        <div class="risu-modal-surface partial-match-failed-modal">
+        <div data-skin-part="modal" class="risu-modal-surface partial-match-failed-modal">
             <div class="risu-modal-header partial-match-failed-header">
                 <span class="partial-match-failed-title">{language.partialEdit.matchFailedTitle}</span>
             </div>
@@ -701,7 +701,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) handleCancelDelete(); }}>
-        <div class="risu-modal-surface partial-delete-modal">
+        <div data-skin-part="modal" class="risu-modal-surface partial-delete-modal">
             <div class="risu-modal-header partial-delete-header">
                 <span class="partial-delete-title">{language.partialEdit.deleteModalTitle}</span>
                 <div class="partial-match-meta">
@@ -751,7 +751,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) handleCancel(); }}>
-        <div class="risu-modal-surface partial-edit-modal">
+        <div data-skin-part="modal" class="risu-modal-surface partial-edit-modal">
             <div class="risu-modal-header partial-edit-header">
                 <span class="partial-edit-title">{language.partialEdit.editModalTitle}</span>
                 <div class="partial-match-meta">

@@ -127,7 +127,7 @@
         }
     }}
 >
-    <div class="risu-modal-surface bg-darkbg p-3 rounded-md flex flex-col max-w-4xl w-full max-h-[90%] overflow-y-auto">
+    <div data-skin-part="modal" class="risu-modal-surface bg-darkbg p-3 rounded-md flex flex-col max-w-4xl w-full max-h-[90%] overflow-y-auto">
         <div class="risu-modal-header flex items-center text-textcolor mb-4">
             <h2 class="text-xl font-bold">{language.bookmarks}</h2>
             <div class="ml-auto flex items-center gap-2">

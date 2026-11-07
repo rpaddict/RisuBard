@@ -58,6 +58,7 @@
     aria-label={ariaLabel}
     {onCheckedChange}
     data-slot="switch"
+    data-skin-part="switch"
     data-size={size}
     class={cn(
         'peer group/switch relative inline-flex items-center transition-all outline-none ' +

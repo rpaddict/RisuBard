@@ -189,7 +189,7 @@
 
 {#if $alertStore.type !== 'none' &&  $alertStore.type !== 'cardexport' && $alertStore.type !== 'branches' && $alertStore.type !== 'selectModule' && $alertStore.type !== 'pukmakkurit' && $alertStore.type !== 'error' && $alertStore.type !== 'normal' && $alertStore.type !== 'markdown' && $alertStore.type !== 'ask' && $alertStore.type !== 'pluginconfirm' && $alertStore.type !== 'tos' && $alertStore.type !== 'input' && $alertStore.type !== 'select' && $alertStore.type !== 'wait' && $alertStore.type !== 'wait2' && $alertStore.type !== 'progress' && $alertStore.type !== 'confirmMulti'}
     <div class="risu-modal-overlay absolute w-full h-full z-50 bg-overlay/50 flex justify-center items-center">
-        <div class="risu-modal-surface bg-darkbg p-4 break-any rounded-md flex flex-col max-w-3xl  max-h-full overflow-y-auto">
+        <div data-skin-part="modal" class="risu-modal-surface bg-darkbg p-4 break-any rounded-md flex flex-col max-w-3xl  max-h-full overflow-y-auto">
             {#if $alertStore.type === 'selectChar'}
                 <h2 class="text-success mt-0 mb-2 w-40 max-w-full">Select</h2>
             {/if}
@@ -548,7 +548,7 @@
     <!-- Svelte, Typescript version by Kwaroran -->
     
     <div class="risu-modal-overlay absolute w-full h-full z-50 bg-overlay/50 flex justify-center items-center">
-        <div class="risu-modal-surface bg-darkbg p-4 break-any rounded-md flex flex-col max-w-3xl  max-h-full overflow-y-auto">
+        <div data-skin-part="modal" class="risu-modal-surface bg-darkbg p-4 break-any rounded-md flex flex-col max-w-3xl  max-h-full overflow-y-auto">
             <h2 class="text-success mt-0 mb-2 w-40 max-w-full">{language.preview}</h2>
 
         </div>

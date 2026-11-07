@@ -124,7 +124,7 @@
 <!-- Category Manager Modal -->
 {#if categoryManagerState.isOpen}
   <div class="risu-modal-overlay fixed inset-0 z-50 p-4 bg-overlay/70 flex items-center justify-center">
-    <div class="risu-modal-surface bg-darkbg rounded-lg p-6 w-full max-w-md">
+    <div data-skin-part="modal" class="risu-modal-surface bg-darkbg rounded-lg p-6 w-full max-w-md">
       <div class="risu-modal-header flex justify-between items-center mb-6">
         <h2 class="text-lg font-semibold text-textcolor">{language.hypaV3Modal.categoryManager}</h2>
         <div class="flex items-center gap-2">

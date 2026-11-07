@@ -2434,7 +2434,7 @@
                 {/if}
             </div>
         {/if}
-        <div class="risu-modal-surface max-w-full p-2 border border-darkborderc bg-bgcolor flex max-h-full flex-col-reverse md:flex-row overflow-y-auto md:overflow-y-visible"
+        <div data-skin-part="modal" class="risu-modal-surface max-w-full p-2 border border-darkborderc bg-bgcolor flex max-h-full flex-col-reverse md:flex-row overflow-y-auto md:overflow-y-visible"
              class:w-7xl={menuMode === 0} 
              class:w-3xl={menuMode !== 0} 
              class:h-full={menuMode!==2}

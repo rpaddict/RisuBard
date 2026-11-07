@@ -97,6 +97,7 @@
             class={cn('risu-modal-overlay fixed inset-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0', tierClasses[tier], overlayClass)}
         />
         <Dialog.Content
+            data-skin-part="modal"
             bind:ref={contentElement}
             class={cn(
                 contentBase,
