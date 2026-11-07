@@ -19,6 +19,7 @@
     "check:public-boundary": "node scripts/check-public-boundary.mjs",
     "check:brand-boundary": "vitest run scripts/check-brand-boundary.test.ts",
     "check:help": "node scripts/check-help-keys.mjs",
+    "check:skin": "node scripts/check-app-skin.mjs",
     "check:theme-tokens": "vitest run src/lib/UI/GUI/ThemeTokenContract.test.ts",
     "test": "vitest run && vitest run --config vitest.config.server.ts",
     "test:compat": "vitest run --config vitest.config.compat.ts",

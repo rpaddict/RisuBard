@@ -53,6 +53,7 @@ dist.zip
 !/scripts/portable/
 !/scripts/termux/
 !/scripts/check-help-keys.mjs
+!/scripts/check-app-skin.mjs
 !/scripts/check-public-boundary.mjs
 !/scripts/check-public-boundary.test.ts
 !/scripts/check-brand-boundary.test.ts

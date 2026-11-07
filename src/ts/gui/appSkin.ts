@@ -199,7 +199,7 @@ function validateSelectorList(list: string, requireHook: boolean, errors: string
     }
 }
 
-function validateDeclarations(body: string, errors: string[]) {
+function validateDeclarations(body: string, errors: string[], decorationOnly = false) {
     for (const raw of splitTopLevel(body, ';')) {
         const declaration = raw.trim()
         if (!declaration) continue
@@ -219,7 +219,8 @@ function validateDeclarations(body: string, errors: string[]) {
             continue
         }
         if (property === 'position' && value === 'fixed') errors.push('position: fixed는 쓸 수 없습니다.')
-        if ((property === 'display' && value === 'none') || (property === 'visibility' && /^(?:hidden|collapse)$/.test(value)) || (property === 'opacity' && /^0*(?:\.0+)?%?$/.test(value))) {
+        // Hiding is allowed only on generated decoration (::before/::after), never on app parts.
+        if (!decorationOnly && ((property === 'display' && value === 'none') || (property === 'visibility' && /^(?:hidden|collapse)$/.test(value)) || (property === 'opacity' && /^0*(?:\.0+)?%?$/.test(value)))) {
             errors.push(`앱 부품을 숨기는 선언은 쓸 수 없습니다: ${property}: ${value}`)
         }
     }
@@ -258,8 +259,9 @@ function validateCssBlock(css: string, errors: string[], inKeyframes = false) {
             }
         } else {
             validateSelectorList(prelude, true, errors)
+            const decorationOnly = splitTopLevel(prelude, ',').every((selector) => /::(?:before|after)\s*$/.test(selector.trim()))
             if (body.includes('{')) errors.push(`중첩 규칙은 쓸 수 없습니다: ${prelude}`)
-            else validateDeclarations(body, errors)
+            else validateDeclarations(body, errors, decorationOnly)
         }
         i = close + 1
     }

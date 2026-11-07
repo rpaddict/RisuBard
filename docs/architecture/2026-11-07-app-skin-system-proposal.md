@@ -117,6 +117,14 @@
 - 저장: `db.appSkins`, `db.appSkinId`(''이 기본). 테마 프리셋에 `appSkinId` 포함.
 - 글꼴 내장(`fonts`)은 보류. 설정 저장마다 큰 데이터가 실리지 않도록 4단계에서 에셋 저장소에 두는 방식으로 넣는다.
 
+## 4단계 구현 기록 (2026-11-07)
+
+- 예시 스킨: `charx/bot-factory/bots/girls-und-panzer/skin/steel-tactical.risuskin`(강철 전술), `charx/bot-factory/bots/mha-ultimate-2-0/skin/hero-comic.risuskin`(히어로 코믹). 설정, 채팅, 프롬프트 프리셋 창, 모바일 폭에서 확인.
+- 검사 명령: `pnpm check:skin <파일>`(`scripts/check-app-skin.mjs`, 앱과 같은 `validateAppSkin` 사용).
+- 제작 절차: 전역 스킬 `risubard-skin-from-bot`.
+- 예시를 만들며 바꾼 규칙: `::before`, `::after`만 겨눈 규칙은 숨김 선언 허용.
+- 남은 일: 글꼴 내장(에셋 저장소), 봇 연결 자동 전환, 남은 하드코딩 모서리와 그림자 정리.
+
 ## 단계
 
 1. 토큰화: Tailwind 테마 변수 연결, 글꼴 역할 분리, 공용 부품의 모서리와 그림자 토큰화. 화면 변화 없음을 스크린샷으로 증명.

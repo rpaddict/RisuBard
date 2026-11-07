@@ -46,6 +46,11 @@ describe('app skin validation', () => {
         expect(validateSkinCss(css).length).toBeGreaterThan(0)
     })
 
+    test('allows hiding generated decoration but not the part itself', () => {
+        expect(validateSkinCss('[data-skin-part="tab"]::after { display: none }')).toEqual([])
+        expect(validateSkinCss('[data-skin-part="tab"]::after, [data-skin-part="tab"] { display: none }').length).toBeGreaterThan(0)
+    })
+
     test('allows data image textures', () => {
         expect(validateSkinCss('[data-skin-part="app-shell"] { background-image: url("data:image/svg+xml;utf8,a") }')).toEqual([])
     })
