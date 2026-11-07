@@ -73,6 +73,16 @@ describe('asset references', () => {
         ]))
     })
 
+    test('keeps fonts embedded in installed app skins', () => {
+        const refs = collectDatabaseAssetReferences({
+            appSkins: [
+                { id: 'a', fonts: [{ family: 'X', asset: 'assets/skin-font-a.woff2' }, { family: 'Y' }] },
+                { id: 'b', fonts: [{ family: 'Z', asset: 'assets/skin-font-b.ttf' }] },
+            ],
+        })
+        expect(refs).toEqual(new Set(['assets/skin-font-a.woff2', 'assets/skin-font-b.ttf']))
+    })
+
     test('finds database references from image settings, audio, personas, and plugin storage', () => {
         const refs = collectDatabaseAssetReferences({
             NAIImgConfig: {

@@ -42,6 +42,10 @@ try {
         } else {
             const css = compileAppSkinCss(result.skin)
             console.log(`✓ ${file} (${result.skin.id}, CSS ${Buffer.byteLength(css)}바이트)`)
+            for (const font of result.skin.fonts ?? []) {
+                const embedded = font.data ? `내장 ${Math.round(Buffer.byteLength(font.data.split(',')[1] ?? '', 'base64') / 1024)}KB` : '이름만'
+                console.log(`  글꼴: ${font.family} (${font.role ?? '역할 없음'}, ${embedded}${font.url ? `, ${font.url}` : ''})`)
+            }
         }
         for (const message of result.warnings) console.log(`  경고: ${message}`)
     }

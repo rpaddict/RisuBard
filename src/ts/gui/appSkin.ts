@@ -22,6 +22,30 @@ export interface AppSkin {
     /** Keys are skin token names without the --risu- prefix (radius-md, shadow-lg, font-ui...). */
     tokens?: Record<string, string>
     partsCss?: string
+    /** Fonts the skin uses. Each fills a role and may carry the font file itself. */
+    fonts?: AppSkinFont[]
+}
+
+export type AppSkinFontRole = 'ui' | 'prose' | 'display' | 'numeric'
+
+export interface AppSkinFont {
+    family: string
+    /** Which font token this font fills: app UI, chat body, headings, or numbers. */
+    role?: AppSkinFontRole
+    /** https page where the user can get the font. Shown as a link only, never loaded. */
+    url?: string
+    note?: string
+    weight?: string
+    style?: 'normal' | 'italic'
+    /** Embedded font file as a data URL (woff2, woff, ttf, otf). Only in skin files. */
+    data?: string
+    /** Asset path of an installed embedded font. Only in the app's stored copy. */
+    asset?: string
+}
+
+export interface AppSkinValidateOptions {
+    /** Stored skins reference installed font assets; imported files must embed data instead. */
+    stored?: boolean
 }
 
 export interface AppSkinValidation {
@@ -33,6 +57,38 @@ export interface AppSkinValidation {
 
 export const APP_SKIN_MAX_JSON_BYTES = 512 * 1024
 export const APP_SKIN_MAX_PARTS_CSS = 64 * 1024
+export const APP_SKIN_MAX_FONTS = 8
+/** Decoded size limits for embedded fonts. */
+export const APP_SKIN_MAX_FONT_BYTES = 4 * 1024 * 1024
+export const APP_SKIN_MAX_TOTAL_FONT_BYTES = 12 * 1024 * 1024
+
+export const appSkinFontRoles: readonly AppSkinFontRole[] = ['ui', 'prose', 'display', 'numeric']
+/** Where each font role falls back when the skin's font is not available. */
+export const appSkinFontRoleFallback: Record<AppSkinFontRole, string> = {
+    ui: 'var(--risu-font-family)',
+    prose: 'var(--risu-font-family)',
+    display: 'var(--risu-font-ui)',
+    numeric: 'var(--risu-font-ui)',
+}
+const fontFamilyPattern = /^[\p{L}\p{N} _-]{1,64}$/u
+const fontDataPattern = /^data:(?:font\/(?:woff2|woff|ttf|otf|sfnt)|application\/(?:font-woff2?|x-font-(?:ttf|otf|woff)|font-sfnt|vnd\.ms-opentype|octet-stream));base64,([A-Za-z0-9+/]+={0,2})$/
+const fontAssetPattern = /^assets\/[A-Za-z0-9._-]{1,160}$/
+const fontWeightPattern = /^(?:normal|bold|[1-9]00(?: [1-9]00)?)$/
+
+export function base64DecodedLength(base64: string) {
+    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
+    return Math.floor(base64.length * 3 / 4) - padding
+}
+
+function cssFamily(family: string) {
+    return `"${family}"`
+}
+
+/** Appends the role's fallback unless the stack already ends in a generic family or a font token. */
+export function withFontRoleFallback(value: string, role: AppSkinFontRole) {
+    if (/(?:^|,)\s*(?:sans-serif|serif|monospace|cursive|fantasy|system-ui|ui-sans-serif|ui-serif|ui-monospace|var\(--risu-font-[a-z-]+\))\s*$/i.test(value)) return value
+    return `${value}, ${appSkinFontRoleFallback[role]}`
+}
 
 const baseColorKeys = ['bgcolor', 'darkbg', 'borderc', 'selected', 'draculared', 'textcolor', 'textcolor2', 'darkborderc', 'darkbutton', 'primary', 'accenttext']
 export const appSkinColorKeys: ReadonlySet<string> = new Set([...baseColorKeys, ...uiThemeTokens.map(({ token }) => token)])
@@ -46,7 +102,7 @@ const chatTextVariables: Record<string, string> = {
     quote2: '--FontColorQuote2',
 }
 const knownParts: ReadonlySet<string> = new Set(uiSkinParts.map(({ part }) => part))
-const knownTopLevel = new Set(['skinApi', 'id', 'name', 'description', 'source', 'base', 'colors', 'chatText', 'tokens', 'partsCss'])
+const knownTopLevel = new Set(['skinApi', 'id', 'name', 'description', 'source', 'base', 'colors', 'chatText', 'tokens', 'partsCss', 'fonts'])
 
 const skinIdPattern = /^[a-z0-9][a-z0-9-]{0,47}$/
 // Color values: hex, functional notations, and theme variables. The character
@@ -280,11 +336,16 @@ export function validateSkinCss(css: string): string[] {
     return errors
 }
 
-export function validateAppSkin(input: unknown): AppSkinValidation {
+export function validateAppSkin(input: unknown, options: AppSkinValidateOptions = {}): AppSkinValidation {
     const errors: string[] = []
     const warnings: string[] = []
     if (!isPlainRecord(input)) return { ok: false, errors: ['스킨 형식이 아닙니다(JSON 객체가 필요합니다).'], warnings }
-    if (bytes(JSON.stringify(input)) > APP_SKIN_MAX_JSON_BYTES) errors.push('스킨 파일이 512KB를 넘습니다.')
+    // Embedded font data has its own limits; everything else stays small.
+    const withoutFontData = JSON.stringify({
+        ...input,
+        fonts: Array.isArray(input.fonts) ? input.fonts.map((font) => isPlainRecord(font) ? { ...font, data: undefined } : font) : input.fonts,
+    })
+    if (bytes(withoutFontData) > APP_SKIN_MAX_JSON_BYTES) errors.push('스킨 파일(글꼴 제외)이 512KB를 넘습니다.')
 
     if (input.skinApi !== UI_SKIN_API_VERSION) {
         errors.push(`지원하지 않는 스킨 버전입니다(skinApi ${String(input.skinApi)}, 지원 ${UI_SKIN_API_VERSION}).`)
@@ -332,6 +393,62 @@ export function validateAppSkin(input: unknown): AppSkinValidation {
         else errors.push(...validateSkinCss(input.partsCss))
     }
 
+    if (isPlainRecord(input.tokens)) {
+        for (const role of appSkinFontRoles) {
+            const value = input.tokens[`font-${role}`]
+            if (typeof value === 'string' && value.includes(`var(--risu-font-${role})`)) errors.push(`tokens.font-${role}가 자기 자신을 참조합니다.`)
+        }
+    }
+
+    const fonts: AppSkinFont[] = []
+    if (input.fonts !== undefined) {
+        if (!Array.isArray(input.fonts)) errors.push('fonts는 배열이어야 합니다.')
+        else if (input.fonts.length > APP_SKIN_MAX_FONTS) errors.push(`글꼴은 ${APP_SKIN_MAX_FONTS}개까지입니다.`)
+        else {
+            let totalBytes = 0
+            input.fonts.forEach((raw: unknown, index: number) => {
+                const where = `fonts[${index}]`
+                if (!isPlainRecord(raw)) {
+                    errors.push(`${where}는 객체여야 합니다.`)
+                    return
+                }
+                if (typeof raw.family !== 'string' || !fontFamilyPattern.test(raw.family)) {
+                    errors.push(`${where}.family는 글자, 숫자, 공백, 하이픈으로 된 64자 이하 이름이어야 합니다.`)
+                    return
+                }
+                if (raw.role !== undefined && !appSkinFontRoles.includes(raw.role as AppSkinFontRole)) errors.push(`${where}.role은 ui, prose, display, numeric 중 하나여야 합니다.`)
+                if (raw.url !== undefined && (typeof raw.url !== 'string' || !/^https:\/\/[^\s"'<>]{3,300}$/.test(raw.url))) errors.push(`${where}.url은 https 주소여야 합니다.`)
+                if (raw.note !== undefined && (typeof raw.note !== 'string' || raw.note.length > 200)) errors.push(`${where}.note는 200자 이하여야 합니다.`)
+                if (raw.weight !== undefined && (typeof raw.weight !== 'string' || !fontWeightPattern.test(raw.weight))) errors.push(`${where}.weight가 올바르지 않습니다(예: 400, 700, 100 900).`)
+                if (raw.style !== undefined && raw.style !== 'normal' && raw.style !== 'italic') errors.push(`${where}.style은 normal 또는 italic이어야 합니다.`)
+                if (raw.data !== undefined) {
+                    const match = typeof raw.data === 'string' ? raw.data.match(fontDataPattern) : null
+                    if (!match) errors.push(`${where}.data는 base64 글꼴 데이터(data:font/woff2;base64,...)여야 합니다.`)
+                    else {
+                        const size = base64DecodedLength(match[1])
+                        totalBytes += size
+                        if (size > APP_SKIN_MAX_FONT_BYTES) errors.push(`${where} 글꼴 파일이 4MB를 넘습니다.`)
+                    }
+                }
+                if (raw.asset !== undefined) {
+                    if (!options.stored) errors.push(`${where}.asset은 스킨 파일에 쓸 수 없습니다. 글꼴은 data로 넣으세요.`)
+                    else if (typeof raw.asset !== 'string' || !fontAssetPattern.test(raw.asset)) errors.push(`${where}.asset 경로가 올바르지 않습니다.`)
+                }
+                fonts.push({
+                    family: raw.family,
+                    ...(raw.role !== undefined ? { role: raw.role as AppSkinFontRole } : {}),
+                    ...(typeof raw.url === 'string' ? { url: raw.url } : {}),
+                    ...(typeof raw.note === 'string' ? { note: raw.note } : {}),
+                    ...(typeof raw.weight === 'string' ? { weight: raw.weight } : {}),
+                    ...(raw.style === 'normal' || raw.style === 'italic' ? { style: raw.style } : {}),
+                    ...(typeof raw.data === 'string' ? { data: raw.data } : {}),
+                    ...(typeof raw.asset === 'string' ? { asset: raw.asset } : {}),
+                })
+            })
+            if (totalBytes > APP_SKIN_MAX_TOTAL_FONT_BYTES) errors.push('내장 글꼴 합계가 12MB를 넘습니다.')
+        }
+    }
+
     if (errors.length) return { ok: false, errors, warnings }
     const skin: AppSkin = {
         skinApi: input.skinApi as number,
@@ -344,6 +461,7 @@ export function validateAppSkin(input: unknown): AppSkinValidation {
         ...(input.chatText !== undefined ? { chatText: { ...(input.chatText as Record<string, string>) } } : {}),
         ...(input.tokens !== undefined ? { tokens: { ...(input.tokens as Record<string, string>) } } : {}),
         ...(input.partsCss !== undefined ? { partsCss: input.partsCss as string } : {}),
+        ...(fonts.length ? { fonts } : {}),
     }
     return { ok: true, errors, warnings, skin }
 }
@@ -373,6 +491,18 @@ function scopeCss(css: string, scope: string, inKeyframes = false): string {
     return out
 }
 
+/** Font stack per role: an explicit font token wins, else the declared fonts in order; each ends in the role fallback. */
+export function resolveSkinFontStacks(skin: AppSkin): Partial<Record<AppSkinFontRole, string>> {
+    const stacks: Partial<Record<AppSkinFontRole, string>> = {}
+    for (const role of appSkinFontRoles) {
+        const explicit = skin.tokens?.[`font-${role}`]
+        const declared = [...new Set((skin.fonts ?? []).filter((font) => font.role === role).map((font) => cssFamily(font.family)))]
+        const families = explicit ?? declared.join(', ')
+        if (families) stacks[role] = withFontRoleFallback(families, role)
+    }
+    return stacks
+}
+
 export function appSkinScope(id: string) {
     return `:root[data-risu-skin="${id}"]`
 }
@@ -386,7 +516,11 @@ export function compileAppSkinCss(skin: AppSkin): string {
     if (skin.base) declarations.push(`color-scheme: ${skin.base} !important;`)
     for (const [key, value] of Object.entries(skin.colors ?? {})) declarations.push(`--risu-theme-${key}: ${value} !important;`)
     for (const [key, value] of Object.entries(skin.chatText ?? {})) declarations.push(`${chatTextVariables[key]}: ${value} !important;`)
-    for (const [key, value] of Object.entries(skin.tokens ?? {})) declarations.push(`--risu-${key}: ${value} !important;`)
+    for (const [key, value] of Object.entries(skin.tokens ?? {})) {
+        if (key.startsWith('font-')) continue
+        declarations.push(`--risu-${key}: ${value} !important;`)
+    }
+    for (const [role, value] of Object.entries(resolveSkinFontStacks(skin))) declarations.push(`--risu-font-${role}: ${value} !important;`)
     let css = declarations.length ? `${scope}{\n  ${declarations.join('\n  ')}\n}\n` : ''
     if (skin.partsCss) css += scopeCss(stripCssComments(skin.partsCss), scope)
     return css

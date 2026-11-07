@@ -133,6 +133,14 @@
 - 고정 장치: `src/lib/UI/GUI/SkinShapeContract.test.ts`가 새 고정 모서리, 감싸지 않은 깊이 그림자, 고정 `--settings-radius` 대체값을 막는다.
 - 검증: 기본 스킨에서 설정 17개 화면, 홈, 채팅, 프롬프트 프리셋 창의 요소별 모서리와 그림자 계산값이 바꾸기 전과 같음(새로 생긴 값 0). 히어로 코믹 스킨에서 같은 화면들의 둥근 모서리가 0개(스킨 미리보기 카드 4개 제외).
 
+## 글꼴 (2026-11-07)
+
+- 형식: `fonts: [{ family, role?, url?, note?, weight?, style?, data? }]`. `role`은 `ui`, `prose`, `display`, `numeric`. `url`은 https 안내 링크로만 쓰고 CSS에서 불러오지 않는다.
+- 역할별 대체: 글꼴 토큰(`tokens.font-<role>`)이 있으면 그 값, 없으면 그 역할의 `fonts`를 순서대로 이어 쓰고, 끝에 역할 기본값을 붙인다(`display`, `numeric`은 `var(--risu-font-ui)`, `ui`, `prose`는 `var(--risu-font-family)`). 이미 일반 글꼴(sans-serif 등)이나 글꼴 토큰으로 끝나면 붙이지 않는다.
+- 내장: `data`(base64, 글꼴 서명 확인, 개당 4MB, 합계 12MB, 최대 8개). 설치 때 `saveAsset`으로 에셋 저장소에 옮기고 저장본에는 `asset` 경로만 둔다. 적용 때 `FontFace` API로 등록하고 스킨을 바꾸면 해제한다. 내보낼 때 다시 `data`로 넣는다. 가져오는 파일의 `asset`은 거절한다.
+- 정리 보호: `collectDatabaseAssetReferences`가 `appSkins[].fonts[].asset`을 참조로 센다.
+- 설치 여부 확인: 캔버스로 글꼴 폭을 일반 글꼴과 비교한다. 흔한 시스템 글꼴까지 모두 같게 나오면 브라우저가 막은 것으로 보고 `확인 불가`.
+
 ## 단계
 
 1. 토큰화: Tailwind 테마 변수 연결, 글꼴 역할 분리, 공용 부품의 모서리와 그림자 토큰화. 화면 변화 없음을 스크린샷으로 증명.

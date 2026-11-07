@@ -93,6 +93,11 @@ export function collectDatabaseAssetReferences(db: unknown): Set<string> {
         addPersonaAssets(persona)
     }
     for (const item of Array.isArray(data.characterOrder) ? data.characterOrder : []) add(asRecord(item)?.imgFile)
+    // Fonts embedded in installed app skins live in asset storage.
+    for (const skin of Array.isArray(data.appSkins) ? data.appSkins : []) {
+        const fonts = asRecord(skin)?.fonts
+        for (const font of Array.isArray(fonts) ? fonts : []) add(asRecord(font)?.asset)
+    }
 
     const nai = asRecord(data.NAIImgConfig)
     add(nai?.character_image)
