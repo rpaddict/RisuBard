@@ -333,7 +333,9 @@
 
     /* Custom blocks in a group (skin cards, palettes, toggles) get the row's side padding so
        their text does not touch the group border. Layered below utilities: a block that sets
-       its own padding class keeps it. */
+       its own padding class keeps it. The build loads this chunk's CSS before Tailwind's, so the
+       order statement keeps components above Tailwind's base reset (`* { padding: 0 }`). */
+    @layer properties, theme, base, components, utilities;
     @layer components {
         :global(.settings-standard-group > :not(.settings-standard-row):not(button)) {
             padding-inline: 1rem;
