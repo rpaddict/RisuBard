@@ -200,7 +200,7 @@
             var(--risu-theme-textcolor) 14%,
             transparent
         );
-        --settings-radius: 1rem;
+        --settings-radius: var(--risu-radius-2xl);
         width: 100%;
         height: 100%;
         display: flex;

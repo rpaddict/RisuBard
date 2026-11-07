@@ -35,7 +35,7 @@
 
 <style>
     :global(.risu-toast) {
-        border-radius: 0.375rem;
+        border-radius: var(--risu-radius-md);
         font-size: 0.875rem;
     }
     :global(.risu-toast-title) {

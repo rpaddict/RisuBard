@@ -196,7 +196,7 @@
     });
 </script>
 
-<section class="mt-4 w-full overflow-hidden rounded-2xl border border-darkborderc bg-darkbg shadow-lg shadow-shadow/10">
+<section class="mt-4 w-full overflow-hidden rounded-2xl border border-darkborderc bg-darkbg shadow-lg">
     <div class="border-b border-darkborderc bg-selected/20 px-4 py-4 sm:px-5">
         <div class="mb-4 flex items-start gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/15 text-primary">
@@ -261,7 +261,7 @@
                         id="realm-tag-suggestions"
                         role="listbox"
                         aria-label={ui.suggestions}
-                        class="absolute inset-x-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-darkborderc bg-darkbg p-1.5 shadow-xl shadow-shadow/20"
+                        class="absolute inset-x-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-darkborderc bg-darkbg p-1.5 shadow-popover"
                     >
                         {#each tagSuggestions as tag, index (tag.value)}
                             <button

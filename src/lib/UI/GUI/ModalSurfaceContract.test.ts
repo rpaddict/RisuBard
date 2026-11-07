@@ -15,7 +15,7 @@ describe('modal surface contract', () => {
         expect(styles).toContain('.risu-modal-surface')
         expect(styles).toContain('background: var(--color-darkbg)')
         expect(styles).toContain('border: 1px solid var(--color-darkborderc)')
-        expect(styles).toContain('border-radius: 1rem')
+        expect(styles).toContain('border-radius: var(--risu-radius-2xl)')
         expect(styles).toContain('.risu-modal-header')
         expect(styles).toContain('.risu-modal-close')
     })

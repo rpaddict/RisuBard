@@ -46,7 +46,7 @@
 
 <button
     type="button"
-    class="group relative flex w-full min-w-0 overflow-hidden rounded-2xl border border-darkborderc bg-darkbg p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-borderc hover:bg-selected/35 hover:shadow-lg hover:shadow-shadow/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-borderc/50"
+    class="group relative flex w-full min-w-0 overflow-hidden rounded-2xl border border-darkborderc bg-darkbg p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-borderc hover:bg-selected/35 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-borderc/50"
     onclick={onClick}
 >
     <div class="relative h-28 w-24 shrink-0 overflow-hidden rounded-xl border border-darkborderc bg-darkbutton sm:h-32 sm:w-28">

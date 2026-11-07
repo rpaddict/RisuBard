@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { uiThemeTokens } from 'src/ts/gui/uiThemeTokens'
+import { uiSkinTokenDefinitions } from 'src/ts/gui/uiSkinTokens'
 
 const sourceRoot = join(process.cwd(), 'src')
 const sourceExtensions = new Set(['.css', '.js', '.svelte', '.ts'])
@@ -51,6 +52,29 @@ describe('RisuBard UI theme token contract', () => {
         expect(styles).toContain('--tw-prose-body: var(--color-textcolor)')
         expect(styles).toContain('--tw-prose-pre-bg: var(--color-surface-inset)')
         expect(styles).toContain(':root[data-risu-base-scheme="pastel-pop"]')
+    })
+
+    test('declares every skin token with its default and routes Tailwind radius and shadow through it', () => {
+        const styles = readFileSync(join(sourceRoot, 'styles.css'), 'utf8')
+        for (const { token, group, defaultValue } of uiSkinTokenDefinitions) {
+            expect(styles.includes(`--risu-${token}: ${defaultValue};`), `${token} default`).toBe(true)
+            if (group !== 'font') {
+                expect(styles.includes(`--${token}: var(--risu-${token});`), `${token} Tailwind alias`).toBe(true)
+            }
+        }
+        expect(styles).toContain('font-family: var(--risu-font-ui);')
+        expect(styles).toContain(':where(.chattext, .chattext *) {\n  font-family: var(--risu-font-prose);')
+    })
+
+    test('does not color Tailwind shadows per element, which skin shadow tokens cannot honor', () => {
+        const allowed = new Set(['2xs', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', 'popover', 'none', 'inner'])
+        const violations = sourceFiles(sourceRoot).filter((path) => path.endsWith('.svelte')).flatMap((path) => {
+            const source = readFileSync(path, 'utf8')
+            return [...source.matchAll(/(?<![\w-])(?:[\w-]+:)*shadow-([a-z][\w-]*(?:\/\d+)?)/g)]
+                .filter((match) => !allowed.has(match[1]))
+                .map((match) => `${relative(process.cwd(), path)}: ${match[0]}`)
+        })
+        expect(violations, 'Use a shadow size or add a named --risu-shadow-* token').toEqual([])
     })
 
     test('rejects undefined legacy theme variables in production UI sources', () => {
