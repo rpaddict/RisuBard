@@ -21,6 +21,7 @@ import BanCharacterSetSettings from 'src/lib/Setting/Pages/Advanced/BanCharacter
 import SettingsExportButtons from 'src/lib/Setting/Pages/Advanced/SettingsExportButtons.svelte';
 import InlayCompressButton from 'src/lib/Setting/Pages/Advanced/InlayCompressButton.svelte';
 import ColorSchemeSelect from 'src/lib/Setting/Pages/Display/ColorSchemeSelect.svelte';
+import AppSkinSelect from 'src/lib/Setting/Pages/Display/AppSkinSelect.svelte';
 import CustomColorSchemeEditor from 'src/lib/Setting/Pages/Display/CustomColorSchemeEditor.svelte';
 import CustomTextThemeEditor from 'src/lib/Setting/Pages/Display/CustomTextThemeEditor.svelte';
 import CustomBackgroundToggle from 'src/lib/Setting/Pages/Display/CustomBackgroundToggle.svelte';
@@ -52,6 +53,7 @@ export const customComponents: Record<string, Component<any>> = {
     'SettingsExportButtons': SettingsExportButtons,
     'InlayCompressButton': InlayCompressButton,
     'ColorSchemeSelect': ColorSchemeSelect,
+    'AppSkinSelect': AppSkinSelect,
     'CustomColorSchemeEditor': CustomColorSchemeEditor,
     'CustomTextThemeEditor': CustomTextThemeEditor,
     'CustomBackgroundToggle': CustomBackgroundToggle,

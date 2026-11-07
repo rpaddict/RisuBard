@@ -109,6 +109,14 @@
 - 강철 전술(GuP): 강철 바탕, 주황 강조, 모서리 3px, 활성 항목은 아래쪽 주황 안쪽 선, 라벨은 자간 넓힌 대문자, 패널은 깊은 번짐 그림자.
 - 히어로 코믹(MHA): 먹색 바탕, 노랑 주 버튼과 빨강 보조, 모서리 0, 굵은 테두리, 오프셋 그림자, 패널에 옅은 망점, 주 버튼만 기울임. 한글 제목용으로 OFL 두꺼운 글꼴(예: Black Han Sans)을 꾸러미에 넣는다(Impact는 사용자 설치 글꼴이라 쓰지 않음).
 
+## 3단계 구현 기록 (2026-11-07)
+
+- 형식과 검사: `src/ts/gui/appSkin.ts`. 필드는 `skinApi`, `id`, `name`, `description`, `source`, `base`, `colors`(색 토큰), `chatText`(채팅 본문 6색), `tokens`(모서리, 그림자, 글꼴 역할), `partsCss`. 512KB, CSS 64KB 상한.
+- `partsCss` 규칙: 선택자마다 `data-skin-part` 훅 필수, 클래스와 id 금지, 허용 속성 선택자는 `data-skin-*`, `aria-*`, `disabled`, `open`, `checked`, `data-state`. @규칙은 `@media`, `@supports`, `@keyframes`만. `url()`은 `data:image`만. 중첩 규칙, `position: fixed`, 숨김 선언 금지.
+- 적용: `src/ts/gui/appSkinRuntime.ts`가 `<head>`의 `style#risu-app-skin`에 컴파일 결과를 넣고 `:root[data-risu-skin]`을 단다. 토큰은 `!important`로 색 구성이 `:root`에 인라인으로 쓰는 값을 이긴다. 사용자 customCSS는 body 끝에 있어 같은 우선순위면 나중에 적용되지만, 스킨 규칙은 `:root[...]` 범위만큼 구체성이 높으므로 덮으려면 `!important`가 필요하다.
+- 저장: `db.appSkins`, `db.appSkinId`(''이 기본). 테마 프리셋에 `appSkinId` 포함.
+- 글꼴 내장(`fonts`)은 보류. 설정 저장마다 큰 데이터가 실리지 않도록 4단계에서 에셋 저장소에 두는 방식으로 넣는다.
+
 ## 단계
 
 1. 토큰화: Tailwind 테마 변수 연결, 글꼴 역할 분리, 공용 부품의 모서리와 그림자 토큰화. 화면 변화 없음을 스크린샷으로 증명.

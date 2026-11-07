@@ -112,6 +112,12 @@ export const displayThemeSettingsItems: SettingItem[] = [
         keywords: ['waifu', 'width'],
     },
     {
+        id: 'display.appSkin',
+        type: 'custom',
+        componentId: 'AppSkinSelect',
+        keywords: ['skin', 'app skin', 'theme', 'look', '스킨', '앱 스킨', '디자인'],
+    },
+    {
         id: 'display.colorScheme',
         type: 'custom',
         componentId: 'ColorSchemeSelect',

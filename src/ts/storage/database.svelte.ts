@@ -1,6 +1,7 @@
 import { get } from 'svelte/store';
 import type { ChatScriptstateCheckpoint, StoredSwipeScriptstateCheckpoint } from '../chatScriptstateCheckpoint';
 import type { TagAutocompleteSettings } from '../tagAutocomplete/settings';
+import type { AppSkin } from '../gui/appSkin';
 import { checkNullish, decryptBuffer, encryptBuffer, selectSingleFile } from '../util';
 import { changeLanguage, language } from '../../lang';
 import { DEFAULT_CHAT_LOAD_ADDITIONAL_PAGES, DEFAULT_CHAT_LOAD_INITIAL_PAGES, normalizeChatLoadPages } from '../chatLoadPages';
@@ -741,6 +742,8 @@ export function setDatabase(data:Database){
     data.falModel ??= 'fal-ai/flux/dev'
     data.falLoraScale ??= 1
     data.customCSS ??= ''
+    if(!Array.isArray(data.appSkins)) data.appSkins = []
+    if(typeof data.appSkinId !== 'string') data.appSkinId = ''
     data.strictJsonSchema ??= true
     data.statics ??= {
         messages: 0,
@@ -2051,6 +2054,10 @@ export interface Database{
     falLoraScale: number
     moduleIntergration: string
     customCSS: string
+    /** Installed app skins (see src/ts/gui/appSkin.ts). */
+    appSkins: AppSkin[]
+    /** Active app skin id; '' is the default look. */
+    appSkinId: string
     betaMobileGUI:boolean
     jsonSchemaEnabled:boolean
     jsonSchema:string
@@ -2720,6 +2727,7 @@ export interface themePreset{
     nodeOnlyStandardChatWidth?: 'standard' | 'wide' | 'full'
     guiHTML: string
     customCSS: string
+    appSkinId?: string
     waifuWidth: number
     waifuWidth2: number
     colorSchemeName: string
@@ -3654,6 +3662,7 @@ function currentThemePresetFromMirror(db: Database, current?: themePreset): them
         nodeOnlyStandardChatWidth: db.nodeOnlyStandardChatWidth,
         guiHTML: db.guiHTML,
         customCSS: db.customCSS,
+        appSkinId: db.appSkinId,
         waifuWidth: db.waifuWidth,
         waifuWidth2: db.waifuWidth2,
         colorSchemeName: db.colorSchemeName,
@@ -3732,6 +3741,7 @@ export function changeToThemePreset(id = 0, savecurrent = true){
     db.nodeOnlyStandardChatWidth = p.nodeOnlyStandardChatWidth ?? db.nodeOnlyStandardChatWidth
     db.guiHTML = p.guiHTML ?? db.guiHTML
     db.customCSS = p.customCSS ?? db.customCSS
+    db.appSkinId = p.appSkinId ?? db.appSkinId
     db.waifuWidth = p.waifuWidth ?? db.waifuWidth
     db.waifuWidth2 = p.waifuWidth2 ?? db.waifuWidth2
     db.colorSchemeName = p.colorSchemeName ?? db.colorSchemeName

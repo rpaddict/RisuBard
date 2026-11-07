@@ -5,6 +5,7 @@ import { BufferToText, selectSingleFile } from "../util";
 import { notifyError } from "../alert";
 import { isLite } from "../lite";
 import { CustomCSSStore, SafeModeStore } from "../stores.svelte";
+import { applyAppSkin } from "./appSkinRuntime";
 import { resolveUiThemeColors, type UiThemeColors } from './uiThemeTokens';
 import { resolveChatTextSurface, resolveTextTheme } from './textTheme';
 import {
@@ -205,4 +206,5 @@ export function updateTextThemeAndCSS(){
     else{
         CustomCSSStore.set('')
     }
+    applyAppSkin(db)
 }
