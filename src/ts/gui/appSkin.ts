@@ -327,6 +327,52 @@ export function stripCssComments(css: string) {
     return css.replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
+// Properties that change an element's size or position. A skin that sets them on app parts
+// moves text against neighbours it does not touch (thicker borders, extra padding, another
+// font's metrics), so the check warns. Headings and ::before/::after decoration are exempt,
+// and transforms are fine on hover, press and focus feedback.
+const layoutProperty = /^(?:border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-width)?|padding(?:-[a-z-]+)?|margin(?:-[a-z-]+)?|(?:min-|max-)?(?:width|height)|font|font-size|font-family|line-height|letter-spacing|word-spacing|transform|translate|rotate|scale|zoom|inset|top|right|bottom|left)$/
+const motionProperty = /^(?:transform|translate|rotate|scale)$/
+const exemptSelector = /(?:::(?:before|after)|(?:^|[\s>+~])h[1-6](?:\[[^\]]*\]|:[a-z-]+(?:\([^)]*\))?)*)\s*$/i
+const interactionSelector = /:(?:hover|active|focus|focus-visible|focus-within)\b/
+
+/** Warnings for rules that change layout of app parts. Advice only; the skin still installs. */
+export function lintSkinLayout(css: string): string[] {
+    const warnings: string[] = []
+    const walk = (text: string) => {
+        let i = 0
+        while (i < text.length) {
+            const open = text.indexOf('{', i)
+            if (open < 0) return
+            const close = findMatching(text, open)
+            if (close < 0) return
+            const prelude = text.slice(i, open).trim()
+            const body = text.slice(open + 1, close)
+            i = close + 1
+            if (prelude.startsWith('@')) {
+                if (!/^@keyframes\b/i.test(prelude)) walk(body)
+                continue
+            }
+            const selectors = splitTopLevel(prelude, ',').map((selector) => selector.trim())
+            if (selectors.every((selector) => exemptSelector.test(selector))) continue
+            const interactive = selectors.every((selector) => interactionSelector.test(selector))
+            const found = new Set<string>()
+            for (const declaration of splitTopLevel(body, ';')) {
+                const colon = declaration.indexOf(':')
+                if (colon < 1) continue
+                const property = declaration.slice(0, colon).trim().toLowerCase()
+                if (!layoutProperty.test(property) || (interactive && motionProperty.test(property))) continue
+                found.add(property)
+            }
+            if (found.size) {
+                warnings.push(`배치를 바꾸는 속성은 옆 요소와 줄이 어긋나게 할 수 있습니다(${[...found].join(', ')}): ${prelude.slice(0, 80)}. 테두리 굵기는 box-shadow나 outline으로, 강조는 색과 배경으로 바꾸세요.`)
+            }
+        }
+    }
+    walk(stripCssComments(css))
+    return warnings
+}
+
 export function validateSkinCss(css: string): string[] {
     const errors: string[] = []
     if (/<|\\/.test(css)) errors.push('스킨 CSS에 < 또는 \\ 문자는 쓸 수 없습니다.')
@@ -390,7 +436,10 @@ export function validateAppSkin(input: unknown, options: AppSkinValidateOptions 
 
     if (input.partsCss !== undefined) {
         if (typeof input.partsCss !== 'string') errors.push('partsCss는 문자열이어야 합니다.')
-        else errors.push(...validateSkinCss(input.partsCss))
+        else {
+            errors.push(...validateSkinCss(input.partsCss))
+            warnings.push(...lintSkinLayout(input.partsCss))
+        }
     }
 
     if (isPlainRecord(input.tokens)) {

@@ -1585,7 +1585,7 @@
     .conflict-banner span { margin-right: auto; font-weight: 700; }
     .wiki-empty-state { display: grid; flex: 1; align-content: center; justify-items: center; gap: .85rem; padding: 2rem 1.25rem; text-align: center; }
     .wiki-empty-state p { max-width: 26rem; margin: 0; color: var(--risu-theme-textcolor2); font-size: .8rem; line-height: 1.7; word-break: keep-all; }
-    .retrieval-metadata { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.75rem; color: var(--risu-theme-textcolor2); overflow-wrap: anywhere; }
+    .retrieval-metadata { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; padding: 0 .75rem .2rem; font-size: 0.75rem; color: var(--risu-theme-textcolor2); overflow-wrap: anywhere; }
     .fields-toggle {
         display: inline-flex;
         flex: 0 1 auto;
@@ -1613,7 +1613,7 @@
     .wiki-editor.compact .editor-title-row + .editor-actions,
     .wiki-editor.compact .retrieval-metadata + .editor-actions,
     .wiki-editor.compact .source-meta + .editor-actions { border-top: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 60%, transparent); }
-    .editor-actions { display: flex; min-width: 0; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: .25rem; overflow-x: auto; padding: .45rem .75rem; border-top: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 60%, transparent); }
+    .editor-actions { display: flex; min-width: 0; flex-wrap: nowrap; align-items: center; justify-content: safe flex-end; gap: .25rem; overflow-x: auto; padding: .45rem .75rem; border-top: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 60%, transparent); }
     .editor-source-action { display: inline-flex; flex: 0 0 auto; margin-right: auto; }
     .markdown-preview-toggle { display: inline-flex; flex: 0 0 auto; min-height: 2rem; align-items: center; gap: .32rem; padding: 0 .45rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.36); color: var(--risu-theme-textcolor2); font: 700 .67rem/1 ui-monospace, monospace; cursor: pointer; user-select: none; }
     .markdown-preview-toggle:hover { border-color: color-mix(in srgb, var(--risu-theme-primary) 55%, var(--risu-theme-darkborderc)); color: var(--risu-theme-textcolor); }

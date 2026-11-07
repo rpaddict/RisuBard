@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { compileAppSkinCss, validateAppSkin, validateSkinCss } from './appSkin'
+import { compileAppSkinCss, lintSkinLayout, validateAppSkin, validateSkinCss } from './appSkin'
 
 const baseSkin = {
     skinApi: 1,
@@ -49,6 +49,16 @@ describe('app skin validation', () => {
     test('allows hiding generated decoration but not the part itself', () => {
         expect(validateSkinCss('[data-skin-part="tab"]::after { display: none }')).toEqual([])
         expect(validateSkinCss('[data-skin-part="tab"]::after, [data-skin-part="tab"] { display: none }').length).toBeGreaterThan(0)
+    })
+
+    test('warns about layout-changing declarations but not paint, headings or decoration', () => {
+        expect(lintSkinLayout('[data-skin-part="input"] { border-width: 2px; color: red }')).toHaveLength(1)
+        expect(lintSkinLayout('[data-skin-part="tab"] { transform: skewX(-8deg) }')).toHaveLength(1)
+        expect(lintSkinLayout('[data-skin-part="button"]:hover { transform: translate(-1px, -1px) }')).toEqual([])
+        expect(lintSkinLayout('[data-skin-part="settings-page"] h1 { font-family: serif; letter-spacing: .1em }')).toEqual([])
+        expect(lintSkinLayout('[data-skin-part="tab"]::after { height: 3px }')).toEqual([])
+        expect(lintSkinLayout('[data-skin-part="modal"] { box-shadow: 0 0 0 2px #000; border-color: red; outline: 1px solid red }')).toEqual([])
+        expect(lintSkinLayout('@media (min-width: 1px) { [data-skin-part="chip"] { padding: 4px } } @keyframes a { to { transform: none } }')).toHaveLength(1)
     })
 
     test('allows data image textures', () => {

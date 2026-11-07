@@ -331,6 +331,21 @@
         border-color: var(--settings-border);
     }
 
+    /* Custom blocks in a group (skin cards, palettes, toggles) get the row's side padding so
+       their text does not touch the group border. Layered below utilities: a block that sets
+       its own padding class keeps it. */
+    @layer components {
+        :global(.settings-standard-group > :not(.settings-standard-row):not(button)) {
+            padding-inline: 1rem;
+        }
+
+        @media (max-width: 767px) {
+            :global(.settings-standard-group > :not(.settings-standard-row):not(button)) {
+                padding-inline: .85rem;
+            }
+        }
+    }
+
     :global(.settings-standard-row:hover) {
         background: var(--settings-surface-hover);
     }

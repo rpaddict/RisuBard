@@ -1751,7 +1751,7 @@
                 DBState.db.nodeOnlyStandardChatWidth === 'full' ? 'max-w-full' :
                 DBState.db.nodeOnlyStandardChatWidth === 'wide' ? 'max-w-6xl' :
                 'max-w-3xl'}
-            <div class="flex flex-col w-full min-w-0 {nodeOnlyWidthClass} mx-auto py-6 px-4 sm:px-8 bg-bgcolor sm:rounded-lg">
+            <div data-skin-part="message-card" class="flex flex-col w-full min-w-0 {nodeOnlyWidthClass} mx-auto py-6 px-4 sm:px-8 bg-bgcolor sm:rounded-lg">
                 <!-- Header: icon + name -->
                 <div class="flex items-center gap-3 mb-4">
                     {@render senderIcon({rounded: DBState.db.roundIcons})}
@@ -1800,7 +1800,7 @@
      onpointerdowncapture={buttonTriggerActivation.pointerdown}
      onclickcapture={buttonTriggerActivation.click}
      onsubmitcapture={handleFormTriggerWithin}>
-    <div class="text-textcolor mt-1 ml-4 mr-4 mb-1 p-2 bg-transparent grow border-t-darkborderc border-opacity/30 border-transparent flexium items-start max-w-full" >
+    <div data-skin-part="message-card" class="text-textcolor mt-1 ml-4 mr-4 mb-1 p-2 bg-transparent grow border-t-darkborderc border-opacity/30 border-transparent flexium items-start max-w-full" >
         {#if DBState.db.theme === 'mobilechat' && !blankMessage}
             <div class={role === 'user' ? "flex items-start w-full justify-end" : "flex items-start"}>
                 {#if role !== 'user'}

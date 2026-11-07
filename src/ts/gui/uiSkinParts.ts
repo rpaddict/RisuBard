@@ -20,6 +20,7 @@ export const uiSkinParts: readonly UiSkinPartDefinition[] = [
     { part: 'sidebar-panel', description: 'Side panel next to the rail (chat list, bot settings).' },
     { part: 'chat-screen', description: 'Scrolling chat area that holds the messages and the composer.' },
     { part: 'message', description: 'One chat message row. Bot-authored HTML inside it keeps its own styles.', attributes: { 'data-skin-role': ['user', 'bot'] } },
+    { part: 'message-card', description: 'Visible card of one chat message (header, text, buttons), inside its message row.' },
     { part: 'composer', description: 'Message input area at the bottom of the chat.' },
     { part: 'composer-field', description: 'Rounded field holding the message textarea and its buttons.' },
     {

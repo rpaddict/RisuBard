@@ -39,10 +39,10 @@
     });
 
     async function installPasted() {
-        if (await installAppSkinFromText(pasteText)) {
-            pasteText = '';
-            pasteOpen = false;
-        }
+        // Close first: the replace confirmation opens as an app alert, which sits under an open dialog.
+        pasteOpen = false;
+        if (await installAppSkinFromText(pasteText)) pasteText = '';
+        else pasteOpen = true;
     }
 
     // Preview swatch from the skin's own colors; missing roles fall back to the current theme.

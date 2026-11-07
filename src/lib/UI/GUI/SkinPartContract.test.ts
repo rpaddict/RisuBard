@@ -42,6 +42,7 @@ describe('skin part hooks (stable skin API)', () => {
         }
         expectHook('src/App.svelte', 'app-shell')
         expectHook('src/lib/ChatScreens/Chat.svelte', 'message')
+        expectHook('src/lib/ChatScreens/Chat.svelte', 'message-card')
         expectHook('src/lib/ChatScreens/DefaultChatScreen.svelte', 'composer')
         expectHook('src/lib/UI/GUI/ShButton.svelte', 'button')
         expectHook('src/lib/UI/GUI/ShDialog.svelte', 'modal')
