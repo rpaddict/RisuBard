@@ -217,7 +217,99 @@
         selectedItemIds = checked
             ? Array.from(new Set([...selectedItemIds, itemId]))
             : selectedItemIds.filter((id) => id !== itemId)
+        selectionAnchorId = itemId
     }
+
+    // Press a selection box and sweep across rows to set them all to the same state.
+    let selectionAnchorId: string | null = null
+    let paintValue = false
+    let paintLastId: string | null = null
+    let paintPointer = { x: 0, y: 0 }
+    let paintFrame = 0
+    let listElement = $state<HTMLDivElement>()
+
+    function setSelection(ids: readonly string[], checked: boolean) {
+        const next = new Set(selectedItemIds)
+        for (const id of ids) {
+            if (checked) next.add(id)
+            else next.delete(id)
+        }
+        selectedItemIds = Array.from(next)
+    }
+
+    function visibleRange(fromId: string | null, toId: string) {
+        const ids = visibleItems.map((item) => item.id)
+        const to = ids.indexOf(toId)
+        const from = fromId ? ids.indexOf(fromId) : -1
+        if (to < 0) return []
+        if (from < 0) return [toId]
+        return ids.slice(Math.min(from, to), Math.max(from, to) + 1)
+    }
+
+    function startSelectionPaint(event: PointerEvent, itemId: string) {
+        if (event.button !== 0) return
+        event.preventDefault()
+        paintValue = !selectedItemIds.includes(itemId)
+        setSelection(event.shiftKey ? visibleRange(selectionAnchorId, itemId) : [itemId], paintValue)
+        selectionAnchorId = itemId
+        paintLastId = itemId
+        paintPointer = { x: event.clientX, y: event.clientY }
+        window.addEventListener('pointermove', moveSelectionPaint)
+        window.addEventListener('pointerup', stopSelectionPaint)
+        window.addEventListener('pointercancel', stopSelectionPaint)
+        paintFrame = requestAnimationFrame(scrollSelectionPaint)
+    }
+
+    function paintAtPointer() {
+        if (!listElement || !paintLastId) return
+        const rect = listElement.getBoundingClientRect()
+        const x = Math.min(rect.right - 2, Math.max(rect.left + 2, paintPointer.x))
+        const y = Math.min(rect.bottom - 2, Math.max(rect.top + 2, paintPointer.y))
+        const row = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-collection-item-id]')
+        const itemId = row && listElement.contains(row) ? row.dataset.collectionItemId : undefined
+        if (!itemId || itemId === paintLastId) return
+        setSelection(visibleRange(paintLastId, itemId), paintValue)
+        paintLastId = itemId
+        selectionAnchorId = itemId
+    }
+
+    function moveSelectionPaint(event: PointerEvent) {
+        paintPointer = { x: event.clientX, y: event.clientY }
+        paintAtPointer()
+    }
+
+    function scrollSelectionPaint() {
+        if (listElement) {
+            const rect = listElement.getBoundingClientRect()
+            const edge = Math.min(48, rect.height / 4)
+            const overshoot = paintPointer.y < rect.top + edge
+                ? paintPointer.y - rect.top - edge
+                : Math.max(0, paintPointer.y - rect.bottom + edge)
+            if (overshoot) {
+                listElement.scrollTop += Math.max(-24, Math.min(24, overshoot / 3))
+                paintAtPointer()
+            }
+        }
+        paintFrame = requestAnimationFrame(scrollSelectionPaint)
+    }
+
+    function stopSelectionPaint() {
+        window.removeEventListener('pointermove', moveSelectionPaint)
+        window.removeEventListener('pointerup', stopSelectionPaint)
+        window.removeEventListener('pointercancel', stopSelectionPaint)
+        cancelAnimationFrame(paintFrame)
+        paintLastId = null
+    }
+
+    // Pointer clicks were already applied on pointerdown; only keyboard clicks (detail 0) toggle here.
+    function consumeSelectionClick(event: MouseEvent) {
+        if (event.detail === 0) return false
+        event.preventDefault()
+        event.stopPropagation()
+        return true
+    }
+
+    onMount(() => stopSelectionPaint)
 
     function moveItems(itemIdsToMove: readonly string[], folderId: string | null) {
         const next = assignItemsToFolder(currentState(), itemIdsToMove, folderId)
@@ -468,10 +560,13 @@
                 {/each}
             </select>
             <ShButton variant="outline" size="sm" disabled={!selectedItemIds.length || !moveTarget} onclick={bulkMove}>{copy.moveSelected}</ShButton>
+            {#if onDeleteItems}
+                <ShButton variant="destructive" size="sm" disabled={!selectedItemIds.length} onclick={deleteSelectedItems}><TrashIcon size={15} />{copy.deleteSelected}</ShButton>
+            {/if}
         </div>
         {/if}
 
-        <div class="collection-items flex min-h-40 flex-1 flex-col divide-y divide-darkborderc overflow-y-auto rounded-md border border-darkborderc" class:collection-items--manager={managerLayout} role="list" aria-label={copy.items}>
+        <div bind:this={listElement} class="collection-items flex min-h-40 flex-1 flex-col divide-y divide-darkborderc overflow-y-auto rounded-md border border-darkborderc" class:collection-items--manager={managerLayout} role="list" aria-label={copy.items}>
             {#if visibleItems.length === 0}
                 <p class="m-auto p-6 text-sm text-textcolor2">{copy.noItems}</p>
             {:else}
@@ -483,6 +578,7 @@
                         class:gap-2={!managerLayout}
                         class:p-2={!managerLayout}
                         role="listitem"
+                        data-collection-item-id={item.id}
                         ondragover={(event) => acceptCollectionDrag(event)}
                         ondrop={(event) => dropItemForReorder(event, item.id)}
                     >
@@ -491,25 +587,38 @@
                             class="collection-item-selection-rail"
                             role="group"
                             aria-label={copy.selectItem.replace('{}', item.title)}
+                            title={copy.selectDragHint}
+                            onpointerdown={(event) => startSelectionPaint(event, item.id)}
                         >
                             <ShButton
                                 variant={selectedItemIds.includes(item.id) ? 'soft-primary' : 'ghost'}
                                 size="icon-xs"
                                 aria-label={copy.selectItem.replace('{}', item.title)}
                                 aria-pressed={selectedItemIds.includes(item.id)}
-                                onclick={() => toggleSelection(item.id, !selectedItemIds.includes(item.id))}
+                                onclick={(event: MouseEvent) => {
+                                    if (consumeSelectionClick(event)) return
+                                    toggleSelection(item.id, !selectedItemIds.includes(item.id))
+                                }}
                             >
                                 {#if selectedItemIds.includes(item.id)}<CheckIcon size={17} />{:else}<SquareIcon size={17} />{/if}
                             </ShButton>
                         </div>
                         {:else}
-                        <input
-                            type="checkbox"
-                            class="mt-2 size-4 shrink-0 accent-primary"
-                            aria-label={copy.selectItem.replace('{}', item.title)}
-                            checked={selectedItemIds.includes(item.id)}
-                            onchange={(event) => toggleSelection(item.id, event.currentTarget.checked)}
-                        />
+                        <div
+                            class="collection-item-select -m-2 mr-0 flex shrink-0 self-stretch p-2 pr-0"
+                            role="presentation"
+                            title={copy.selectDragHint}
+                            onpointerdown={(event) => startSelectionPaint(event, item.id)}
+                        >
+                            <input
+                                type="checkbox"
+                                class="mt-2 size-4 shrink-0 cursor-pointer accent-primary"
+                                aria-label={copy.selectItem.replace('{}', item.title)}
+                                checked={selectedItemIds.includes(item.id)}
+                                onclick={consumeSelectionClick}
+                                onchange={(event) => toggleSelection(item.id, event.currentTarget.checked)}
+                            />
+                        </div>
                         <button
                             type="button"
                             class="mt-0.5 flex size-7 shrink-0 cursor-grab items-center justify-center rounded text-textcolor2 hover:bg-selected/40 hover:text-textcolor active:cursor-grabbing"
@@ -574,6 +683,7 @@
     .collection-item--selected { border-color: color-mix(in srgb, var(--color-borderc) 70%, var(--settings-border, var(--color-darkborderc))); background: color-mix(in srgb, var(--color-selected) 22%, var(--settings-surface, var(--color-bgcolor))); }
     .collection-item-selection-rail { display: flex; width: 2.5rem; flex: 0 0 2.5rem; align-self: stretch; align-items: center; justify-content: center; border-right: 1px solid var(--settings-border, var(--color-darkborderc)); background: color-mix(in srgb, var(--settings-surface, var(--color-bgcolor)) 88%, var(--risu-theme-textcolor)); }
     .collection-item-selection-rail :global(button) { width: 100%; min-height: 2.5rem; border-radius: 0; }
+    .collection-item-select, .collection-item-selection-rail { cursor: pointer; touch-action: none; user-select: none; }
     .collection-item-content--drag-handle { cursor: grab; }
     .collection-item-content--drag-handle:active { cursor: grabbing; }
     .collection-item-content--drag-handle :global(button), .collection-item-content--drag-handle :global(a), .collection-item-content--drag-handle :global(input), .collection-item-content--drag-handle :global(select), .collection-item-content--drag-handle :global(textarea) { cursor: pointer; }

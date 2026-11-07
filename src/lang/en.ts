@@ -2278,6 +2278,7 @@ export const languageEnglish = {
         deleteSelected: "Delete selected",
         deleteSelectedConfirm: "Delete {} selected items? This cannot be undone.",
         deleteSelectedDone: "Deleted {} items",
+        selectDragHint: "Hold and drag up or down to select several items. Shift+click selects a range.",
         noItems: "No matching items",
         selectItem: "Select {}",
         dragItem: "Drag to move item",

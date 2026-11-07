@@ -94,6 +94,23 @@
         close()
     }
 
+    async function deletePresets(presetIds: string[]) {
+        const targets = DBState.db.botPresets.filter((preset) => typeof preset.id === 'string' && presetIds.includes(preset.id))
+        if (!targets.length) return false
+        if (targets.length >= DBState.db.botPresets.length) {
+            notifyError(language.errors.onlyOnePreset)
+            return false
+        }
+        const copy = language.collectionOrganizer
+        if (!await alertConfirm(copy.deleteSelectedConfirm.replace('{}', String(targets.length)))) return false
+        let deleted = 0
+        for (const preset of targets) {
+            if (deleteBotPreset(preset.id as string)) deleted++
+        }
+        if (deleted) notifySuccess(copy.deleteSelectedDone.replace('{}', String(deleted)))
+        return true
+    }
+
     function assignPresetToFolder(presetId: string, folderId: string | null | undefined) {
         if (typeof folderId !== 'string' || !DBState.db.collectionOrganizers) return
         const presetIds = DBState.db.botPresets.flatMap((preset) => typeof preset.id === 'string' ? [preset.id] : [])
@@ -125,6 +142,7 @@
             kind="promptPresets"
             items={organizerPresetItems}
             collectionLabel={language.promptPresets}
+            onDeleteItems={deletePresets}
             bind:selectedFolderId={selectedPresetFolder}
         >
             {#snippet toolbar(selectedFolderId)}

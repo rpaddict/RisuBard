@@ -2388,6 +2388,7 @@ export const languageKorean = {
     deleteSelectedDone: "항목 {}개를 삭제했습니다",
     noItems: "일치하는 항목이 없습니다",
     selectItem: "{} 선택",
+    selectDragHint: "누른 채로 위아래로 끌면 여러 항목을 한 번에 선택, Shift+클릭으로 범위 선택",
     dragItem: "항목 끌어서 이동",
     dragItemKeyboardHint: "끌어서 이동 · 키보드는 Alt+위/아래 방향키로 순서 변경",
     moveItemUp: "항목 위로 이동",
