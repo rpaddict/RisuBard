@@ -98,7 +98,7 @@
     dl > div,
     .example {
         border: 1px solid var(--settings-border, var(--risu-theme-darkborderc));
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 78%, transparent);
     }
 

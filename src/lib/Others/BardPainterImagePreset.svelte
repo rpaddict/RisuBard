@@ -34,8 +34,8 @@
 <style>
     .image-preset { display: flex; align-items: center; gap: .45rem; min-width: 0; }
     label { flex-shrink: 0; font-size: .75rem; color: var(--color-textcolor2); cursor: help; }
-    select { flex: 1; width: auto; min-width: 0; min-height: 2rem; padding: .25rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: var(--color-bgcolor); color: var(--color-textcolor); font-size: .8rem; }
-    button { flex-shrink: 0; min-height: 2rem; padding: 0 .75rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: transparent; color: var(--color-textcolor); font-size: .78rem; }
+    select { flex: 1; width: auto; min-width: 0; min-height: 2rem; padding: .25rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--color-bgcolor); color: var(--color-textcolor); font-size: .8rem; }
+    button { flex-shrink: 0; min-height: 2rem; padding: 0 .75rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: transparent; color: var(--color-textcolor); font-size: .78rem; }
     button.ready { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-accenttext); font-weight: 600; }
     button:hover:not(:disabled):not(.ready) { background: var(--color-darkbutton); }
     button:disabled { opacity: .45; cursor: not-allowed; }

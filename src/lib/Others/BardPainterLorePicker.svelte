@@ -68,7 +68,7 @@
 <style>
     .picker { display: flex; flex-direction: column; gap: .75rem; min-width: 0; color: var(--color-textcolor); }
     label { display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; }
-    input, button { border: 1px solid var(--color-darkborderc); border-radius: .3rem; color: var(--color-textcolor); background: var(--color-bgcolor); padding: .6rem; min-height: 2.75rem; }
+    input, button { border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.2); color: var(--color-textcolor); background: var(--color-bgcolor); padding: .6rem; min-height: 2.75rem; }
     input { min-width: 0; width: 100%; }
     button:focus-visible, input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
@@ -78,7 +78,7 @@
     .entry strong { font-weight: 600; }
     .entry span, .hint { font-size: .8rem; color: var(--color-textcolor2); line-height: 1.5; }
     .entry.linked { background: var(--color-selected); }
-    .confirmation { border: 1px solid var(--color-darkborderc); padding: .75rem; border-radius: .3rem; }
+    .confirmation { border: 1px solid var(--color-darkborderc); padding: .75rem; border-radius: calc(var(--risu-radius-sm) * 1.2); }
     .confirmation p { overflow-wrap: anywhere; font-size: .85rem; margin-bottom: .5rem; }
     .actions { display: flex; flex-wrap: wrap; gap: .4rem; }
     .error { color: var(--color-danger); }

@@ -108,7 +108,7 @@
     section + section { border-top: 1px solid var(--color-darkborderc); margin-top: .5rem; padding-top: 1rem; }
     h3 { font-size: .95rem; font-weight: 600; }
     label { display: flex; flex-direction: column; gap: .35rem; min-width: 0; font-size: .85rem; }
-    input:not([type='checkbox']), select { border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: .4rem; padding: .6rem; min-width: 0; width: 100%; }
+    input:not([type='checkbox']), select { border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .6rem; min-width: 0; width: 100%; }
     input, select, button, summary { min-height: 2rem; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
     .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .2rem .75rem; }
@@ -119,7 +119,7 @@
     .wiki-list { max-height: 15rem; overflow: auto; margin-top: .5rem; }
     .wiki-list label { overflow-wrap: anywhere; }
     .hint { color: var(--color-textcolor2); line-height: 1.55; font-size: .8rem; }
-    button { border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .3rem .55rem; font-size: .8rem; overflow-wrap: anywhere; }
+    button { border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .3rem .55rem; font-size: .8rem; overflow-wrap: anywhere; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
     button:disabled { opacity: .5; cursor: not-allowed; }
     input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

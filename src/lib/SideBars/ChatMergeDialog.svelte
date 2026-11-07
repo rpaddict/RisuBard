@@ -190,10 +190,10 @@
     .merge-pane { min-width: 0; }
     .merge-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: .625rem; font-size: .875rem; font-weight: 600; }
     .merge-heading span { color: var(--color-textcolor2); font-size: .75rem; font-weight: 400; }
-    .merge-input { min-width: 0; width: 100%; height: 2.25rem; padding: .5rem .625rem; border: 1px solid var(--color-darkborderc); border-radius: .375rem; background: var(--color-darkbg); color: var(--color-textcolor); font-size: .875rem; }
+    .merge-input { min-width: 0; width: 100%; height: 2.25rem; padding: .5rem .625rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-md); background: var(--color-darkbg); color: var(--color-textcolor); font-size: .875rem; }
     .merge-input:focus-visible { outline: 2px solid var(--color-borderc); outline-offset: 2px; }
     .merge-list { height: 15rem; overflow-y: auto; margin-top: .5rem; overscroll-behavior: contain; }
-    .merge-source { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .5rem; padding: .625rem; border-radius: .375rem; text-align: left; font-size: .875rem; cursor: pointer; }
+    .merge-source { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .5rem; padding: .625rem; border-radius: var(--risu-radius-md); text-align: left; font-size: .875rem; cursor: pointer; }
     .merge-source:hover { background: var(--color-selected); }
     .merge-source:focus-visible { outline: 2px solid var(--color-borderc); outline-offset: -2px; }
     .merge-source:disabled { opacity: .5; cursor: not-allowed; }
@@ -202,20 +202,20 @@
     .merge-order { border-left: 1px solid var(--color-darkborderc); padding-left: 1rem; }
     .merge-caption { color: var(--color-textcolor2); font-size: .6875rem; line-height: 1.5; }
     .merge-ordered-list { height: 16rem; list-style: none; padding: 0; }
-    .merge-row { padding: .5rem; margin-bottom: .5rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; background: var(--color-darkbg); }
+    .merge-row { padding: .5rem; margin-bottom: .5rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); background: var(--color-darkbg); }
     .merge-row-header { display: flex; align-items: center; gap: .375rem; font-size: .875rem; }
-    .merge-number { display: grid; place-items: center; width: 1.375rem; height: 1.375rem; flex-shrink: 0; border-radius: .375rem; background: var(--color-selected); color: var(--color-textcolor); font-size: .75rem; font-variant-numeric: tabular-nums; }
+    .merge-number { display: grid; place-items: center; width: 1.375rem; height: 1.375rem; flex-shrink: 0; border-radius: var(--risu-radius-md); background: var(--color-selected); color: var(--color-textcolor); font-size: .75rem; font-variant-numeric: tabular-nums; }
     .merge-preview { margin-top: .375rem; color: var(--color-textcolor2); font-size: .75rem; line-height: 1.6; }
     .merge-preview p { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .merge-preview span { display: inline-block; width: 2.5rem; opacity: .8; }
     .merge-empty { padding: 1.25rem .5rem; color: var(--color-textcolor2); font-size: .8125rem; text-align: center; }
-    .merge-empty-order { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: .625rem; border: 1px dashed var(--color-darkborderc); border-radius: .5rem; }
+    .merge-empty-order { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: .625rem; border: 1px dashed var(--color-darkborderc); border-radius: var(--risu-radius-lg); }
     .merge-summary { display: flex; align-items: start; gap: .375rem; margin-top: .875rem; font-size: .75rem; color: var(--color-textcolor2); }
     .merge-summary :global(svg) { flex-shrink: 0; margin-top: 1px; }
     .merge-details { margin-top: .625rem; font-size: .75rem; color: var(--color-textcolor2); line-height: 1.6; }
     .merge-details summary { cursor: pointer; }
     .merge-details p { margin-top: .375rem; }
-    .merge-warning { display: flex; align-items: start; gap: .5rem; margin-top: .75rem; padding: .625rem; border: 1px solid var(--color-darkborderc); border-radius: .375rem; background: var(--color-selected); font-size: .75rem; }
+    .merge-warning { display: flex; align-items: start; gap: .5rem; margin-top: .75rem; padding: .625rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-md); background: var(--color-selected); font-size: .75rem; }
     .merge-warning input { margin-top: .2rem; }
     @media (max-width: 560px) {
         .merge-workspace { grid-template-columns: minmax(0, 1fr); gap: .875rem; }

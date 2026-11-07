@@ -104,7 +104,7 @@
 <style>
     .settings-alert {
         --alert-accent: var(--risu-theme-textcolor2);
-        border-radius: calc(var(--settings-radius, .75rem) * .75);
+        border-radius: calc(var(--settings-radius, var(--risu-radius-xl)) * .75);
         color: var(--risu-theme-textcolor);
         background: var(--settings-surface, var(--risu-theme-darkbg));
         border-color: var(--settings-border, var(--risu-theme-darkborderc));

@@ -106,12 +106,12 @@
 <style>
     .export-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .export-actions > span { margin-right: auto; color: var(--color-textcolor2); font-size: .8rem; }
-    .export-list { display: grid; gap: .25rem; max-height: 50vh; overflow-y: auto; padding: .25rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; }
-    .export-row { display: flex; width: 100%; align-items: center; gap: .65rem; padding: .65rem; border: 1px solid transparent; border-radius: .35rem; color: var(--color-textcolor); background: transparent; text-align: left; user-select: none; touch-action: pan-y; }
+    .export-list { display: grid; gap: .25rem; max-height: 50vh; overflow-y: auto; padding: .25rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); }
+    .export-row { display: flex; width: 100%; align-items: center; gap: .65rem; padding: .65rem; border: 1px solid transparent; border-radius: calc(var(--risu-radius-sm) * 1.4); color: var(--color-textcolor); background: transparent; text-align: left; user-select: none; touch-action: pan-y; }
     .export-row:hover:not(:disabled), .export-row.selected { background: color-mix(in srgb, var(--color-primary) 14%, transparent); border-color: color-mix(in srgb, var(--color-primary) 40%, transparent); }
     .export-row:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
     .export-row:disabled { opacity: .5; cursor: not-allowed; }
-    .selection-box { display: grid; place-items: center; width: 1rem; height: 1rem; flex-shrink: 0; border: 1px solid var(--color-darkborderc); border-radius: .2rem; }
+    .selection-box { display: grid; place-items: center; width: 1rem; height: 1rem; flex-shrink: 0; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 0.8); }
     .selected .selection-box { background: var(--color-primary); color: var(--color-accenttext); }
     .document-name { display: grid; flex: 1; min-width: 0; gap: .15rem; }
     .document-name strong { overflow-wrap: anywhere; font-size: .85rem; }

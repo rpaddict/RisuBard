@@ -566,7 +566,7 @@
 
     .plugin-setting-count {
         border: 1px solid var(--settings-border, var(--color-darkborderc));
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         padding: .1rem .35rem;
         color: var(--risu-theme-textcolor2);
         font-size: .7rem;
@@ -631,7 +631,7 @@
         align-items: center;
         justify-content: center;
         border: 1px solid var(--settings-border, var(--color-darkborderc));
-        border-radius: .375rem;
+        border-radius: var(--risu-radius-md);
         transition: background-color 180ms ease, color 180ms ease;
     }
 
@@ -665,7 +665,7 @@
         min-height: 24rem;
         resize: none;
         border: 1px solid var(--settings-border, var(--color-darkborderc));
-        border-radius: var(--settings-radius, .75rem);
+        border-radius: var(--settings-radius, var(--risu-radius-xl));
         background: var(--color-darkbg);
         padding: .85rem;
         color: var(--risu-theme-textcolor);

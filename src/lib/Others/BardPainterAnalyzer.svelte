@@ -139,25 +139,25 @@
 
 <style>
     :global(.painter-analyzer-dialog) { width: min(52rem, calc(100vw - 2rem)); max-width: calc(100vw - 2rem); }
-    .dialog-close { position: absolute; top: -.15rem; right: 0; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .4rem; color: var(--color-textcolor2); }
+    .dialog-close { position: absolute; top: -.15rem; right: 0; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: calc(var(--risu-radius-lg) * 0.8); color: var(--color-textcolor2); }
     .dialog-close:hover:not(:disabled) { background: var(--color-darkbutton); color: var(--color-textcolor); }
     .analyzer { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; color: var(--color-textcolor); font-size: .875rem; }
     .request, .results { display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
     .results { padding-top: 1.1rem; border-top: 1px solid var(--color-darkborderc); }
     label[for], .label, h3 { font-size: .85rem; font-weight: 600; }
     h3 span { margin-left: .3rem; color: var(--color-textcolor2); font-weight: 400; font-size: .78rem; }
-    textarea, select, input:not([type='checkbox']) { width: 100%; min-width: 0; min-height: 2rem; padding: .45rem .6rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: var(--color-bgcolor); color: var(--color-textcolor); font: inherit; font-size: .84rem; }
+    textarea, select, input:not([type='checkbox']) { width: 100%; min-width: 0; min-height: 2rem; padding: .45rem .6rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--color-bgcolor); color: var(--color-textcolor); font: inherit; font-size: .84rem; }
     textarea { resize: vertical; line-height: 1.55; }
     textarea:focus-visible, select:focus-visible, input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .hint { color: var(--color-textcolor2); font-size: .78rem; line-height: 1.55; }
     .run { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
     .status { display: inline-flex; align-items: center; gap: .4rem; color: var(--color-textcolor2); font-size: .8rem; }
-    button { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 2.1rem; padding: 0 .85rem; border: 1px solid var(--color-darkborderc); border-radius: .45rem; background: transparent; color: var(--color-textcolor); font-size: .82rem; white-space: nowrap; }
+    button { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 2.1rem; padding: 0 .85rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.9); background: transparent; color: var(--color-textcolor); font-size: .82rem; white-space: nowrap; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
     button:disabled { opacity: .45; cursor: not-allowed; }
     .primary { min-height: 2.5rem; padding: 0 1.2rem; border-color: var(--color-primary); background: var(--color-primary); color: var(--color-accenttext); font-weight: 700; }
     .primary:hover:not(:disabled) { background: var(--color-primary); filter: brightness(1.08); }
-    .card { display: flex; flex-direction: column; gap: .6rem; padding: .7rem .8rem .85rem; border: 1px solid var(--color-darkborderc); border-radius: .6rem; background: var(--color-darkbg); }
+    .card { display: flex; flex-direction: column; gap: .6rem; padding: .7rem .8rem .85rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.2); background: var(--color-darkbg); }
     .card.off { opacity: .6; }
     .card header, .row, .outfit-head { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-wrap: wrap; }
     .pick { width: 1.1rem; height: 1.1rem; flex-shrink: 0; accent-color: var(--color-primary); }
@@ -174,11 +174,11 @@
     .field { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
     .label em { margin-left: .5rem; color: var(--color-textcolor2); font-style: normal; font-weight: 400; font-size: .74rem; }
     details summary { cursor: pointer; color: var(--color-textcolor2); font-size: .76rem; }
-    pre { margin: .3rem 0 0; padding: .45rem .6rem; border-radius: .4rem; background: var(--color-bgcolor); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: .78rem; color: var(--color-textcolor2); }
-    .outfit { display: flex; flex-direction: column; gap: .3rem; padding: .5rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; }
+    pre { margin: .3rem 0 0; padding: .45rem .6rem; border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--color-bgcolor); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: .78rem; color: var(--color-textcolor2); }
+    .outfit { display: flex; flex-direction: column; gap: .3rem; padding: .5rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); }
     .outfit-head input { flex: 1 1 8rem; width: auto; }
     .remove { width: 2rem; padding: 0; flex-shrink: 0; }
-    .error { padding: .5rem .65rem; border: 1px solid var(--color-danger); border-radius: .45rem; font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
+    .error { padding: .5rem .65rem; border: 1px solid var(--color-danger); border-radius: calc(var(--risu-radius-lg) * 0.9); font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
     .notice { color: var(--color-textcolor2); font-size: .8rem; }
     .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem; width: 100%; }
     .footer .hint { margin-right: auto; }

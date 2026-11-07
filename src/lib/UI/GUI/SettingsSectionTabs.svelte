@@ -99,14 +99,14 @@
         gap: .3rem;
         padding: .35rem;
         border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 48%, var(--risu-theme-darkborderc));
-        border-radius: .9rem;
+        border-radius: calc(var(--risu-radius-2xl) * 0.9);
         background: color-mix(in srgb, var(--risu-theme-primary) 24%, var(--risu-theme-bgcolor));
     }
 
     .prominent button {
         min-height: 3rem;
         padding: .72rem 1.15rem;
-        border-radius: .62rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.24);
         color: var(--risu-theme-textcolor);
         font-size: .96rem;
         font-weight: 700;

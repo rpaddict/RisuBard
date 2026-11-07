@@ -114,10 +114,10 @@
     .preset-bar { display: flex; align-items: end; justify-content: space-between; gap: .75rem; }
     .preset-bar label, .editor-heading label, .instruction-editor { display: grid; gap: .35rem; }
     .preset-bar label { flex: 1; }
-    select, input, textarea { width: 100%; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: .55rem; color: var(--risu-theme-textcolor); background: var(--risu-theme-bgcolor); }
+    select, input, textarea { width: 100%; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 1.1); color: var(--risu-theme-textcolor); background: var(--risu-theme-bgcolor); }
     select, input { min-height: 2.5rem; padding: .45rem .65rem; }
     .actions { display: flex; gap: .45rem; }
-    .editor-card { display: grid; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: .55rem; padding: .85rem; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: .75rem; background: var(--settings-surface, var(--risu-theme-bgcolor)); }
+    .editor-card { display: grid; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: .55rem; padding: .85rem; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--risu-radius-xl); background: var(--settings-surface, var(--risu-theme-bgcolor)); }
     .editor-heading { display: flex; align-items: end; gap: .75rem; }
     .editor-heading label { flex: 1; }
     .protected { display: inline-flex; align-items: center; gap: .3rem; padding: .35rem .55rem; border-radius: 999px; color: var(--risu-theme-textcolor2); background: color-mix(in srgb, var(--risu-theme-darkborderc) 55%, transparent); white-space: nowrap; }

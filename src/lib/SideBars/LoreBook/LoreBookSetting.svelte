@@ -654,7 +654,7 @@
         min-width: 0;
         padding: .8rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         background: color-mix(in srgb, var(--color-darkbg) 94%, var(--color-selected) 6%);
     }
     .lore-settings-card--quiet {
@@ -682,7 +682,7 @@
         min-height: 2.4rem;
         padding: .5rem .65rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         background: color-mix(in srgb, var(--color-selected) 28%, transparent);
         color: var(--color-textcolor);
         font-size: .76rem;
@@ -698,7 +698,7 @@
         margin: .65rem 0;
         padding: .8rem .85rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .7rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.4);
         background: color-mix(in srgb, var(--color-darkbg) 92%, var(--color-selected) 8%);
     }
     .bard-activation-card[data-active='true'] {
@@ -713,7 +713,7 @@
     .bard-switch { display: grid; flex: 0 0 auto; grid-template-columns: auto auto; align-items: center; gap: .55rem; color: var(--color-textcolor); cursor: pointer; font-size: .74rem; font-weight: 650; }
     .bard-switch input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
     .bard-switch-track { position: relative; width: 2.6rem; height: 1.45rem; border: 1px solid var(--color-darkborderc); border-radius: 999px; background: color-mix(in srgb, var(--color-textcolor2) 22%, var(--color-darkbg)); transition: background 160ms ease, border-color 160ms ease; }
-    .bard-switch-track span { position: absolute; top: .17rem; left: .18rem; width: .98rem; height: .98rem; border-radius: 50%; background: var(--color-textcolor); box-shadow: 0 .08rem .2rem color-mix(in srgb, var(--color-darkbg) 35%, transparent); transition: transform 160ms ease; }
+    .bard-switch-track span { position: absolute; top: .17rem; left: .18rem; width: .98rem; height: .98rem; border-radius: 50%; background: var(--color-textcolor); box-shadow: var(--risu-shadow-raised, 0 .08rem .2rem color-mix(in srgb, var(--color-darkbg) 35%, transparent)); transition: transform 160ms ease; }
     .bard-switch input:checked + .bard-switch-track { border-color: var(--color-info); background: var(--color-info); }
     .bard-switch input:checked + .bard-switch-track span { transform: translateX(1.12rem); background: var(--color-on-info); }
     .bard-switch input:focus-visible + .bard-switch-track { outline: 2px solid var(--color-info); outline-offset: 2px; }

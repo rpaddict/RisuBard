@@ -172,7 +172,7 @@
         min-height: 9rem;
         resize: vertical;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         padding: .75rem;
         color: var(--color-textcolor);
         background: color-mix(in srgb, var(--color-darkbg) 86%, transparent);

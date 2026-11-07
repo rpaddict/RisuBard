@@ -1085,17 +1085,17 @@
 <BardLoreAnalysisHelp bind:open={helpOpen} />
 
 <style>
-    .analysis-launcher { display: grid; gap: .8rem; margin-top: .75rem; padding: .9rem; border: 1px solid var(--color-darkborderc); border-radius: .7rem; background: color-mix(in srgb, var(--color-selected) 18%, transparent); }
+    .analysis-launcher { display: grid; gap: .8rem; margin-top: .75rem; padding: .9rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.4); background: color-mix(in srgb, var(--color-selected) 18%, transparent); }
     .analysis-launcher.compact { margin: 0; padding: .65rem 0 0; border-width: 1px 0 0; border-radius: 0; background: transparent; }
     .launcher-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .7rem; }
     .launcher-heading p { margin: .15rem 0 0; color: var(--color-textcolor2); font-size: .78rem; line-height: 1.45; }
     .run-badge { padding: .25rem .45rem; border-radius: 99rem; background: var(--color-selected); font-size: .7rem; white-space: nowrap; }
     .coverage-grid, .run-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
     .estimate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr)); gap: .5rem; }
-    .coverage-grid > div, .estimate-grid > div, .run-summary > div { display: grid; gap: .15rem; padding: .6rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; background: var(--color-darkbg); }
+    .coverage-grid > div, .estimate-grid > div, .run-summary > div { display: grid; gap: .15rem; padding: .6rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); background: var(--color-darkbg); }
     .coverage-grid strong, .estimate-grid strong, .run-summary strong { font-size: 1.05rem; }
     .coverage-grid span, .estimate-grid span, .run-summary span { color: var(--color-textcolor2); font-size: .7rem; }
-    .quality-status { display: grid; gap: .15rem; padding: .65rem .75rem; border: 1px solid; border-radius: .55rem; }
+    .quality-status { display: grid; gap: .15rem; padding: .65rem .75rem; border: 1px solid; border-radius: calc(var(--risu-radius-lg) * 1.1); }
     .quality-status small { color: var(--color-textcolor2); line-height: 1.4; }
     .quality-pass { border-color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
     .quality-fail { border-color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 12%, transparent); color: var(--color-warning); }
@@ -1103,7 +1103,7 @@
     .quality-details summary { cursor: pointer; }
     .quality-details ul { display: grid; gap: .3rem; margin: .45rem 0 0; padding-left: 1.2rem; }
     .quality-details li span { margin-left: .35rem; color: var(--color-textcolor2); }
-    button, select, input { min-height: 2.4rem; padding: .48rem .7rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; color: var(--color-textcolor); }
+    button, select, input { min-height: 2.4rem; padding: .48rem .7rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); color: var(--color-textcolor); }
     button { font-weight: 650; }
     button:disabled { cursor: not-allowed; opacity: .55; }
     .primary { background: var(--color-info); color: var(--color-on-info); }
@@ -1130,7 +1130,7 @@
     .settings-row-splitter:hover, .settings-row-splitter:focus-visible, .settings-row-splitter:global([data-resizing]) { background: color-mix(in srgb, var(--color-borderc) 18%, transparent); outline: none; }
     .settings-row-splitter:hover span, .settings-row-splitter:focus-visible span, .settings-row-splitter:global([data-resizing]) span { width: 4.5rem; background: var(--color-borderc); }
     .planning-layout, .run-layout { display: grid; gap: .85rem; }
-    .analysis-settings, .planning-layout, .run-layout, .target-preview, .failure-list, .review-section { display: grid; gap: .65rem; padding: .8rem; border: 1px solid var(--color-darkborderc); border-radius: .65rem; background: color-mix(in srgb, var(--color-selected) 12%, var(--color-darkbg)); }
+    .analysis-settings, .planning-layout, .run-layout, .target-preview, .failure-list, .review-section { display: grid; gap: .65rem; padding: .8rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.3); background: color-mix(in srgb, var(--color-selected) 12%, var(--color-darkbg)); }
     .analysis-settings, .planning-layout, .run-layout { min-height: 0; overflow: auto; }
     .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; }
     .section-heading > div { display: grid; gap: .15rem; }
@@ -1170,12 +1170,12 @@
     .target-detail { display: grid; gap: .45rem; padding: 0 .65rem .65rem; }
     .target-detail[hidden] { display: none; }
     .target-detail > small { color: var(--color-textcolor2); }
-    .target-detail pre { max-height: 16rem; margin: 0; padding: .65rem; overflow: auto; border-radius: .4rem; background: color-mix(in srgb, var(--color-selected) 20%, var(--color-darkbg)); color: var(--color-textcolor); font: inherit; font-size: .76rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .target-detail pre { max-height: 16rem; margin: 0; padding: .65rem; overflow: auto; border-radius: calc(var(--risu-radius-lg) * 0.8); background: color-mix(in srgb, var(--color-selected) 20%, var(--color-darkbg)); color: var(--color-textcolor); font: inherit; font-size: .76rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
     .failure-list { border-color: color-mix(in srgb, var(--color-red) 42%, var(--color-darkborderc)); }
     .failure-card { background: color-mix(in srgb, var(--color-red) 9%, var(--color-darkbg)); }
     .failure-card > div { align-items: flex-start; flex-direction: column; }
-    .failure-card span { border-radius: .35rem; background: color-mix(in srgb, var(--color-red) 14%, transparent); color: var(--color-red); }
-    .recovered-preview { display: grid; align-items: start; justify-content: stretch; gap: .25rem; padding: .5rem; border: 1px solid color-mix(in srgb, var(--color-red) 28%, var(--color-darkborderc)); border-radius: .4rem; }
+    .failure-card span { border-radius: calc(var(--risu-radius-sm) * 1.4); background: color-mix(in srgb, var(--color-red) 14%, transparent); color: var(--color-red); }
+    .recovered-preview { display: grid; align-items: start; justify-content: stretch; gap: .25rem; padding: .5rem; border: 1px solid color-mix(in srgb, var(--color-red) 28%, var(--color-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 0.8); }
     .recovered-preview > strong { color: var(--color-red); }
     .recovered-preview > p { margin: 0; }
     .close-behavior { margin: -.1rem 0 0; color: var(--color-textcolor2); font-size: .7rem; text-align: center; }
@@ -1190,8 +1190,8 @@
     .review-heading small { color: var(--color-textcolor2); }
     .overwrite { display: flex; align-items: center; gap: .4rem; color: var(--color-textcolor2); font-size: .76rem; }
     .drafts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: .55rem; max-height: 40vh; overflow: auto; padding-right: .2rem; }
-    .atom-preview { display: grid; gap: .2rem; margin-top: .35rem; padding: .45rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; }
-    article { display: grid; align-content: start; gap: .35rem; padding: .7rem; border: 1px solid var(--color-darkborderc); border-radius: .55rem; background: var(--color-darkbg); }
+    .atom-preview { display: grid; gap: .2rem; margin-top: .35rem; padding: .45rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); }
+    article { display: grid; align-content: start; gap: .35rem; padding: .7rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.1); background: var(--color-darkbg); }
     article > div { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     article span { padding: .15rem .35rem; border-radius: 99rem; background: var(--color-selected); color: var(--color-textcolor2); font-size: .68rem; }
     article p { margin: 0; line-height: 1.45; }

@@ -236,12 +236,12 @@
 <style>
     :global(body.painter-placing [data-painter-message]) { cursor: crosshair; }
     :global(body.painter-placing [data-painter-message]:focus) { outline: 2px solid var(--color-primary); outline-offset: 4px; }
-    .placement-notice { position: fixed; z-index: 45; bottom: 1rem; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 2rem); display: flex; gap: 1rem; align-items: center; padding: .8rem 1rem; border: 1px solid var(--color-primary); border-radius: .6rem; background: var(--color-darkbg); color: var(--color-textcolor); box-shadow: 0 6px 24px var(--color-shadowcolor); font-size: .875rem; }
+    .placement-notice { position: fixed; z-index: 45; bottom: 1rem; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 2rem); display: flex; gap: 1rem; align-items: center; padding: .8rem 1rem; border: 1px solid var(--color-primary); border-radius: calc(var(--risu-radius-lg) * 1.2); background: var(--color-darkbg); color: var(--color-textcolor); box-shadow: var(--risu-shadow-overlay, 0 6px 24px var(--color-shadowcolor)); font-size: .875rem; }
     small { display: block; margin-top: .2rem; color: var(--color-textcolor2); }
-    button { flex: none; padding: .45rem .7rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: var(--color-darkbutton); }
+    button { flex: none; padding: .45rem .7rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--color-darkbutton); }
     p { color: var(--color-draculared); margin-top: .4rem; }
     .placement-marker { position: fixed; z-index: 44; height: 3px; background: var(--color-primary); pointer-events: none; }
-    .placement-swap { position: fixed; z-index: 44; border: 3px solid var(--color-primary); border-radius: 4px; background: color-mix(in srgb, var(--color-primary) 18%, transparent); pointer-events: none; }
-    .placement-swap span { position: absolute; top: 6px; right: 6px; padding: 2px 8px; background: var(--color-primary); color: var(--color-accenttext); border-radius: 3px; font-size: 12px; font-weight: 600; }
-    .placement-marker span { position: absolute; right: 0; bottom: 3px; padding: 2px 6px; background: var(--color-primary); color: var(--color-accenttext); border-radius: 3px; font-size: 11px; }
+    .placement-swap { position: fixed; z-index: 44; border: 3px solid var(--color-primary); border-radius: var(--risu-radius-sm); background: color-mix(in srgb, var(--color-primary) 18%, transparent); pointer-events: none; }
+    .placement-swap span { position: absolute; top: 6px; right: 6px; padding: 2px 8px; background: var(--color-primary); color: var(--color-accenttext); border-radius: calc(var(--risu-radius-sm) * 0.75); font-size: 12px; font-weight: 600; }
+    .placement-marker span { position: absolute; right: 0; bottom: 3px; padding: 2px 6px; background: var(--color-primary); color: var(--color-accenttext); border-radius: calc(var(--risu-radius-sm) * 0.75); font-size: 11px; }
 </style>

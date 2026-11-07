@@ -302,7 +302,7 @@
         justify-content: center;
         width: 2.75rem;
         height: 2.75rem;
-        border-radius: 0.5rem;
+        border-radius: var(--risu-radius-lg);
         border: 1px solid var(--color-darkborderc);
         background: var(--color-darkbg);
         color: var(--color-textcolor);

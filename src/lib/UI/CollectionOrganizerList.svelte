@@ -667,10 +667,10 @@
 </div>
 
 <style>
-    .collection-organizer { container-name: collection-manager; container-type: inline-size; width: 100%; height: min(70dvh, 46rem); min-height: 0; flex: 1; border-color: var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, .75rem); background: var(--settings-surface, var(--color-bgcolor)); }
+    .collection-organizer { container-name: collection-manager; container-type: inline-size; width: 100%; height: min(70dvh, 46rem); min-height: 0; flex: 1; border-color: var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--color-bgcolor)); }
     .collection-organizer-layout { display: grid; height: 100%; min-width: 0; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: clamp(6rem, var(--collection-folder-height, 16rem), max(6rem, calc(100% - 15rem))) .75rem minmax(0, 1fr); }
     .collection-splitter { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 0; border: 0; background: var(--color-darkbg); cursor: row-resize; touch-action: none; }
-    .collection-splitter span { width: 2rem; height: 3px; border-radius: 3px; background: var(--color-borderc); }
+    .collection-splitter span { width: 2rem; height: 3px; border-radius: calc(var(--risu-radius-sm) * 0.75); background: var(--color-borderc); }
     .collection-splitter:hover, .collection-splitter:focus-visible, .collection-splitter:global([data-resizing]) { outline: none; background: color-mix(in srgb, var(--color-borderc) 25%, var(--color-darkbg)); }
     .collection-items-pane { container-name: collection-items; container-type: inline-size; }
     .collection-folder { flex-direction: column; align-items: stretch; padding: .2rem; }
@@ -678,7 +678,7 @@
     .collection-folder-actions { width: 100%; justify-content: flex-end; gap: .25rem; padding: 0 .3rem .3rem; }
     .collection-item { transition: background-color 180ms ease, border-color 180ms ease; }
     .collection-items--manager { gap: .7rem; border: 0; border-radius: 0; background: transparent; }
-    .collection-item--manager { align-items: stretch; overflow: hidden; min-height: 4.75rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, .75rem); background: var(--settings-surface, var(--color-bgcolor)); }
+    .collection-item--manager { align-items: stretch; overflow: hidden; min-height: 4.75rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--color-bgcolor)); }
     .collection-item--manager .collection-item-content { min-width: 0; padding: .45rem .7rem; }
     .collection-item--selected { border-color: color-mix(in srgb, var(--color-borderc) 70%, var(--settings-border, var(--color-darkborderc))); background: color-mix(in srgb, var(--color-selected) 22%, var(--settings-surface, var(--color-bgcolor))); }
     .collection-item-selection-rail { display: flex; width: 2.5rem; flex: 0 0 2.5rem; align-self: stretch; align-items: center; justify-content: center; border-right: 1px solid var(--settings-border, var(--color-darkborderc)); background: color-mix(in srgb, var(--settings-surface, var(--color-bgcolor)) 88%, var(--risu-theme-textcolor)); }

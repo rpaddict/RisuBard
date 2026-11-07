@@ -125,7 +125,7 @@
 
 <style>
     /* One row at every width: a narrow screen scrolls the row sideways instead of wrapping it. */
-    .save-load-toolbar { display: flex; flex-wrap: nowrap; width: fit-content; max-width: 100%; align-items: center; gap: .25rem; margin: 0 auto .5rem; padding: .25rem .5rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; border: 1px solid var(--color-darkborderc); border-radius: 1.5rem; background: var(--color-bgcolor); transition: border-color .14s ease; }
+    .save-load-toolbar { display: flex; flex-wrap: nowrap; width: fit-content; max-width: 100%; align-items: center; gap: .25rem; margin: 0 auto .5rem; padding: .25rem .5rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-3xl); background: var(--color-bgcolor); transition: border-color .14s ease; }
     .save-load-toolbar > * { flex-shrink: 0; }
     .save-load-toolbar:focus-within { border-color: var(--color-textcolor); }
     .toolbar-button { display: grid; width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; place-items: center; border: 0; border-radius: 999px; color: var(--color-textcolor); background: transparent; transition: color .14s ease, background .14s ease; }
@@ -135,9 +135,9 @@
     .quick-icon { position: relative; display: grid; place-items: center; }
     .quick-icon__bolt { position: absolute; right: -.28rem; bottom: -.18rem; display: grid; width: .82rem; height: .82rem; place-items: center; border: 1px solid var(--color-bgcolor); border-radius: 999px; color: var(--color-primary); background: var(--color-bgcolor); }
     .jump-field { display: flex; flex: 0 0 auto; align-items: center; gap: .25rem; color: var(--color-textcolor2); font-size: .7rem; font-weight: 600; white-space: nowrap; }
-    .jump-field input { width: 3.25rem; height: 2.25rem; border: 1px solid var(--color-darkborderc); border-radius: .65rem; color: var(--color-textcolor); background: var(--color-darkbg); text-align: center; font-size: .75rem; font-variant-numeric: tabular-nums; outline: none; }
+    .jump-field input { width: 3.25rem; height: 2.25rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.3); color: var(--color-textcolor); background: var(--color-darkbg); text-align: center; font-size: .75rem; font-variant-numeric: tabular-nums; outline: none; }
     .jump-field input:disabled { opacity: .45; }
-    .page-step { display: grid; width: 1.75rem; height: 2.25rem; flex: 0 0 1.75rem; place-items: center; border: 0; border-radius: .65rem; color: var(--color-textcolor); background: transparent; transition: color .14s ease, background .14s ease; }
+    .page-step { display: grid; width: 1.75rem; height: 2.25rem; flex: 0 0 1.75rem; place-items: center; border: 0; border-radius: calc(var(--risu-radius-lg) * 1.3); color: var(--color-textcolor); background: transparent; transition: color .14s ease, background .14s ease; }
     .page-step:hover:not(:disabled) { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 16%, transparent); }
     .page-step:disabled { pointer-events: none; opacity: .35; }
     .page-step:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }

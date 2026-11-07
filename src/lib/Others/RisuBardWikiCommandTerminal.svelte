@@ -404,7 +404,7 @@
         box-sizing: border-box;
         overflow: hidden;
         border: 1px solid var(--terminal-line);
-        border-radius: .55rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.1);
         background:
             linear-gradient(180deg, color-mix(in srgb, var(--risu-theme-primary) 4%, transparent), transparent 38%),
             color-mix(in srgb, var(--risu-theme-darkbg) 96%, var(--color-bgcolor));
@@ -453,7 +453,7 @@
         width: 1.85rem;
         height: 1.85rem;
         border: 1px solid var(--terminal-line);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-primary);
         background: color-mix(in srgb, var(--risu-theme-primary) 8%, transparent);
     }
@@ -475,7 +475,7 @@
         padding: .5rem .75rem;
         box-sizing: border-box;
         border: 1px solid var(--terminal-line);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 88%, transparent);
         font-size: .875rem;
@@ -512,7 +512,7 @@
         min-height: 1.85rem;
         padding: .3rem .52rem;
         border: 1px solid var(--terminal-line);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-primary) 8%, transparent);
         font-size: .68rem;
@@ -595,12 +595,12 @@
         height: min(44rem, 86vh);
         overflow: hidden;
         border: 1px solid var(--dialog-line);
-        border-radius: .75rem;
+        border-radius: var(--risu-radius-xl);
         color: var(--risu-theme-textcolor);
         background:
             linear-gradient(135deg, color-mix(in srgb, var(--risu-theme-primary) 7%, transparent), transparent 42%),
             var(--risu-theme-darkbg);
-        box-shadow: 0 1.4rem 4rem color-mix(in srgb, var(--color-darkbg) 55%, transparent);
+        box-shadow: var(--risu-shadow-overlay, 0 1.4rem 4rem color-mix(in srgb, var(--color-darkbg) 55%, transparent));
     }
     .template-dialog-header,
     .template-dialog-footer {
@@ -635,7 +635,7 @@
         width: 2rem;
         height: 2rem;
         border: 1px solid transparent;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         cursor: pointer;
@@ -665,7 +665,7 @@
         gap: .12rem .5rem;
         padding: .58rem .62rem;
         border: 1px solid transparent;
-        border-radius: .42rem;
+        border-radius: calc(var(--risu-radius-md) * 1.12);
         color: var(--risu-theme-textcolor);
         text-align: left;
         background: transparent;
@@ -687,7 +687,7 @@
     .command-code {
         align-self: center;
         padding: .16rem .28rem;
-        border-radius: .22rem;
+        border-radius: calc(var(--risu-radius-sm) * 0.88);
         color: var(--risu-theme-primary);
         background: color-mix(in srgb, var(--risu-theme-primary) 10%, transparent);
         font: 700 .53rem/1 ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -720,7 +720,7 @@
         white-space: pre-wrap;
         padding: .85rem .9rem;
         border: 1px solid var(--dialog-line);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 88%, var(--color-darkbg));
         font: .74rem/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;

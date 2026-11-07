@@ -53,7 +53,7 @@
 </section>
 
 <style>
-    .local-review { display: grid; gap: .65rem; margin: .35rem .65rem .75rem; padding: .8rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; background: var(--color-darkbg); color: var(--color-textcolor); user-select: text; min-width: 0; }
+    .local-review { display: grid; gap: .65rem; margin: .35rem .65rem .75rem; padding: .8rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); background: var(--color-darkbg); color: var(--color-textcolor); user-select: text; min-width: 0; }
     .review-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
     p { margin: 0; color: var(--color-textcolor2); font-size: .8rem; line-height: 1.55; overflow-wrap: anywhere; }
     .notice { color: var(--color-warning); }
@@ -61,7 +61,7 @@
     details { border-bottom: 1px solid var(--color-darkborderc); }
     summary { cursor: pointer; padding: .55rem .2rem; font-size: .8rem; overflow-wrap: anywhere; }
     pre { margin: 0; padding: .6rem; background: var(--color-selected); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: .76rem; line-height: 1.5; }
-    button { border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: var(--color-selected); padding: .45rem .7rem; font-size: .8rem; color: var(--color-textcolor); cursor: pointer; }
+    button { border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--color-selected); padding: .45rem .7rem; font-size: .8rem; color: var(--color-textcolor); cursor: pointer; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
     button:disabled { opacity: .5; cursor: not-allowed; }
     button:focus-visible, summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

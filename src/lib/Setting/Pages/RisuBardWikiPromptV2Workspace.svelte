@@ -270,19 +270,19 @@
 </div>
 
 <style>
-    .wiki-v2-workspace { display: flex; min-height: 32rem; height: 100%; flex-direction: column; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: .9rem; background: var(--color-darkbg); }
+    .wiki-v2-workspace { display: flex; min-height: 32rem; height: 100%; flex-direction: column; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-2xl) * 0.9); background: var(--color-darkbg); }
     .workspace-grid { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(13rem,.75fr) minmax(28rem,1.65fr) minmax(17rem,.8fr); }
     .pane { min-width: 0; min-height: 0; overflow: hidden; }
     .pane + .pane { border-left: 1px solid var(--color-darkborderc); }
     .pane-list { display: flex; flex-direction: column; }
     .list-header, .add-actions, .block-toolbar { flex-shrink: 0; border-bottom: 1px solid var(--color-darkborderc); padding: .65rem; }
     .search-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
-    .search-row input, select { min-width: 0; height: 2rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .25rem .45rem; background: transparent; color: var(--color-textcolor); }
+    .search-row input, select { min-width: 0; height: 2rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .25rem .45rem; background: transparent; color: var(--color-textcolor); }
     .search-row input { width: 100%; }
     .list-actions, .add-actions, .toolbar-buttons { display: flex; gap: .35rem; }
     .add-actions { border-top: 1px solid var(--color-darkborderc); border-bottom: 0; flex-wrap: wrap; }
     .block-list { min-height: 0; flex: 1; overflow-y: auto; padding: .35rem; }
-    .block-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .5rem; border-radius: .45rem; padding: .55rem .6rem; text-align: left; }
+    .block-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .5rem; border-radius: calc(var(--risu-radius-lg) * 0.9); padding: .55rem .6rem; text-align: left; }
     .block-list button:hover, .block-list button.selected { background: color-mix(in srgb, var(--color-selected) 34%, transparent); }
     .block-list button.critical span { color: var(--color-danger); font-weight: 700; }
     .block-list small { color: var(--color-textcolor2); font-size: .65rem; }
@@ -293,7 +293,7 @@
     .toolbar-buttons { margin-left: auto; }
     .editor-host { min-height: 0; flex: 1; }
     .compact-tabs { display: none; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .25rem; border-bottom: 1px solid var(--color-darkborderc); padding: .35rem; }
-    .compact-tabs button { display: flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2.2rem; border-radius: .4rem; font-size: .72rem; }
+    .compact-tabs button { display: flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2.2rem; border-radius: calc(var(--risu-radius-lg) * 0.8); font-size: .72rem; }
     .compact-tabs button.active { color: var(--color-binding-text); background: var(--color-binding); }
     @container settings-page (max-width: 68rem) {
         .compact-tabs { display: grid; }

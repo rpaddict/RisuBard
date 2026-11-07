@@ -267,7 +267,7 @@
     .panel {
         display: grid; gap: .65rem; width: 100%; min-width: 0; padding: 1rem;
         background: var(--settings-surface, var(--color-darkbg)); border: 1px solid var(--settings-border, var(--color-darkborderc));
-        border-radius: var(--settings-radius, .6rem);
+        border-radius: var(--settings-radius, calc(var(--risu-radius-lg) * 1.2));
     }
     .panel h2 { font-size: 1rem; font-weight: 600; color: var(--color-textcolor); }
     .panel p { margin: 0; color: var(--color-textcolor2); line-height: 1.55; max-width: 70ch; }
@@ -290,27 +290,27 @@
         display: grid; gap: 1rem; width: 100%; min-width: 0; padding: 1.15rem 1.25rem;
         background: color-mix(in srgb, var(--orange) 16%, var(--color-bgcolor));
         border: 1px solid color-mix(in srgb, var(--orange-deep) 85%, var(--color-bgcolor));
-        border-radius: .75rem;
+        border-radius: var(--risu-radius-xl);
         color: var(--color-textcolor);
     }
     .home-head { display: flex; gap: .9rem; align-items: flex-start; }
     .home-mark {
         flex: none; display: flex; align-items: center; justify-content: center;
-        width: 2.75rem; height: 2.75rem; border-radius: .65rem;
+        width: 2.75rem; height: 2.75rem; border-radius: calc(var(--risu-radius-lg) * 1.3);
         background: var(--orange); color: var(--on-orange);
     }
     .home-copy { display: grid; gap: .3rem; min-width: 0; }
     .home-copy h2 { margin: 0; font-size: 1.15rem; font-weight: 600; line-height: 1.35; color: var(--color-textcolor); text-wrap: balance; }
     .home-copy p { margin: 0; font-size: .92rem; line-height: 1.6; max-width: 68ch; color: color-mix(in srgb, var(--color-textcolor) 84%, var(--orange)); }
     .home-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin: 0; }
-    .home-tiles div { display: grid; gap: .15rem; padding: .65rem .8rem; border-radius: .55rem; background: color-mix(in srgb, var(--orange) 26%, var(--color-bgcolor)); }
+    .home-tiles div { display: grid; gap: .15rem; padding: .65rem .8rem; border-radius: calc(var(--risu-radius-lg) * 1.1); background: color-mix(in srgb, var(--orange) 26%, var(--color-bgcolor)); }
     .home-tiles dt { font-size: .78rem; color: color-mix(in srgb, var(--color-textcolor) 72%, var(--orange)); }
     .home-tiles dd { margin: 0; font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-textcolor); }
     .home-tiles dd.lead { color: color-mix(in srgb, var(--orange) 80%, var(--color-textcolor)); }
     .home-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
     .home-button {
         display: inline-flex; align-items: center; gap: .4rem; height: 2.5rem; padding: 0 1rem;
-        border-radius: .5rem; font-size: .92rem; font-weight: 600; cursor: pointer;
+        border-radius: var(--risu-radius-lg); font-size: .92rem; font-weight: 600; cursor: pointer;
         color: color-mix(in srgb, var(--color-textcolor) 80%, var(--orange));
         background: transparent; border: 1px solid color-mix(in srgb, var(--orange-deep) 85%, var(--color-bgcolor));
         transition: background-color .15s ease-out, border-color .15s ease-out;

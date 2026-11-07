@@ -1309,7 +1309,7 @@ import ShButton from "../UI/GUI/ShButton.svelte";
         margin: .25rem 0 1.25rem;
         padding: .9rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .7rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.4);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 78%, transparent);
     }
 

@@ -4,11 +4,12 @@
 // Tailwind's rounded-* and shadow-* utilities read the radius and shadow
 // tokens through the @theme block, so components follow a skin unchanged.
 
-export type UiSkinTokenGroup = 'font' | 'radius' | 'shadow'
+export type UiSkinTokenGroup = 'font' | 'radius' | 'shadow' | 'shadow-role'
 
 export interface UiSkinTokenDefinition {
     token: string
     group: UiSkinTokenGroup
+    /** '' for override-only roles: never declared, so each use falls back to its own original shadow. */
     defaultValue: string
 }
 
@@ -39,4 +40,10 @@ export const uiSkinTokenDefinitions: readonly UiSkinTokenDefinition[] = [
     { token: 'shadow-xl', group: 'shadow', defaultValue: `0 20px 25px -5px ${shadowMix(10)}, 0 8px 10px -6px ${shadowMix(10)}` },
     { token: 'shadow-2xl', group: 'shadow', defaultValue: `0 25px 50px -12px ${shadowMix(25)}` },
     { token: 'shadow-popover', group: 'shadow', defaultValue: `0 20px 25px -5px ${shadowMix(20)}, 0 8px 10px -6px ${shadowMix(20)}` },
+
+    // Depth shadows written per component as var(--risu-shadow-<role>, original).
+    // Unset by default; a skin sets one to restyle every shadow of that size at once.
+    { token: 'shadow-raised', group: 'shadow-role', defaultValue: '' },
+    { token: 'shadow-floating', group: 'shadow-role', defaultValue: '' },
+    { token: 'shadow-overlay', group: 'shadow-role', defaultValue: '' },
 ]

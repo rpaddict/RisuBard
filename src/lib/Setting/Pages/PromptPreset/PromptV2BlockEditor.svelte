@@ -961,7 +961,7 @@
         width: 100%;
         height: 2rem;
         border: 1px solid transparent;
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         padding: .25rem .45rem;
         color: var(--color-textcolor);
         background: transparent;
@@ -994,7 +994,7 @@
         width: clamp(5.75rem, 8vw, 8.5rem);
         height: 2rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         padding: .2rem .45rem;
         color: var(--color-textcolor);
         background: var(--color-darkbg);
@@ -1029,7 +1029,7 @@
 
     .editor-card {
         border: 1px solid var(--color-darkborderc);
-        border-radius: .75rem;
+        border-radius: var(--risu-radius-xl);
         background: color-mix(in srgb, var(--color-darkbg) 78%, transparent);
         padding: 1rem;
     }
@@ -1038,7 +1038,7 @@
         width: 100%;
         min-height: 2.5rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         padding: .45rem .7rem;
         color: var(--color-textcolor);
         background: transparent;
@@ -1059,7 +1059,7 @@
         align-items: center;
         gap: .45rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         padding: .5rem;
         background: color-mix(in srgb, var(--color-darkbutton) 34%, transparent);
     }
@@ -1082,7 +1082,7 @@
         margin-left: auto;
         padding: .15rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         background: color-mix(in srgb, var(--color-bgcolor) 70%, transparent);
     }
 
@@ -1090,7 +1090,7 @@
         min-height: 2.25rem;
         padding: .35rem .65rem;
         border: 0;
-        border-radius: .3rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.2);
         color: var(--color-textcolor2);
         background: transparent;
         font-size: .78rem;
@@ -1115,7 +1115,7 @@
     .syntax-palette {
         margin-bottom: .65rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .6rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.2);
         padding: .65rem;
         background: color-mix(in srgb, var(--color-darkbutton) 32%, transparent);
     }
@@ -1151,7 +1151,7 @@
         resize: vertical;
         overflow: hidden;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .6rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.2);
         background: color-mix(in srgb, var(--color-bgcolor) 65%, transparent);
     }
 
@@ -1168,7 +1168,7 @@
         min-height: 16rem;
         resize: vertical;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .6rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.2);
         padding: .8rem;
         color: var(--color-textcolor);
         background: color-mix(in srgb, var(--color-bgcolor) 65%, transparent);
@@ -1178,7 +1178,7 @@
         outline: none;
     }
 
-    .prompt-body-editor { position: relative; border-radius: .6rem; }
+    .prompt-body-editor { position: relative; border-radius: calc(var(--risu-radius-lg) * 1.2); }
 
     .prompt-body-preview {
         position: absolute;
@@ -1187,7 +1187,7 @@
         min-height: calc(100% - 2px);
         margin: 0;
         overflow: hidden;
-        border-radius: .55rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.1);
         padding: .8rem;
         color: var(--color-textcolor);
         background: color-mix(in srgb, var(--color-bgcolor) 65%, transparent);

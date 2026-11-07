@@ -93,7 +93,7 @@
         background: var(--color-borderc);
     }
     .draft-split-resize:focus-visible {
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         outline: 2px solid var(--color-borderc);
         outline-offset: -2px;
     }

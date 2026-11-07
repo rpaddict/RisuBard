@@ -101,7 +101,7 @@
     .owner { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-textcolor2); }
     .variable-controls label { display: flex; align-items: center; gap: .25rem; white-space: nowrap; }
     .search { grid-column: 1 / -1; width: 100%; }
-    input:not([type='checkbox']), select { min-width: 0; padding: .2rem .35rem; border: 1px solid var(--color-darkborderc); border-radius: .2rem; color: var(--color-textcolor); background: var(--color-darkbg); font: inherit; }
+    input:not([type='checkbox']), select { min-width: 0; padding: .2rem .35rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 0.8); color: var(--color-textcolor); background: var(--color-darkbg); font: inherit; }
     .variable-rows { flex: 1; min-height: 3rem; overflow: auto; overscroll-behavior: contain; padding: .25rem .6rem; }
     .variable-row { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 1.5rem; align-items: center; gap: .4rem; padding: .2rem 0; }
     code { overflow-wrap: anywhere; font-size: .74rem; }

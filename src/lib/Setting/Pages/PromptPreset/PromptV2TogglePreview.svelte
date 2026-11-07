@@ -138,7 +138,7 @@
         justify-content: space-between;
         gap: .75rem;
         border-left: 2px solid transparent;
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         padding: .25rem .4rem .25rem .55rem;
         transition: background-color 160ms ease, border-color 160ms ease;
     }

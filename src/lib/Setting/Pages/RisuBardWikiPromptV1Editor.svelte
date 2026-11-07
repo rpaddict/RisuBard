@@ -90,9 +90,9 @@
 
 <style>
     .wiki-v1 { display: flex; flex-direction: column; gap: .75rem; margin-top: 1rem; }
-    .readonly-note { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; padding: .7rem .9rem; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--settings-radius, .75rem); color: var(--risu-theme-textcolor2); font-size: .82rem; }
+    .readonly-note { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; padding: .7rem .9rem; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); color: var(--risu-theme-textcolor2); font-size: .82rem; }
     .readonly-note span { flex: 1 1 14rem; min-width: 0; }
-    .block-stack { overflow: hidden; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--settings-radius, .75rem); background: var(--settings-surface, var(--risu-theme-bgcolor)); }
+    .block-stack { overflow: hidden; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--risu-theme-bgcolor)); }
     .add-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
     .add-actions :global(.help) { margin-left: auto; }
 </style>

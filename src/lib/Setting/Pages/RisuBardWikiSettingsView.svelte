@@ -75,15 +75,15 @@
 </fieldset>
 
 <style>
-    .view-switch { display: grid; flex-shrink: 0; grid-template-columns: 1fr 1fr; gap: 2px; width: 12rem; max-width: 100%; padding: 2px; border: 1px solid var(--color-darkborderc); border-radius: .45rem; background: var(--color-darkbg); }
-    .view-switch button { min-height: 2rem; border-radius: .34rem; color: var(--color-textcolor2); font-size: .85rem; font-weight: 650; transition: background-color .15s ease-out, color .15s ease-out; }
+    .view-switch { display: grid; flex-shrink: 0; grid-template-columns: 1fr 1fr; gap: 2px; width: 12rem; max-width: 100%; padding: 2px; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.9); background: var(--color-darkbg); }
+    .view-switch button { min-height: 2rem; border-radius: calc(var(--risu-radius-sm) * 1.36); color: var(--color-textcolor2); font-size: .85rem; font-weight: 650; transition: background-color .15s ease-out, color .15s ease-out; }
     .view-switch button:hover { color: var(--color-textcolor); }
     .view-switch button[aria-pressed='true'] { color: var(--color-textcolor); background: color-mix(in srgb, var(--color-primary) 30%, var(--color-darkbg)); }
     .view-switch button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .scale-row { display: grid; gap: .5rem; min-width: 0; margin: 0; }
     .scale-row legend { float: left; width: 100%; padding: 0; }
     .scale-options { clear: both; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .4rem; max-width: 32rem; }
-    .scale-option { position: relative; display: grid; justify-items: center; gap: .05rem; min-height: 3rem; padding: .4rem .25rem; border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-darkborderc)); border-radius: .4rem; color: var(--color-textcolor); background: color-mix(in srgb, var(--color-primary) 8%, var(--color-darkbg)); cursor: pointer; transition: border-color .15s ease-out, background-color .15s ease-out; }
+    .scale-option { position: relative; display: grid; justify-items: center; gap: .05rem; min-height: 3rem; padding: .4rem .25rem; border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 0.8); color: var(--color-textcolor); background: color-mix(in srgb, var(--color-primary) 8%, var(--color-darkbg)); cursor: pointer; transition: border-color .15s ease-out, background-color .15s ease-out; }
     .scale-option input { position: absolute; opacity: 0; pointer-events: none; }
     .scale-option:hover { border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-darkborderc)); background: color-mix(in srgb, var(--color-primary) 15%, var(--color-darkbg)); }
     .scale-option:has(input:checked) { border-color: color-mix(in srgb, var(--color-primary) 80%, var(--color-darkborderc)); color: var(--color-textcolor); background: color-mix(in srgb, var(--color-primary) 32%, var(--color-darkbg)); }

@@ -85,7 +85,7 @@
         gap: .75rem;
         padding: .42rem .65rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .48rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.96);
         background: color-mix(in srgb, var(--color-darkbg) 98%, var(--color-selected) 2%);
         color: var(--color-textcolor);
         font-size: .8rem;

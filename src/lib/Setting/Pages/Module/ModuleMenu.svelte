@@ -320,5 +320,5 @@
 </div>
 
 <style>
-    .module-editor-panel { display: flex; flex-direction: column; min-width: 0; padding: 1.25rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, .75rem); background: var(--settings-surface, var(--color-bgcolor)); }
+    .module-editor-panel { display: flex; flex-direction: column; min-width: 0; padding: 1.25rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--color-bgcolor)); }
 </style>

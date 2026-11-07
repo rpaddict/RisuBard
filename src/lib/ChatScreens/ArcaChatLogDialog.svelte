@@ -686,18 +686,18 @@
 <style>
     .arca-log-workspace { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(230px, .34fr) minmax(0, 1fr); gap: .875rem; }
     .arca-log-workspace.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
-    .arca-log-settings, .arca-log-preview-panel { min-height: 0; border: 1px solid var(--color-darkborderc); border-radius: .875rem; background: var(--color-darkbg); }
+    .arca-log-settings, .arca-log-preview-panel { min-height: 0; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-2xl) * 0.875); background: var(--color-darkbg); }
     .arca-log-settings { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; overflow-y: auto; }
     .arca-log-settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
     .arca-log-settings-heading > div { min-width: 0; }
     .arca-log-settings h3, .arca-log-preview-panel h3 { margin: 0; overflow: hidden; color: var(--color-textcolor); font-size: 1.25rem; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
     .arca-log-settings p { margin-top: .3rem; color: var(--color-textcolor2); font-size: .75rem; line-height: 1.55; }
     .arca-log-kicker { color: var(--color-borderc); font-size: .625rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-    .arca-log-sidebar-toggle { width: 2.75rem; height: 2.75rem; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid var(--color-darkborderc); border-radius: .7rem; background: var(--color-bgcolor); color: var(--color-textcolor2); transition: border-color .15s ease, background .15s ease, color .15s ease; }
+    .arca-log-sidebar-toggle { width: 2.75rem; height: 2.75rem; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.4); background: var(--color-bgcolor); color: var(--color-textcolor2); transition: border-color .15s ease, background .15s ease, color .15s ease; }
     .arca-log-sidebar-toggle:hover { border-color: var(--color-borderc); background: var(--color-selected); color: var(--color-textcolor); }
     .arca-log-sidebar-toggle:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .arca-log-mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
-    .arca-log-mode-grid button { min-width: 0; padding: .7rem .6rem; border: 1px solid var(--color-darkborderc); border-radius: .75rem; background: var(--color-bgcolor); color: var(--color-textcolor); text-align: left; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+    .arca-log-mode-grid button { min-width: 0; padding: .7rem .6rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-xl); background: var(--color-bgcolor); color: var(--color-textcolor); text-align: left; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
     .arca-log-mode-grid button:hover { transform: translateY(-1px); border-color: var(--color-borderc); }
     .arca-log-mode-grid button:disabled { cursor: wait; opacity: .58; transform: none; }
     .arca-log-mode-grid button.active { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, var(--color-bgcolor)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent); }
@@ -708,30 +708,30 @@
     .arca-log-range, .arca-log-range-placeholder { flex: 1 1 11rem; min-width: 0; }
     .arca-log-range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: .5rem; }
     .arca-log-range label { color: var(--color-textcolor2); font-size: .6875rem; }
-    .arca-log-range input { width: 100%; height: 2.5rem; margin-top: .35rem; padding: 0 .65rem; border: 1px solid var(--color-darkborderc); border-radius: .625rem; background: var(--color-bgcolor); color: var(--color-textcolor); font-variant-numeric: tabular-nums; }
+    .arca-log-range input { width: 100%; height: 2.5rem; margin-top: .35rem; padding: 0 .65rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.25); background: var(--color-bgcolor); color: var(--color-textcolor); font-variant-numeric: tabular-nums; }
     .arca-log-range input:focus-visible { outline: 2px solid var(--color-borderc); outline-offset: 2px; }
     .arca-log-range > span { padding-bottom: .7rem; color: var(--color-textcolor2); }
-    .arca-log-range-placeholder { display: flex; align-items: center; min-height: 3.5rem; padding: 0 .75rem; border: 1px solid var(--color-darkborderc); border-radius: .75rem; background: var(--color-bgcolor); color: var(--color-textcolor2); font-size: .75rem; }
-    .arca-log-user-toggle { flex: 1 0 7.5rem; min-width: 0; padding: .65rem .7rem; border: 1px solid var(--color-darkborderc); border-radius: .75rem; background: var(--color-bgcolor); color: var(--color-textcolor); text-align: left; transition: border-color .15s ease, background .15s ease; }
+    .arca-log-range-placeholder { display: flex; align-items: center; min-height: 3.5rem; padding: 0 .75rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-xl); background: var(--color-bgcolor); color: var(--color-textcolor2); font-size: .75rem; }
+    .arca-log-user-toggle { flex: 1 0 7.5rem; min-width: 0; padding: .65rem .7rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-xl); background: var(--color-bgcolor); color: var(--color-textcolor); text-align: left; transition: border-color .15s ease, background .15s ease; }
     .arca-log-user-toggle:hover { border-color: var(--color-borderc); }
     .arca-log-user-toggle:disabled { cursor: wait; opacity: .58; }
     .arca-log-user-toggle.active { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, var(--color-bgcolor)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent); }
     .arca-log-user-toggle strong, .arca-log-user-toggle span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .arca-log-user-toggle strong { font-size: .8125rem; }
     .arca-log-user-toggle span { margin-top: .3rem; color: var(--color-textcolor2); font-size: .6875rem; }
-    .arca-log-selection-summary { display: flex; align-items: center; padding: .75rem; border-radius: .75rem; background: var(--color-selected); font-size: .75rem; }
+    .arca-log-selection-summary { display: flex; align-items: center; padding: .75rem; border-radius: var(--risu-radius-xl); background: var(--color-selected); font-size: .75rem; }
     .arca-log-selection-summary span { color: var(--color-textcolor2); }
     .arca-log-selection-summary strong { color: var(--color-textcolor); font-variant-numeric: tabular-nums; }
     .arca-log-output-settings { display: flex; flex-direction: column; gap: .75rem; padding-top: .875rem; border-top: 1px solid var(--color-darkborderc); }
-    .arca-log-setting-list { overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: .75rem; background: var(--color-bgcolor); }
+    .arca-log-setting-list { overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-xl); background: var(--color-bgcolor); }
     .arca-log-setting-list label { min-height: 2.75rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem .65rem; color: var(--color-textcolor); font-size: .72rem; }
     .arca-log-setting-list label + label { border-top: 1px solid var(--color-darkborderc); }
-    .arca-log-setting-list input[type='number'] { width: 4.75rem; height: 2rem; padding: 0 .45rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; background: var(--color-darkbg); color: var(--color-textcolor); text-align: right; font-variant-numeric: tabular-nums; }
+    .arca-log-setting-list input[type='number'] { width: 4.75rem; height: 2rem; padding: 0 .45rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); background: var(--color-darkbg); color: var(--color-textcolor); text-align: right; font-variant-numeric: tabular-nums; }
     .arca-log-setting-list input[type='checkbox'] { width: 1.05rem; height: 1.05rem; accent-color: var(--color-primary); }
     .arca-log-setting-list input:focus-visible { outline: 2px solid var(--color-borderc); outline-offset: 2px; }
     .arca-log-setting-list input:disabled { cursor: wait; opacity: .58; }
     .arca-log-setting-actions { display: flex; justify-content: flex-end; gap: .5rem; }
-    .arca-log-layout-note { margin: 0 !important; padding: .6rem .7rem; border-radius: .625rem; background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bgcolor)); }
+    .arca-log-layout-note { margin: 0 !important; padding: .6rem .7rem; border-radius: calc(var(--risu-radius-lg) * 1.25); background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bgcolor)); }
     .arca-log-note { margin-top: auto !important; padding-top: .75rem; border-top: 1px solid var(--color-darkborderc); }
     .arca-log-preview-panel { display: flex; flex-direction: column; overflow: hidden; }
     .arca-log-preview-panel > header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; min-height: 3rem; gap: .75rem; padding: .45rem .75rem; border-bottom: 1px solid var(--color-darkborderc); }
@@ -742,7 +742,7 @@
     .arca-log-busy { display: inline-flex; align-items: center; gap: .35rem; color: var(--color-textcolor2); font-size: .75rem; font-variant-numeric: tabular-nums; }
     .arca-log-progress { flex: 0 0 auto; height: .1875rem; overflow: hidden; background: var(--color-selected); }
     .arca-log-progress span { display: block; height: 100%; background: var(--color-primary); transition: width .2s ease; }
-    .arca-log-error { display: flex; flex-direction: column; gap: .25rem; width: min(100%, 760px); margin: 0 auto .75rem; padding: .75rem .9rem; border: 1px solid var(--color-danger); border-radius: .75rem; color: var(--color-danger); font-size: .8125rem; }
+    .arca-log-error { display: flex; flex-direction: column; gap: .25rem; width: min(100%, 760px); margin: 0 auto .75rem; padding: .75rem .9rem; border: 1px solid var(--color-danger); border-radius: var(--risu-radius-xl); color: var(--color-danger); font-size: .8125rem; }
     .arca-log-target { width: min(100%, 760px); margin: 0 auto; }
     .arca-log-target-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .5rem .75rem; margin-bottom: .75rem; }
     .arca-log-target-heading h4 { margin: 0; color: var(--color-textcolor); font-size: 1rem; font-weight: 700; }
@@ -750,7 +750,7 @@
     .arca-log-built-count { flex: 0 0 auto; padding: .25rem .55rem; border: 1px solid var(--color-success-border); border-radius: 999px; background: var(--color-success-bg); color: var(--color-success); font-size: .6875rem; font-variant-numeric: tabular-nums; }
     .arca-log-target-empty { padding: 1.5rem 0; color: var(--color-textcolor2); font-size: .8125rem; text-align: center; }
     .arca-log-target ol { display: flex; flex-direction: column; gap: .25rem; margin: 0; padding: 0; list-style: none; }
-    .arca-log-target li { min-width: 0; padding: .45rem .7rem; border: 1px solid transparent; border-radius: .625rem; background: var(--color-darkbg); }
+    .arca-log-target li { min-width: 0; padding: .45rem .7rem; border: 1px solid transparent; border-radius: calc(var(--risu-radius-lg) * 1.25); background: var(--color-darkbg); }
     .arca-log-target li.boundary { padding: .7rem .85rem; border-color: var(--color-borderc); }
     .arca-log-target-meta { display: flex; align-items: center; gap: .5rem; min-width: 0; color: var(--color-textcolor2); font-size: .6875rem; }
     .arca-log-target-meta strong { overflow: hidden; color: var(--color-textcolor); font-size: .78rem; white-space: nowrap; text-overflow: ellipsis; }

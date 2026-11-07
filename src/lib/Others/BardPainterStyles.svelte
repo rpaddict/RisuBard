@@ -155,8 +155,8 @@
     .editor-heading .hint { margin-left: auto; }
     fieldset { display: flex; flex-direction: column; gap: .65rem; border: 0; padding: 0; min-width: 0; }
     label { display: flex; flex-direction: column; gap: .3rem; font-size: .8rem; min-width: 0; }
-    input, select { width: 100%; min-width: 0; border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: .35rem; padding: .4rem .5rem; font: inherit; font-size: .85rem; }
-    button { display: inline-flex; align-items: center; justify-content: center; min-height: 2rem; padding: .3rem .55rem; border: 1px solid var(--color-darkborderc); border-radius: .35rem; font-size: .8rem; }
+    input, select { width: 100%; min-width: 0; border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: calc(var(--risu-radius-sm) * 1.4); padding: .4rem .5rem; font: inherit; font-size: .85rem; }
+    button { display: inline-flex; align-items: center; justify-content: center; min-height: 2rem; padding: .3rem .55rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.4); font-size: .8rem; }
     .icon { width: 2rem; flex: 0 0 2rem; padding: .25rem; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
     button:disabled { opacity: .45; cursor: not-allowed; }
@@ -164,7 +164,7 @@
     .primary { background: var(--color-primary); color: var(--color-accenttext); border-color: var(--color-primary); }
     .danger, .error { color: var(--color-danger); }
     .hint { color: var(--color-textcolor2); font-size: .75rem; line-height: 1.5; }
-    .confirm { border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .65rem; font-size: .85rem; display: flex; flex-direction: column; gap: .5rem; }
+    .confirm { border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .65rem; font-size: .85rem; display: flex; flex-direction: column; gap: .5rem; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin-top: .5rem; }
     summary { cursor: pointer; padding: .4rem 0; font-size: .8rem; }
     .save-bar { border-top: 1px solid var(--color-darkborderc); margin-top: .8rem; padding-top: .65rem; }

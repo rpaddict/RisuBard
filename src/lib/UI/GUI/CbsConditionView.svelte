@@ -408,7 +408,7 @@
 <style>
     .cbs-condition-view { display: flex; flex-direction: column; container: cbs-editor / inline-size; height: 100%; min-height: 0; min-width: 0; overflow: hidden; color: var(--color-textcolor); background: var(--color-darkbg); font-size: .86rem; font-weight: 400; letter-spacing: normal; }
     .view-tools { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: .4rem; padding: .25rem .5rem; border-bottom: 1px solid var(--color-darkborderc); }
-    .variable-toggle { display: flex; align-items: center; gap: .3rem; padding: .15rem .4rem; border: 1px solid var(--color-darkborderc); border-radius: .2rem; color: var(--color-textcolor2); background: transparent; font: inherit; font-size: .73rem; cursor: pointer; }
+    .variable-toggle { display: flex; align-items: center; gap: .3rem; padding: .15rem .4rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 0.8); color: var(--color-textcolor2); background: transparent; font: inherit; font-size: .73rem; cursor: pointer; }
     .variable-toggle[aria-expanded='true'] { color: var(--color-textcolor); background: var(--color-selected); }
     .view-layout { --cbs-effective-variable-width: clamp(7rem, var(--cbs-variable-width, 17rem), calc(100% - 8rem)); position: relative; display: flex; flex: 1; min-height: 0; }
     .cbs-document { flex: 1; min-width: 0; overflow: auto; overscroll-behavior: contain; padding: .4rem .6rem; }
@@ -417,15 +417,15 @@
     .variable-splitter::after { position: absolute; top: calc(50% - 1rem); height: 2rem; left: 3px; border-left: 2px solid var(--color-borderc); content: ''; }
     .variable-splitter:hover, .variable-splitter:focus-visible, .variable-splitter:global([data-resizing]) { background: color-mix(in srgb, var(--color-borderc) 45%, transparent); outline: none; }
     .part { position: relative; min-width: 0; }
-    .block-drop-indicator { position: absolute; left: 0; right: 0; height: 4px; z-index: 5; border-radius: 2px; background: var(--color-primary); box-shadow: 0 0 0 1px var(--color-textcolor), 0 0 8px var(--color-primary); pointer-events: none; }
+    .block-drop-indicator { position: absolute; left: 0; right: 0; height: 4px; z-index: 5; border-radius: var(--risu-radius-xs); background: var(--color-primary); box-shadow: 0 0 0 1px var(--color-textcolor), 0 0 8px var(--color-primary); pointer-events: none; }
     .block-drop-indicator[data-cbs-drop-position='before'] { top: 0; }
     .block-drop-indicator[data-cbs-drop-position='after'] { bottom: 0; }
     .block-drop-indicator::before { content: ''; position: absolute; left: 0; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--color-primary); border: 1px solid var(--color-textcolor); }
-    .condition-block { margin: .85rem 0; border: 1px solid var(--color-borderc); border-bottom-width: 3px; border-left: 3px solid var(--color-primary); border-radius: .5rem; background: color-mix(in srgb, var(--color-primary) 5%, var(--color-darkbg)); }
+    .condition-block { margin: .85rem 0; border: 1px solid var(--color-borderc); border-bottom-width: 3px; border-left: 3px solid var(--color-primary); border-radius: var(--risu-radius-lg); background: color-mix(in srgb, var(--color-primary) 5%, var(--color-darkbg)); }
     .block-heading[draggable='true'] { cursor: grab; user-select: none; }
     .block-heading[draggable='true']:active { cursor: grabbing; }
-    .block-heading { min-height: 2.75rem; align-items: center; padding: .5rem .75rem; background: color-mix(in srgb, var(--color-primary) 12%, var(--color-darkbg)); border-radius: .35rem; }
-    .condition-block[open] > .block-heading { border-bottom: 1px solid var(--color-darkborderc); border-radius: .35rem .35rem 0 0; }
+    .block-heading { min-height: 2.75rem; align-items: center; padding: .5rem .75rem; background: color-mix(in srgb, var(--color-primary) 12%, var(--color-darkbg)); border-radius: calc(var(--risu-radius-sm) * 1.4); }
+    .condition-block[open] > .block-heading { border-bottom: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.4) calc(var(--risu-radius-sm) * 1.4) 0 0; }
     .block-heading:hover { background: color-mix(in srgb, var(--color-primary) 20%, var(--color-darkbg)); }
     .block-body { padding: .4rem .85rem .75rem 1.5rem; }
     .block-body > .part > .condition-block { margin-left: 1rem; }
@@ -441,13 +441,13 @@
     .condition-expression { display: flex; flex: 1; min-width: 0; align-items: center; }
     .block-heading :global(.block-drag-handle) { flex-shrink: 0; color: var(--color-textcolor2); opacity: .7; }
     .condition-actions { display: inline-flex; flex-shrink: 0; align-items: center; gap: .15rem; margin-left: auto; }
-    .condition-actions button { display: grid; width: 1.75rem; height: 1.75rem; place-content: center; border: 1px solid transparent; border-radius: .3rem; color: var(--color-textcolor2); background: transparent; cursor: pointer; }
+    .condition-actions button { display: grid; width: 1.75rem; height: 1.75rem; place-content: center; border: 1px solid transparent; border-radius: calc(var(--risu-radius-sm) * 1.2); color: var(--color-textcolor2); background: transparent; cursor: pointer; }
     .condition-actions button:hover { border-color: var(--color-darkborderc); color: var(--color-textcolor); background: var(--color-darkbutton); }
     .condition-actions button[data-cbs-delete-condition]:hover { color: var(--color-danger); }
     .condition-actions button:focus-visible, [data-cbs-condition-heading]:focus-visible { outline: 2px solid var(--color-borderc); outline-offset: 1px; }
     .logical-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; min-width: 0; max-width: 100%; }
-    .logical-group.nested { padding: .2rem .3rem; border: 1px solid color-mix(in srgb, var(--color-borderc) 65%, var(--color-darkborderc)); border-radius: .4rem; background: color-mix(in srgb, var(--color-selected) 18%, var(--color-darkbg)); }
-    .condition-clause, .expression-leaf { min-width: 0; max-width: 100%; padding: .15rem .4rem; border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-darkborderc)); border-radius: .3rem; background: color-mix(in srgb, var(--color-primary) 10%, var(--color-darkbg)); overflow-wrap: anywhere; }
+    .logical-group.nested { padding: .2rem .3rem; border: 1px solid color-mix(in srgb, var(--color-borderc) 65%, var(--color-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 0.8); background: color-mix(in srgb, var(--color-selected) 18%, var(--color-darkbg)); }
+    .condition-clause, .expression-leaf { min-width: 0; max-width: 100%; padding: .15rem .4rem; border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-darkborderc)); border-radius: calc(var(--risu-radius-sm) * 1.2); background: color-mix(in srgb, var(--color-primary) 10%, var(--color-darkbg)); overflow-wrap: anywhere; }
     .condition-clause { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: .3rem; }
     .condition-clause > .expression-leaf { padding: 0; border: 0; border-radius: 0; background: transparent; }
     [data-cbs-token='variable'] { color: var(--color-textcolor); font-weight: 600; }
@@ -456,7 +456,7 @@
     [data-cbs-token='raw'], .comparison-operator { color: var(--color-textcolor2); }
     .logical-operator { flex-shrink: 0; padding: .1rem .25rem; color: var(--color-textcolor); font: inherit; font-size: .75rem; font-weight: 600; }
     .condition-source { margin: 0; padding: .4rem .5rem; border-top: 1px solid var(--color-darkborderc); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
-    textarea { display: block; width: 100%; min-height: 1.75rem; field-sizing: content; padding: .2rem .5rem; border: 1px solid transparent;  border-radius: .15rem; background: transparent; color: var(--color-textcolor); font-family: inherit; font-size: .87rem; font-weight: 400; line-height: 1.65; resize: none; }
+    textarea { display: block; width: 100%; min-height: 1.75rem; field-sizing: content; padding: .2rem .5rem; border: 1px solid transparent;  border-radius: calc(var(--risu-radius-xs) * 1.2); background: transparent; color: var(--color-textcolor); font-family: inherit; font-size: .87rem; font-weight: 400; line-height: 1.65; resize: none; }
     textarea[data-cbs-preview-state='active'] { color: color-mix(in srgb, var(--color-info) 86%, var(--color-textcolor)); }
     textarea[data-cbs-preview-state='inactive']:not(:focus) { color: color-mix(in srgb, var(--color-textcolor2) 42%, var(--color-bgcolor)); opacity: .72; }
     textarea:hover { border-color: var(--color-darkborderc); }

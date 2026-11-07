@@ -915,35 +915,35 @@
     }
     :global(.character-vault-body) { min-height: 0; flex: 1; container-type: inline-size; container-name: character-vault; }
     .vault-title { display: inline-flex; align-items: center; gap: .45rem; font-family: var(--risu-font-family); letter-spacing: -.02em; }
-    .vault-shell { position: relative; display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: .7rem; }
+    .vault-shell { position: relative; display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.4); }
     .vault-rail { display: flex; min-height: 0; flex-direction: column; gap: .25rem; padding: .65rem; border-right: 1px solid var(--color-darkborderc); background: color-mix(in srgb, var(--color-darkbg) 87%, var(--color-warning) 13%); }
     .rail-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: .35rem; color: var(--color-textcolor2); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; }
     .rail-actions { display: flex; gap: .25rem; }
-    .rail-actions button { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border: 1px solid var(--color-darkborderc); border-radius: .35rem; background: color-mix(in srgb, var(--color-darkbg) 88%, var(--color-selected) 12%); color: var(--color-textcolor2); }
+    .rail-actions button { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.4); background: color-mix(in srgb, var(--color-darkbg) 88%, var(--color-selected) 12%); color: var(--color-textcolor2); }
     .rail-actions button:hover:not(:disabled) { border-color: var(--color-borderc); color: var(--color-textcolor); }
     .rail-actions button:disabled { cursor: not-allowed; opacity: .35; }
     .rail-actions .folder-sidebar-close { display: none; }
-    .folder-sort { width: 100%; margin-bottom: .2rem; padding: .3rem .4rem; border: 1px solid var(--color-darkborderc); border-radius: .3rem; background: var(--color-darkbg); color: var(--color-textcolor2); font-size: .65rem; }
-    .vault-rail > button, .folder-row > button:first-child { display: grid; width: 100%; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .42rem; padding: .48rem .5rem; border-radius: .42rem; color: var(--color-textcolor2); text-align: left; font-size: .76rem; transition: background 120ms ease, color 120ms ease; }
+    .folder-sort { width: 100%; margin-bottom: .2rem; padding: .3rem .4rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.2); background: var(--color-darkbg); color: var(--color-textcolor2); font-size: .65rem; }
+    .vault-rail > button, .folder-row > button:first-child { display: grid; width: 100%; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .42rem; padding: .48rem .5rem; border-radius: calc(var(--risu-radius-md) * 1.12); color: var(--color-textcolor2); text-align: left; font-size: .76rem; transition: background 120ms ease, color 120ms ease; }
     .vault-rail button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .vault-rail button small { font: 600 .64rem ui-monospace, monospace; opacity: .7; }
     .vault-rail button:hover, .vault-rail button.active { color: var(--color-textcolor); background: color-mix(in srgb, var(--color-selected) 75%, transparent); }
     .folder-list { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: .2rem .25rem .2rem 0; scrollbar-color: var(--color-borderc) transparent; scrollbar-gutter: stable; scrollbar-width: thin; }
     .folder-list::-webkit-scrollbar { width: .38rem; }
     .folder-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--color-borderc); }
-    .folder-row { position: relative; display: flex; align-items: center; border-left: 2px solid var(--folder-accent); border-radius: .42rem; transition: background 120ms ease, box-shadow 120ms ease; }
+    .folder-row { position: relative; display: flex; align-items: center; border-left: 2px solid var(--folder-accent); border-radius: calc(var(--risu-radius-md) * 1.12); transition: background 120ms ease, box-shadow 120ms ease; }
     .folder-row.drop-target, .vault-rail > button.drop-target { background: color-mix(in srgb, var(--color-warning) 18%, var(--color-selected)); box-shadow: inset 0 0 0 1px var(--color-warning), 0 0 0 2px color-mix(in srgb, var(--color-warning) 12%, transparent); }
     .folder-row.drop-target > button:first-child { color: var(--color-textcolor); }
     .vault-rail > button.drop-target { color: var(--color-textcolor); }
-    .folder-pin { flex: none; padding: .25rem; border-radius: .3rem; color: var(--color-textcolor2); opacity: .45; }
+    .folder-pin { flex: none; padding: .25rem; border-radius: calc(var(--risu-radius-sm) * 1.2); color: var(--color-textcolor2); opacity: .45; }
     .folder-pin:hover, .folder-pin.pinned { color: var(--color-warning); opacity: 1; }
     .vault-main { position: relative; display: flex; min-width: 0; min-height: 0; flex-direction: column; background: color-mix(in srgb, var(--color-darkbg) 97%, var(--color-bgcolor)); }
     .vault-toolbar { display: flex; align-items: center; gap: .7rem; padding: .7rem; border-bottom: 1px solid var(--color-darkborderc); }
     .folder-sidebar-toggle, .folder-sidebar-scrim { display: none; }
     .vault-toolbar > span { color: var(--color-textcolor2); font: 600 .72rem ui-monospace, monospace; }
-    .vault-search { display: flex; min-width: 0; flex: 1; align-items: center; gap: .45rem; padding: .45rem .55rem; border: 1px solid var(--color-darkborderc); border-radius: .48rem; background: color-mix(in srgb, var(--color-darkbg) 90%, var(--color-bgcolor)); color: var(--color-textcolor2); }
+    .vault-search { display: flex; min-width: 0; flex: 1; align-items: center; gap: .45rem; padding: .45rem .55rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.96); background: color-mix(in srgb, var(--color-darkbg) 90%, var(--color-bgcolor)); color: var(--color-textcolor2); }
     .vault-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--color-textcolor); font-size: .8rem; }
-    .character-sort { display: flex; height: 2rem; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: var(--color-darkbg); }
+    .character-sort { display: flex; height: 2rem; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--color-darkbg); }
     .character-sort select, .character-sort button { border: 0; background: transparent; color: var(--color-textcolor2); font-size: .7rem; }
     .character-sort select { padding: 0 .4rem; }
     .character-sort button { min-width: 3.5rem; padding: 0 .45rem; border-left: 1px solid var(--color-darkborderc); }
@@ -951,7 +951,7 @@
     .character-sort button:disabled { cursor: not-allowed; opacity: .4; }
     .folder-editor { display: grid; grid-template-columns: minmax(8rem, 1fr) auto minmax(15rem, 1.3fr); align-items: end; gap: .55rem; padding: .55rem .7rem; border-bottom: 1px solid var(--color-darkborderc); background: color-mix(in srgb, var(--color-selected) 35%, transparent); }
     .folder-editor label { display: grid; gap: .25rem; color: var(--color-textcolor2); font-size: .64rem; }
-    .folder-editor input:not([type=color]), .folder-editor select, .bulk-dock select { min-width: 0; height: 2rem; padding: 0 .45rem; border: 1px solid var(--color-darkborderc); border-radius: .35rem; background: var(--color-darkbg); color: var(--color-textcolor); font-size: .72rem; }
+    .folder-editor input:not([type=color]), .folder-editor select, .bulk-dock select { min-width: 0; height: 2rem; padding: 0 .45rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.4); background: var(--color-darkbg); color: var(--color-textcolor); font-size: .72rem; }
     .color-line { display: flex; align-items: center; gap: .22rem; }
     .color-chip { width: .95rem; height: .95rem; border: 1px solid var(--color-darkborderc); border-radius: 50%; }
     .color-chip.active { outline: 2px solid var(--color-textcolor); outline-offset: 1px; }
@@ -961,7 +961,7 @@
     .cover-control > span { grid-column: 1 / -1; }
     .character-grid { display: grid; min-height: 0; flex: 1; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); grid-auto-rows: max-content; align-content: start; gap: .65rem; overflow-y: auto; padding: .75rem; }
     .character-grid.grouped { display: flex; flex-direction: column; gap: 1.25rem; padding-top: 0; }
-    .vault-section { border-radius: .55rem; transition: box-shadow 120ms ease; }
+    .vault-section { border-radius: calc(var(--risu-radius-lg) * 1.1); transition: box-shadow 120ms ease; }
     .vault-section.drop-target { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-warning) 55%, transparent); }
     .vault-section-head { position: sticky; z-index: 3; top: 0; display: flex; min-width: 0; align-items: center; gap: .45rem; margin-bottom: .55rem; padding: .7rem .1rem .45rem; border-bottom: 1px solid var(--color-darkborderc); background: color-mix(in srgb, var(--color-darkbg) 97%, var(--color-bgcolor)); color: var(--color-textcolor2); }
     .vault-section.drop-target .vault-section-head { color: var(--color-textcolor); background: color-mix(in srgb, var(--color-warning) 14%, var(--color-darkbg)); }
@@ -970,17 +970,17 @@
     .vault-section-head h3 { min-width: 0; flex: 1 1 auto; margin: 0; overflow: hidden; color: var(--color-textcolor); font-size: .8rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
     .vault-section-head small { flex: none; font: 600 .66rem ui-monospace, monospace; opacity: .75; }
     .vault-section-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); grid-auto-rows: max-content; gap: .65rem; }
-    .vault-section-empty { margin: 0; padding: .9rem .75rem; border: 1px dashed var(--color-darkborderc); border-radius: .55rem; color: var(--color-textcolor2); font-size: .74rem; line-height: 1.5; }
-    .character-card { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; align-self: start; isolation: isolate; overflow: hidden; cursor: grab; border: 1px solid var(--color-darkborderc); border-radius: .55rem; background: color-mix(in srgb, var(--color-darkbg) 88%, var(--color-selected) 12%); transition: border-color 120ms ease, opacity 120ms ease, transform 120ms ease; }
+    .vault-section-empty { margin: 0; padding: .9rem .75rem; border: 1px dashed var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.1); color: var(--color-textcolor2); font-size: .74rem; line-height: 1.5; }
+    .character-card { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; align-self: start; isolation: isolate; overflow: hidden; cursor: grab; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.1); background: color-mix(in srgb, var(--color-darkbg) 88%, var(--color-selected) 12%); transition: border-color 120ms ease, opacity 120ms ease, transform 120ms ease; }
     .character-card:hover { transform: translateY(-1px); border-color: var(--color-borderc); }
     .character-card:focus-visible { outline: 2px solid var(--color-warning); outline-offset: 2px; }
     .character-card.selected { border-color: var(--color-warning); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-warning) 35%, transparent); }
     .character-card.dragging { cursor: grabbing; opacity: .42; transform: scale(.98); }
     .portrait { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; background: color-mix(in srgb, var(--color-selected) 45%, var(--color-darkbg)); color: var(--color-textcolor2); }
     .portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
-    .select-character, .pin-character, .open-character, .rename-character { position: absolute; z-index: 2; display: grid; width: 1.55rem; height: 1.55rem; place-items: center; border: 1px solid color-mix(in srgb, var(--color-media-text) 22%, transparent); border-radius: .38rem; background: color-mix(in srgb, var(--color-media-bg) 62%, transparent); color: var(--color-media-text); backdrop-filter: blur(6px); }
+    .select-character, .pin-character, .open-character, .rename-character { position: absolute; z-index: 2; display: grid; width: 1.55rem; height: 1.55rem; place-items: center; border: 1px solid color-mix(in srgb, var(--color-media-text) 22%, transparent); border-radius: calc(var(--risu-radius-lg) * 0.76); background: color-mix(in srgb, var(--color-media-bg) 62%, transparent); color: var(--color-media-text); backdrop-filter: blur(6px); }
     .select-character { left: .38rem; }
-    .package-badge { position: absolute; z-index: 1; top: 2.15rem; left: .38rem; padding: .05rem .38rem; border: 1px solid color-mix(in srgb, var(--color-media-text) 22%, transparent); border-radius: .3rem; background: color-mix(in srgb, var(--color-media-bg) 62%, transparent); color: var(--color-media-text); font-size: .68rem; font-weight: 600; line-height: 1.4; letter-spacing: .02em; pointer-events: none; backdrop-filter: blur(6px); }
+    .package-badge { position: absolute; z-index: 1; top: 2.15rem; left: .38rem; padding: .05rem .38rem; border: 1px solid color-mix(in srgb, var(--color-media-text) 22%, transparent); border-radius: calc(var(--risu-radius-sm) * 1.2); background: color-mix(in srgb, var(--color-media-bg) 62%, transparent); color: var(--color-media-text); font-size: .68rem; font-weight: 600; line-height: 1.4; letter-spacing: .02em; pointer-events: none; backdrop-filter: blur(6px); }
     .select-character, .pin-character { top: .38rem; }
     .pin-character, .open-character { right: .38rem; }
     .open-character { bottom: .38rem; }
@@ -992,17 +992,17 @@
     .character-card:hover .character-caption, .character-card:focus-visible .character-caption, .character-card:focus-within .character-caption { opacity: 1; }
     .character-caption strong { display: block; max-width: 100%; overflow: hidden; color: var(--color-media-text); font-size: clamp(1rem, 1.65vw, 1.4rem); font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; text-shadow: 0 .12rem .5rem color-mix(in srgb, var(--color-shadow) 72%, transparent); text-wrap: balance; }
     .empty-vault { grid-column: 1 / -1; display: flex; min-height: 12rem; align-items: center; justify-content: center; gap: .45rem; color: var(--color-textcolor2); font-size: .8rem; }
-    .bulk-dock { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 .75rem .75rem; padding: .55rem; border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-darkborderc)); border-radius: .55rem; background: color-mix(in srgb, var(--color-darkbg) 91%, var(--color-warning) 9%); box-shadow: 0 .9rem 2.4rem color-mix(in srgb, var(--color-shadow) 36%, transparent); }
+    .bulk-dock { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 .75rem .75rem; padding: .55rem; border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 1.1); background: color-mix(in srgb, var(--color-darkbg) 91%, var(--color-warning) 9%); box-shadow: var(--risu-shadow-overlay, 0 .9rem 2.4rem color-mix(in srgb, var(--color-shadow) 36%, transparent)); }
     .bulk-dock strong { color: var(--color-textcolor); font-size: .74rem; white-space: nowrap; }
     .bulk-dock select { width: 9rem; }
     .bulk-actions { display: flex; min-width: 0; flex: 1 1 auto; flex-wrap: wrap; gap: .5rem; }
     .vault-notice { min-height: 1rem; margin: 0; color: var(--color-textcolor2); font-size: .7rem; }
     @container character-vault (max-width: 50rem) {
         .vault-shell { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); }
-        .vault-rail { position: absolute; z-index: 6; top: 0; bottom: 0; left: 0; width: min(18rem, 86%); max-height: none; visibility: hidden; border-right: 1px solid var(--color-darkborderc); box-shadow: 1rem 0 2.5rem color-mix(in srgb, var(--color-shadow) 48%, transparent); pointer-events: none; transform: translateX(-105%); transition: transform 180ms ease-out; }
+        .vault-rail { position: absolute; z-index: 6; top: 0; bottom: 0; left: 0; width: min(18rem, 86%); max-height: none; visibility: hidden; border-right: 1px solid var(--color-darkborderc); box-shadow: var(--risu-shadow-overlay, 1rem 0 2.5rem color-mix(in srgb, var(--color-shadow) 48%, transparent)); pointer-events: none; transform: translateX(-105%); transition: transform 180ms ease-out; }
         .vault-rail.open { visibility: visible; pointer-events: auto; transform: translateX(0); }
         .folder-sidebar-scrim { position: absolute; z-index: 5; inset: 0; display: block; width: 100%; height: 100%; border: 0; border-radius: 0; background: color-mix(in srgb, var(--color-shadow) 58%, transparent); }
-        .folder-sidebar-toggle { display: grid; width: 2.75rem; height: 2.75rem; flex: none; place-items: center; border: 1px solid var(--color-darkborderc); border-radius: .48rem; background: var(--color-darkbg); color: var(--color-textcolor); touch-action: manipulation; }
+        .folder-sidebar-toggle { display: grid; width: 2.75rem; height: 2.75rem; flex: none; place-items: center; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.96); background: var(--color-darkbg); color: var(--color-textcolor); touch-action: manipulation; }
         .rail-actions .folder-sidebar-close { display: grid; width: 2.75rem; height: 2.75rem; }
         .vault-rail > button, .folder-row > button:first-child { min-height: 2.75rem; }
         .folder-pin { display: grid; width: 2.75rem; height: 2.75rem; place-items: center; }

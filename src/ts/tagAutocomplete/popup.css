@@ -11,7 +11,7 @@
     border-radius: .5em;
     background: var(--color-bgcolor);
     color: var(--color-textcolor);
-    box-shadow: 0 .4em 1.5em #0004;
+    box-shadow: var(--risu-shadow-overlay, 0 .4em 1.5em #0004);
 }
 .tag-autocomplete-option {
     display: grid;

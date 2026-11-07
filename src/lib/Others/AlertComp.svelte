@@ -971,7 +971,7 @@
         background-color: var(--risu-theme-bgcolor);
         color: var(--risu-theme-textcolor2);
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: 0.25rem;
+        border-radius: var(--risu-radius-sm);
         padding: 0.75rem 2.75rem 0.75rem 0.75rem;
         font-family: monospace;
         font-size: 0.75rem;
@@ -991,7 +991,7 @@
         width: 1.75rem;
         height: 1.75rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: 0.375rem;
+        border-radius: var(--risu-radius-md);
         background-color: var(--risu-theme-darkbg);
         color: var(--risu-theme-textcolor2);
         transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;

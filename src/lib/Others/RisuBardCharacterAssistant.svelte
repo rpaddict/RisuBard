@@ -1482,7 +1482,7 @@
         border-left: 1px solid color-mix(in srgb, var(--risu-theme-primary) 28%, var(--risu-theme-darkborderc));
         color: var(--risu-theme-textcolor);
         background: var(--risu-theme-darkbg);
-        box-shadow: -.8rem 0 2.4rem color-mix(in srgb, var(--color-shadow) 18%, transparent);
+        box-shadow: var(--risu-shadow-overlay, -.8rem 0 2.4rem color-mix(in srgb, var(--color-shadow) 18%, transparent));
         animation: dock-enter .18s ease-out;
         container-type: inline-size;
     }
@@ -1578,7 +1578,7 @@
         height: 1.8rem;
         place-items: center;
         border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 38%, var(--risu-theme-darkborderc));
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         color: var(--risu-theme-primary);
         background: color-mix(in srgb, var(--risu-theme-primary) 9%, transparent);
     }
@@ -1589,7 +1589,7 @@
         height: 2rem;
         place-items: center;
         border: 1px solid transparent;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         cursor: pointer;
@@ -1612,7 +1612,7 @@
         box-sizing: border-box;
         padding: 0 .55rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 82%, var(--color-bgcolor));
         font-size: .78rem;
@@ -1658,13 +1658,13 @@
         box-sizing: border-box;
         padding: .15rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 82%, var(--color-bgcolor));
     }
     .segmented button {
         padding: 0 .65rem;
         border: 0;
-        border-radius: .28rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.12);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         font-size: .74rem;
@@ -1722,7 +1722,7 @@
     .examples button {
         padding: .55rem .7rem;
         border: 1px solid var(--pa-line);
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         color: var(--risu-theme-textcolor);
         text-align: left;
         background: color-mix(in srgb, var(--risu-theme-primary) 4%, transparent);
@@ -1753,7 +1753,7 @@
         max-width: 100%;
         padding: .55rem .7rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--color-bgcolor));
     }
     .body {
@@ -1782,7 +1782,7 @@
     .markdown :global(strong) { font-weight: 700; }
     .markdown :global(code) {
         padding: .05rem .28rem;
-        border-radius: .25rem;
+        border-radius: var(--risu-radius-sm);
         background: color-mix(in srgb, var(--risu-theme-primary) 10%, transparent);
         font: .74rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
     }
@@ -1790,7 +1790,7 @@
         overflow-x: auto;
         padding: .65rem .75rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--color-darkbg));
         white-space: pre-wrap;
     }
@@ -1809,7 +1809,7 @@
         min-height: 1.75rem;
         padding: 0 .6rem;
         border: 1px solid var(--pa-line);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-primary) 8%, transparent);
         font-size: .7rem;
@@ -1873,7 +1873,7 @@
         min-width: 0;
         padding: .6rem .65rem;
         border: 1px solid var(--pa-line);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 86%, var(--color-bgcolor));
     }
     .edit-card[data-status='applied'] { border-color: color-mix(in srgb, var(--risu-theme-primary) 60%, var(--risu-theme-darkborderc)); }
@@ -1904,7 +1904,7 @@
         overflow: auto;
         padding: .45rem .55rem;
         border-left: 3px solid;
-        border-radius: .3rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.2);
         font: .72rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
@@ -1926,7 +1926,7 @@
         min-height: 1.85rem;
         padding: 0 .65rem;
         border: 1px solid var(--pa-line);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         background: transparent;
         font-size: .72rem;
@@ -1958,7 +1958,7 @@
         resize: vertical;
         padding: .55rem .65rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 82%, var(--color-bgcolor));
         font-size: .8rem;
@@ -1980,7 +1980,7 @@
         padding: .6rem .65rem;
         border: 1px solid var(--pa-line);
         border-left: 3px solid var(--risu-theme-primary);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 86%, var(--color-bgcolor));
     }
     .play-turn:is([data-outcome='stopped'], [data-outcome='failed']) { border-left-color: var(--risu-theme-draculared); }
@@ -2011,7 +2011,7 @@
         min-height: 2rem;
         padding: 0 .4rem;
         border: 0;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         font-size: .72rem;
@@ -2053,7 +2053,7 @@
         max-width: 100%;
         min-height: 1.6rem;
         border: 1px solid var(--pa-line);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         background: color-mix(in srgb, var(--risu-theme-primary) 6%, transparent);
     }
     .pin-chip.missing { border-style: dashed; opacity: .7; }
@@ -2099,7 +2099,7 @@
     .panel-search { flex: 1 1 auto; }
     .panel-title { min-width: 0; overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
     .picker-list { flex: 1 1 auto; min-height: 0; margin: 0; padding: .3rem .4rem .8rem; overflow-y: auto; list-style: none; scrollbar-width: thin; }
-    .picker-list li { display: flex; align-items: flex-start; gap: .2rem; border-radius: .35rem; }
+    .picker-list li { display: flex; align-items: flex-start; gap: .2rem; border-radius: calc(var(--risu-radius-sm) * 1.4); }
     .picker-list li.pinned { background: color-mix(in srgb, var(--risu-theme-primary) 7%, transparent); }
     .picker-pin {
         display: grid;
@@ -2108,7 +2108,7 @@
         height: 2rem;
         place-items: center;
         border: 0;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor2);
         background: none;
         cursor: pointer;
@@ -2121,7 +2121,7 @@
         min-width: 0;
         padding: .4rem .3rem;
         border: 0;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         text-align: left;
         background: none;
@@ -2141,7 +2141,7 @@
         padding: .65rem .75rem;
         overflow: auto;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--color-darkbg));
         font: .74rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
         white-space: pre-wrap;
@@ -2182,7 +2182,7 @@
             height: auto;
             border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 28%, var(--risu-theme-darkborderc));
             border-right: 0;
-            border-radius: .6rem 0 0 .6rem;
+            border-radius: calc(var(--risu-radius-lg) * 1.2) 0 0 calc(var(--risu-radius-lg) * 1.2);
         }
         .collapsed .rail { padding: .8rem 0; }
         .dock-resizer { display: none; }

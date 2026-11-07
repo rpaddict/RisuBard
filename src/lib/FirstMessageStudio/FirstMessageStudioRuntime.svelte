@@ -277,7 +277,7 @@
 </section>
 
 <style>
-    .studio-window{position:relative;width:min(34rem,100%);margin:1rem auto;overflow:hidden;border:1px solid color-mix(in srgb,var(--studio-text) 14%,transparent);border-radius:var(--studio-radius);color:var(--studio-text);background:var(--studio-bg);box-shadow:0 1.2rem 3.5rem color-mix(in srgb, var(--color-shadow) 28%, transparent);font-family:ui-sans-serif,system-ui,sans-serif}
+    .studio-window{position:relative;width:min(34rem,100%);margin:1rem auto;overflow:hidden;border:1px solid color-mix(in srgb,var(--studio-text) 14%,transparent);border-radius:var(--studio-radius);color:var(--studio-text);background:var(--studio-bg);box-shadow:var(--risu-shadow-overlay, 0 1.2rem 3.5rem color-mix(in srgb, var(--color-shadow) 28%, transparent));font-family:ui-sans-serif,system-ui,sans-serif}
     .skin-glass{border-color:color-mix(in srgb,var(--studio-accent) 35%,transparent);background:linear-gradient(145deg,color-mix(in srgb,var(--studio-bg) 88%,transparent),color-mix(in srgb,var(--studio-accent) 9%,var(--studio-bg)));backdrop-filter:blur(18px)}
     .window-header{display:flex;align-items:center;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid color-mix(in srgb,var(--studio-text) 12%,transparent);background:color-mix(in srgb,var(--studio-surface) 78%,var(--studio-bg))}
     .window-header>strong{overflow:hidden;font-size:.88rem;text-overflow:ellipsis;white-space:nowrap}
@@ -288,9 +288,9 @@
     .studio-extra{padding:.8rem 1rem 0}
     .window-body{min-height:18rem;padding:1rem;background:var(--studio-surface)}
     .screen-heading{display:grid;gap:.35rem}
-    .screen-heading>span{width:max-content;padding:.18rem .42rem;border-radius:.25rem;color:var(--studio-bg);background:var(--studio-accent);font-size:.62rem;font-weight:850;letter-spacing:.08em}
+    .screen-heading>span{width:max-content;padding:.18rem .42rem;border-radius:var(--risu-radius-sm);color:var(--studio-bg);background:var(--studio-accent);font-size:.62rem;font-weight:850;letter-spacing:.08em}
     .screen-heading h3{margin:0;font-size:1.2rem}
-    .description{margin:.8rem 0;padding:.75rem;border-left:3px solid var(--studio-accent);border-radius:.25rem;background:color-mix(in srgb,var(--studio-accent) 8%,transparent)}
+    .description{margin:.8rem 0;padding:.75rem;border-left:3px solid var(--studio-accent);border-radius:var(--risu-radius-sm);background:color-mix(in srgb,var(--studio-accent) 8%,transparent)}
     .description b{display:block;margin-bottom:.25rem;color:var(--studio-accent);font-size:.68rem;letter-spacing:.06em}
     .description p{margin:0;font-size:.82rem;line-height:1.55}
     .option-presentation{display:grid;gap:.65rem;margin:.8rem 0}.presentation-image-frame{position:relative;display:grid;width:100%;place-items:center;overflow:hidden;margin-inline:auto;border:1px solid color-mix(in srgb,var(--studio-accent) 30%,transparent);border-radius:calc(var(--studio-radius) * .55);background:color-mix(in srgb,var(--studio-bg) 62%,var(--studio-surface));box-shadow:inset 0 1px color-mix(in srgb,var(--studio-text) 5%,transparent)}.presentation-image-frame.frame-contain{max-height:18rem;padding:.5rem}.presentation-image-frame.frame-square{width:min(100%,20rem);aspect-ratio:1}.presentation-image-frame.frame-landscape{aspect-ratio:16/9}.presentation-image-frame.frame-portrait{width:min(100%,18rem);aspect-ratio:3/4}.presentation-image-frame.frame-contain img{display:block;width:auto;height:auto;max-width:100%;max-height:17rem;object-fit:contain;object-position:center}.presentation-image-frame:not(.frame-contain) img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}.presentation-copy{display:grid;align-content:center;gap:.42rem;padding:.75rem;border-left:3px solid var(--studio-accent);border-radius:calc(var(--studio-radius) * .25);background:color-mix(in srgb,var(--studio-accent) 7%,transparent)}.presentation-copy b{color:var(--studio-accent);font-size:.7rem;letter-spacing:.06em}.presentation-copy p{margin:0;font-size:.84rem;line-height:1.6}
@@ -303,15 +303,15 @@
     .option-copy{display:grid;gap:.12rem}
     .option-copy strong{font-size:.8rem}
     .option-copy small{color:color-mix(in srgb,var(--studio-text) 64%,transparent);font-size:.68rem;line-height:1.35}
-    .input-panel{display:grid;gap:.3rem;padding:.55rem;border:1px dashed color-mix(in srgb,var(--studio-accent) 40%,transparent);border-radius:.35rem}
+    .input-panel{display:grid;gap:.3rem;padding:.55rem;border:1px dashed color-mix(in srgb,var(--studio-accent) 40%,transparent);border-radius:calc(var(--risu-radius-sm) * 1.4)}
     .input-panel span{color:var(--studio-accent);font-size:.68rem;font-weight:750}
-    .input-panel input{width:100%;border:1px solid color-mix(in srgb,var(--studio-text) 16%,transparent);border-radius:.3rem;padding:.5rem;color:var(--studio-text);background:var(--studio-bg)}
+    .input-panel input{width:100%;border:1px solid color-mix(in srgb,var(--studio-text) 16%,transparent);border-radius:calc(var(--risu-radius-sm) * 1.2);padding:.5rem;color:var(--studio-text);background:var(--studio-bg)}
     .validation{margin:.6rem 0 0;color:var(--color-danger);font-size:.72rem}
     .complete{display:grid;min-height:14rem;place-content:center;text-align:center}
     .complete strong{color:var(--studio-accent);font-size:1.35rem}
     .complete p{font-size:.8rem}
     .window-actions{display:flex;gap:.5rem;justify-content:flex-end;padding:.7rem 1rem;border-top:1px solid color-mix(in srgb,var(--studio-text) 12%,transparent);background:var(--studio-bg)}
-    .window-actions button{padding:.48rem .75rem;border:1px solid color-mix(in srgb,var(--studio-text) 16%,transparent);border-radius:.35rem;color:var(--studio-text)}
+    .window-actions button{padding:.48rem .75rem;border:1px solid color-mix(in srgb,var(--studio-text) 16%,transparent);border-radius:calc(var(--risu-radius-sm) * 1.4);color:var(--studio-text)}
     .window-actions button:disabled{opacity:.4}
     @media(max-width:34rem){.options{grid-template-columns:1fr}.option-wrap.with-input{grid-column:auto}}
     @media(prefers-reduced-motion:reduce){.option-wrap button{transition:none}}

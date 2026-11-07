@@ -108,14 +108,14 @@
     h3 { font-size: .95rem; font-weight: 600; }
     fieldset, label { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
     fieldset { border: 0; padding: 0; margin: 0; gap: .85rem; }
-    input { width: 100%; min-width: 0; border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: .4rem; padding: .6rem; }
-    button { min-height: 2.75rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .4rem .7rem; overflow-wrap: anywhere; font-size: .85rem; }
+    input { width: 100%; min-width: 0; border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .6rem; }
+    button { min-height: 2.75rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .4rem .7rem; overflow-wrap: anywhere; font-size: .85rem; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
     button:disabled { opacity: .5; cursor: not-allowed; }
     button:focus-visible, input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .primary { background: var(--color-primary); color: var(--color-accenttext); }
     .hint, .feedback { color: var(--color-textcolor2); font-size: .8rem; line-height: 1.55; overflow-wrap: anywhere; }
     .error { color: var(--color-danger); }
-    .confirm { border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .7rem; }
+    .confirm { border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .7rem; }
     @container (max-width: 560px) { .workspace { grid-template-columns: 1fr; overflow-y: auto; } aside { max-height: 14rem; border-right: 0; border-bottom: 1px solid var(--color-darkborderc); padding: 0 0 .75rem; } .editor { overflow-y: visible; } }
 </style>

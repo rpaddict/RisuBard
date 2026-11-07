@@ -160,7 +160,7 @@
         min-height: 2rem;
         padding: .3rem .55rem;
         border: 1px solid var(--settings-border);
-        border-radius: .48rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.96);
         color: var(--risu-theme-textcolor2);
         background: color-mix(in srgb, var(--risu-theme-bgcolor) 76%, transparent);
         font-size: .73rem;
@@ -189,7 +189,7 @@
         height: 2.15rem;
         padding: 0 .5rem;
         border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 30%, var(--settings-border));
-        border-radius: .48rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.96);
         outline: none;
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-bgcolor) 82%, transparent);

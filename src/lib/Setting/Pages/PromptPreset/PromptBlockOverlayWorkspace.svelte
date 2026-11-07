@@ -1078,7 +1078,7 @@
     .result-panel,
     .empty-state--large {
         border: 1px solid var(--color-darkborderc);
-        border-radius: .9rem;
+        border-radius: calc(var(--risu-radius-2xl) * 0.9);
         background: color-mix(in srgb, var(--color-darkbg) 92%, var(--color-bgcolor));
     }
     .setup-card { padding: 1rem; }
@@ -1112,7 +1112,7 @@
         height: 2.35rem;
         flex: 0 0 auto;
         place-items: center;
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         color: var(--color-binding-text);
         background: var(--color-binding);
     }
@@ -1131,7 +1131,7 @@
     .top-pane {
         min-width: 0;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         padding: .6rem;
         background: color-mix(in srgb, var(--color-darkbutton) 18%, transparent);
         container-name: top-tools;
@@ -1169,7 +1169,7 @@
      .extract-button {
         min-height: 2.35rem;
         border: 1px solid var(--color-borderc);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         padding: .4rem .68rem;
         color: var(--color-textcolor);
         background: var(--color-darkbutton);
@@ -1241,7 +1241,7 @@
         min-width: 0;
         width: 100%;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         padding: .4rem .55rem;
         color: var(--color-textcolor);
         background: var(--color-darkbg);
@@ -1257,7 +1257,7 @@
         justify-content: space-between;
         gap: .75rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         padding: .55rem .65rem;
         background: color-mix(in srgb, var(--color-darkbutton) 28%, transparent);
     }
@@ -1350,7 +1350,7 @@
         border: 1px solid var(--color-darkborderc);
         border-left-width: .25rem;
         border-left-color: transparent;
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         padding: .4rem .55rem;
         background: color-mix(in srgb, var(--color-darkbutton) 14%, transparent);
         cursor: pointer;
@@ -1421,7 +1421,7 @@
         height: 1.35rem;
         place-items: center;
         border: 1px solid color-mix(in srgb, var(--color-textcolor2) 55%, var(--color-darkborderc));
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         padding: 0;
         color: var(--color-textcolor2);
         background: color-mix(in srgb, var(--color-darkbg) 74%, transparent);
@@ -1479,7 +1479,7 @@
         flex: 0 0 auto;
         overflow: hidden;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
     }
     .result-row {
         display: grid;
@@ -1539,7 +1539,7 @@
         width: 1.35rem;
         height: 1.35rem;
         place-items: center;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--color-textcolor2);
         background: var(--color-darkbutton);
         font-size: .7rem;
@@ -1551,7 +1551,7 @@
         flex-direction: column;
         gap: .25rem;
         border: 1px solid var(--color-danger);
-        border-radius: .55rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.1);
         padding: .6rem;
         color: var(--color-danger);
         background: color-mix(in srgb, var(--color-danger) 9%, var(--color-darkbg));

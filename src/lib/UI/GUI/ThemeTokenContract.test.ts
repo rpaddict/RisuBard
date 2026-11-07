@@ -57,6 +57,10 @@ describe('RisuBard UI theme token contract', () => {
     test('declares every skin token with its default and routes Tailwind radius and shadow through it', () => {
         const styles = readFileSync(join(sourceRoot, 'styles.css'), 'utf8')
         for (const { token, group, defaultValue } of uiSkinTokenDefinitions) {
+            if (group === 'shadow-role') {
+                expect(styles.includes(`--risu-${token}:`), `${token} must stay unset so uses fall back`).toBe(false)
+                continue
+            }
             expect(styles.includes(`--risu-${token}: ${defaultValue};`), `${token} default`).toBe(true)
             if (group !== 'font') {
                 expect(styles.includes(`--${token}: var(--risu-${token});`), `${token} Tailwind alias`).toBe(true)

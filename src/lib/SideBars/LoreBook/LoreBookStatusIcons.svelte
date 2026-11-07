@@ -75,7 +75,7 @@
 <style>
     .status-icons { display: inline-flex; align-items: center; gap: .38rem; color: var(--color-textcolor2); }
     .status-icons > span, .activation-status { display: inline-flex; align-items: center; justify-content: center; }
-    button.activation-status { margin: 0; padding: .18rem; border: 0; border-radius: .35rem; background: transparent; color: inherit; cursor: pointer; }
+    button.activation-status { margin: 0; padding: .18rem; border: 0; border-radius: calc(var(--risu-radius-sm) * 1.4); background: transparent; color: inherit; cursor: pointer; }
     button.activation-status:hover { background: color-mix(in srgb, var(--color-selected) 55%, transparent); color: var(--color-textcolor); }
     .unreachable { color: var(--color-danger); }
     .hidden-status { color: var(--color-textcolor2); opacity: .58; }

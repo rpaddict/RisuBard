@@ -179,18 +179,18 @@
     .message-label, .empty { color: var(--color-textcolor2); font-size: .8rem; }
     label { display: flex; align-items: center; gap: .35rem; font-size: .8rem; cursor: pointer; white-space: nowrap; }
     input[type='checkbox'] { accent-color: var(--color-primary); }
-    .search, select, .font-size { padding: .45rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: var(--color-darkbg); color: var(--color-textcolor); }
+    .search, select, .font-size { padding: .45rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--color-darkbg); color: var(--color-textcolor); }
     .search { flex: 1; min-width: 0; }
     select { max-width: 9rem; font-size: .8rem; }
     .font-size { width: 3.6rem; padding: .15rem .25rem; }
-    .icon-button, .source-button { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; padding: .35rem; border-radius: .3rem; flex-shrink: 0; }
+    .icon-button, .source-button { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; padding: .35rem; border-radius: calc(var(--risu-radius-sm) * 1.2); flex-shrink: 0; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); color: var(--color-primary); }
     button:disabled { opacity: .4; }
     input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .entries { display: grid; gap: .9rem; position: relative; z-index: 0; }
-    .delete-button { display: inline-flex; align-items: center; gap: .3rem; padding: .35rem; border-radius: .3rem; flex-shrink: 0; white-space: nowrap; color: var(--color-textcolor2); }
+    .delete-button { display: inline-flex; align-items: center; gap: .3rem; padding: .35rem; border-radius: calc(var(--risu-radius-sm) * 1.2); flex-shrink: 0; white-space: nowrap; color: var(--color-textcolor2); }
     button.delete-button:hover:not(:disabled) { color: var(--color-danger); }
-    article { min-width: 0; border: 1px solid var(--color-darkborderc); border-radius: .5rem; background: var(--color-darkbg); padding: 1rem; }
+    article { min-width: 0; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); background: var(--color-darkbg); padding: 1rem; }
     article.user { border-left: 3px solid var(--color-primary); }
     .message-label { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }
     .source-button { margin-left: auto; white-space: nowrap; }

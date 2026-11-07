@@ -480,7 +480,7 @@
 {/if}
 
 <style>
-    .presets { container-type: inline-size; min-width: 0; color: var(--color-textcolor); border: 1px solid var(--color-darkborderc); border-radius: .5rem; background: var(--color-darkbg); }
+    .presets { container-type: inline-size; min-width: 0; color: var(--color-textcolor); border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); background: var(--color-darkbg); }
     .presets.embedded { display: flex; flex-direction: column; height: 100%; min-height: 0; border: 0; background: transparent; }
     .presets.embedded > .content { flex: 1; min-height: 0; padding: 0; }
     .presets-heading { padding: .65rem; font-weight: 600; }
@@ -496,13 +496,13 @@
     .search input { padding-left: 1.9rem; }
     label { display: flex; flex-direction: column; gap: .25rem; font-size: .8rem; color: var(--color-textcolor2); min-width: 0; }
     label > :global(input), label > :global(select), label > :global(textarea), label > :global(div) { color: var(--color-textcolor); }
-    input, select, textarea { width: 100%; min-width: 0; border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: .3rem; padding: .4rem .55rem; min-height: 2.1rem; font-size: .85rem; }
+    input, select, textarea { width: 100%; min-width: 0; border: 1px solid var(--color-darkborderc); background: var(--color-bgcolor); color: var(--color-textcolor); border-radius: calc(var(--risu-radius-sm) * 1.2); padding: .4rem .55rem; min-height: 2.1rem; font-size: .85rem; }
     textarea { display: block; resize: vertical; line-height: 1.5; font-family: inherit; }
     textarea::placeholder, input::placeholder { color: var(--color-textcolor2); opacity: .8; }
     .field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
     .field-label { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .15rem; min-height: 1.5rem; }
     input[type="checkbox"] { flex-shrink: 0; width: 1rem; min-height: 1rem; height: 1rem; padding: 0; accent-color: var(--color-primary); }
-    button { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2.1rem; border: 1px solid var(--color-darkborderc); border-radius: .3rem; padding: .3rem .65rem; font-size: .8rem; white-space: nowrap; }
+    button { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2.1rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.2); padding: .3rem .65rem; font-size: .8rem; white-space: nowrap; }
     button:hover:not(:disabled) { background: var(--color-darkbutton); }
     button:disabled, fieldset:disabled { opacity: .55; }
     button:disabled { cursor: default; }
@@ -517,7 +517,7 @@
     .group-heading h3 { font-size: .78rem; font-weight: 600; color: var(--color-textcolor2); }
     .count { font-size: .72rem; font-variant-numeric: tabular-nums; color: var(--color-textcolor2); }
     .pick-button { margin-left: auto; }
-    .row { display: flex; align-items: center; gap: .1rem; border-radius: .3rem; min-width: 0; }
+    .row { display: flex; align-items: center; gap: .1rem; border-radius: calc(var(--risu-radius-sm) * 1.2); min-width: 0; }
     .row:hover { background: color-mix(in srgb, var(--color-darkbutton) 55%, transparent); }
     .row.selected { background: var(--color-selected); }
     .row-name { display: flex; flex: 1; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; border: 0; padding: .3rem .4rem; gap: 0; white-space: normal; }
@@ -527,7 +527,7 @@
     .row-name.inline > span:first-child { flex: 1; min-width: 0; }
     .row-name strong { font-weight: 600; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; }
     .name-line { display: flex; align-items: center; gap: .3rem; min-width: 0; }
-    .tag { flex-shrink: 0; padding: .05rem .35rem; border-radius: .25rem; background: var(--color-bgcolor); color: var(--color-textcolor2); font-size: .68rem; line-height: 1.5; white-space: nowrap; }
+    .tag { flex-shrink: 0; padding: .05rem .35rem; border-radius: var(--risu-radius-sm); background: var(--color-bgcolor); color: var(--color-textcolor2); font-size: .68rem; line-height: 1.5; white-space: nowrap; }
     .tag.accent { color: var(--color-primary); }
     .tag.warn { color: var(--color-danger); }
     .icon-button { flex-shrink: 0; width: 1.6rem; min-height: 1.7rem; padding: 0; border-color: transparent; color: var(--color-textcolor2); }
@@ -553,7 +553,7 @@
     .delete-button { color: var(--color-danger); }
     .text-button { border-color: transparent; padding: .25rem .4rem; min-height: 1.8rem; color: var(--color-textcolor2); }
     .text-button:hover:not(:disabled) { color: var(--color-textcolor); }
-    .confirmation { padding: .6rem; background: var(--color-bgcolor); border: 1px solid var(--color-darkborderc); border-radius: .3rem; font-size: .8rem; line-height: 1.5; }
+    .confirmation { padding: .6rem; background: var(--color-bgcolor); border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.2); font-size: .8rem; line-height: 1.5; }
     .confirmation p { margin: 0 0 .5rem; }
     .editor-pane > .confirmation { margin-top: .6rem; }
     .feedback { margin-top: .5rem; }
@@ -568,7 +568,7 @@
     .default-select select { width: auto; max-width: 14rem; }
     .option-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr)); gap: .3rem; max-height: 16rem; overflow: auto; }
     .picker .option-grid { max-height: none; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); }
-    .option { flex-direction: row; align-items: center; gap: .45rem; min-height: 2.2rem; padding: .3rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: .3rem; color: var(--color-textcolor); font-size: .8rem; cursor: pointer; }
+    .option { flex-direction: row; align-items: center; gap: .45rem; min-height: 2.2rem; padding: .3rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.2); color: var(--color-textcolor); font-size: .8rem; cursor: pointer; }
     .option:has(input:checked) { border-color: color-mix(in srgb, var(--color-primary) 60%, var(--color-darkborderc)); background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
     .option-text { display: flex; flex-direction: column; min-width: 0; }
     .option-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

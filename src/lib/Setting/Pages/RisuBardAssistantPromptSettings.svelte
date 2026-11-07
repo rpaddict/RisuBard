@@ -115,11 +115,11 @@
 </SettingPage>
 
 <style>
-    .assistant-prompt-workspace { display: grid; min-height: 36rem; height: 100%; grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: .9rem; background: var(--color-darkbg); }
+    .assistant-prompt-workspace { display: grid; min-height: 36rem; height: 100%; grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-2xl) * 0.9); background: var(--color-darkbg); }
     .prompt-list { display: flex; min-width: 0; flex-direction: column; gap: .75rem; overflow-y: auto; padding: .65rem; border-right: 1px solid var(--color-darkborderc); }
     .group { display: grid; gap: .2rem; }
     .group-label { padding: 0 .6rem .2rem; color: var(--color-textcolor2); font-size: .7rem; font-weight: 650; }
-    .prompt-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .5rem; border-radius: .45rem; padding: .55rem .6rem; text-align: left; font-size: .85rem; }
+    .prompt-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .5rem; border-radius: calc(var(--risu-radius-lg) * 0.9); padding: .55rem .6rem; text-align: left; font-size: .85rem; }
     .prompt-list button:hover, .prompt-list button.selected { background: color-mix(in srgb, var(--color-selected) 34%, transparent); }
     .prompt-list .name { min-width: 0; overflow-wrap: anywhere; }
     .modified { flex-shrink: 0; padding: .1rem .4rem; border-radius: 999px; color: var(--color-binding-text); background: var(--color-binding); font-size: .65rem; font-weight: 650; }

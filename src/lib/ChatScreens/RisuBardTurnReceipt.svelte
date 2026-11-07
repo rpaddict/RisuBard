@@ -37,7 +37,7 @@
 </aside>
 
 <style>
-    .turn-receipt { margin: .35rem .5rem .55rem; padding: .55rem .65rem; border: 1px solid color-mix(in srgb, var(--color-darkborderc) 75%, transparent); border-radius: .6rem; background: color-mix(in srgb, var(--risu-theme-bgcolor) 92%, var(--risu-theme-darkbutton)); font-size: .78rem; }
+    .turn-receipt { margin: .35rem .5rem .55rem; padding: .55rem .65rem; border: 1px solid color-mix(in srgb, var(--color-darkborderc) 75%, transparent); border-radius: calc(var(--risu-radius-lg) * 1.2); background: color-mix(in srgb, var(--risu-theme-bgcolor) 92%, var(--risu-theme-darkbutton)); font-size: .78rem; }
     header, header span, li, li > span, .warning { display: flex; align-items: center; gap: .35rem; }
     header, li { justify-content: space-between; }
     header { font-weight: 650; }

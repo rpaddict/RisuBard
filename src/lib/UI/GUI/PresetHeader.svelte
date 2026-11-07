@@ -35,7 +35,7 @@
 <style>
     .settings-preset-header {
         border: 1px solid var(--settings-border, var(--risu-theme-darkborderc));
-        border-radius: var(--settings-radius, .75rem);
+        border-radius: var(--settings-radius, var(--risu-radius-xl));
         background: var(--settings-surface, var(--risu-theme-darkbg));
     }
 

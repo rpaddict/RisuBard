@@ -42,7 +42,7 @@ describe('settings section tab standard', () => {
         expect(source).toContain("class:prominent={variant === 'prominent'}")
         expect(source).toContain('.settings-section-tabs.prominent {')
         expect(source).toContain('var(--risu-theme-primary)')
-        expect(source).toContain('border-radius: .9rem')
+        expect(source).toContain('border-radius: calc(var(--risu-radius-2xl) * 0.9)')
         expect(source).toContain('.prominent button {')
         expect(source).toContain('min-height: 3rem')
         expect(source).toContain('font-size: .96rem')

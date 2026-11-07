@@ -323,17 +323,17 @@
     .status { color: var(--color-textcolor2); font-size: .8rem; }
     .field { display: flex; min-width: 0; flex-direction: column; gap: .3rem; }
     .field > span { color: var(--color-textcolor2); font-size: .8rem; font-weight: 600; }
-    .field textarea, .field select, .field input { width: 100%; min-width: 0; padding: .5rem .65rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; color: var(--color-textcolor); background: var(--color-surface-inset); font-size: .85rem; line-height: 1.45; }
+    .field textarea, .field select, .field input { width: 100%; min-width: 0; padding: .5rem .65rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); color: var(--color-textcolor); background: var(--color-surface-inset); font-size: .85rem; line-height: 1.45; }
     .field textarea { resize: vertical; font-family: var(--font-mono, ui-monospace, monospace); }
     .field textarea:focus, .field select:focus, .field input:focus { outline: none; border-color: var(--color-borderc); }
     .field textarea:disabled, .field select:disabled, .field input:disabled { opacity: .6; }
     .instruction-row { display: flex; gap: .5rem; align-items: center; }
     .instruction-row input { flex: 1 1 auto; }
-    .preview { position: relative; width: 100%; aspect-ratio: 1 / 1; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: .65rem; background: var(--color-surface-inset); }
+    .preview { position: relative; width: 100%; aspect-ratio: 1 / 1; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.3); background: var(--color-surface-inset); }
     .preview img { width: 100%; height: 100%; object-fit: cover; }
     .preview-state { display: flex; flex-direction: column; align-items: center; gap: .6rem; max-width: 16rem; padding: 1rem; color: var(--color-textcolor2); font-size: .85rem; text-align: center; }
     .thumbs { display: flex; flex-wrap: wrap; gap: .45rem; }
-    .thumb { width: 3.25rem; height: 3.25rem; overflow: hidden; border: 2px solid transparent; border-radius: .45rem; background: var(--color-surface-inset); }
+    .thumb { width: 3.25rem; height: 3.25rem; overflow: hidden; border: 2px solid transparent; border-radius: calc(var(--risu-radius-lg) * 0.9); background: var(--color-surface-inset); }
     .thumb.selected { border-color: var(--color-primary); }
     .thumb img { width: 100%; height: 100%; object-fit: cover; }
     .result-actions { display: flex; flex-wrap: wrap; gap: .5rem; }

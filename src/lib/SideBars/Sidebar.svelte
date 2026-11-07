@@ -1800,7 +1800,7 @@
     bottom: calc(var(--character-card-gap) / -2 - 1.5px);
   }
   :global(.quick-inventory-drop-inside) {
-    border-radius: .75rem;
+    border-radius: var(--risu-radius-xl);
     background: color-mix(in srgb, var(--color-success) 18%, transparent);
   }
   .folder-character-grid {

@@ -335,7 +335,7 @@
         min-height: 3rem;
         padding: .72rem 1.15rem;
         border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 48%, var(--risu-theme-darkborderc));
-        border-radius: .62rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.24);
         background: color-mix(in srgb, var(--risu-theme-primary) 62%, var(--risu-theme-bgcolor));
         color: var(--risu-theme-textcolor);
         font-size: .96rem;

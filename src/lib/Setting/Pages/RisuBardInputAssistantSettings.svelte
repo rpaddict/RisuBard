@@ -197,7 +197,7 @@
 
 <style>
     .input-assistant-settings { display: grid; gap: 1rem; padding-bottom: 1rem; }
-    .panel { display: grid; gap: .9rem; padding: 1rem; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: .75rem; background: var(--settings-surface, var(--risu-theme-bgcolor)); }
+    .panel { display: grid; gap: .9rem; padding: 1rem; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--risu-radius-xl); background: var(--settings-surface, var(--risu-theme-bgcolor)); }
     .experimental-badge { display: inline-flex; flex-shrink: 0; align-items: center; gap: .3rem; padding: .2rem .55rem; border: 1px solid var(--risu-theme-warning-border); border-radius: 999px; color: var(--risu-theme-warning); background: var(--risu-theme-warning-bg); font-size: .75rem; font-weight: 650; white-space: nowrap; }
     .enable-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
     .enable-text { display: grid; gap: .25rem; }
@@ -210,7 +210,7 @@
     .field > :global(.segmented-control-container) { margin-bottom: 0; }
     .checks { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; padding: .15rem 0; font-size: .875rem; }
     :global(.message-count) { width: 7rem; }
-    select, input:not([type]), textarea { width: 100%; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: .55rem; color: var(--risu-theme-textcolor); background: var(--risu-theme-bgcolor); }
+    select, input:not([type]), textarea { width: 100%; border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 1.1); color: var(--risu-theme-textcolor); background: var(--risu-theme-bgcolor); }
     select, input:not([type]) { min-height: 2.5rem; padding: .45rem .65rem; }
     .preset-bar { display: flex; align-items: end; justify-content: space-between; gap: .75rem; }
     .preset-bar label { flex: 1; }

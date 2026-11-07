@@ -48,9 +48,9 @@
 </div>
 
 <style>
-    .prompt-input { position: relative; width: 100%; min-width: 0; background: var(--color-bgcolor); border-radius: .4rem; }
+    .prompt-input { position: relative; width: 100%; min-width: 0; background: var(--color-bgcolor); border-radius: calc(var(--risu-radius-lg) * 0.8); }
     textarea, .content { box-sizing: border-box; padding: .6rem; font: inherit; line-height: 1.55; letter-spacing: inherit; tab-size: 8; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
-    textarea { position: relative; display: block; width: 100%; min-width: 0; min-height: 4rem; margin: 0; border: 1px solid var(--color-darkborderc); border-radius: .4rem; background: transparent; color: var(--color-textcolor); resize: vertical; }
+    textarea { position: relative; display: block; width: 100%; min-width: 0; min-height: 4rem; margin: 0; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); background: transparent; color: var(--color-textcolor); resize: vertical; }
     textarea:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .mirror { position: absolute; overflow: hidden; pointer-events: none; color: transparent; }
     .content { min-height: 100%; }

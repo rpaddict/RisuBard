@@ -228,7 +228,7 @@
         background: var(--risu-theme-darkbg);
         color: var(--risu-theme-textcolor);
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: 0.5rem;
+        border-radius: var(--risu-radius-lg);
         overflow: hidden;
         font-size: 0.875rem;
     }
@@ -268,7 +268,7 @@
     .rs-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
     .rs-right { font-size: 12px; color: var(--risu-theme-textcolor2); white-space: nowrap; }
     .rs-right b { color: var(--risu-theme-textcolor); font-weight: 600; font-variant-numeric: tabular-nums; }
-    .rs-close { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 5px;
+    .rs-close { display: grid; place-items: center; width: 22px; height: 22px; border-radius: calc(var(--risu-radius-sm) * 1.25);
         color: var(--risu-theme-textcolor2); transition: color .15s ease, background .15s ease; }
     .rs-close:hover { color: var(--risu-theme-textcolor); background: var(--risu-theme-selected); }
     .rs-close:focus-visible { outline: 2px solid var(--risu-theme-primary); outline-offset: 1px; }

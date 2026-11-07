@@ -61,7 +61,7 @@
     .help-document :global(ul),
     .help-document :global(ol) { display: grid; gap: .32rem; margin: .5rem 0; padding-left: 1.35rem; }
     .help-document :global(strong) { color: var(--color-textcolor); }
-    .help-document :global(code) { padding: .08rem .28rem; border: 1px solid var(--color-darkborderc); border-radius: .28rem; color: var(--color-textcolor); background: color-mix(in srgb, var(--color-selected) 24%, transparent); }
+    .help-document :global(code) { padding: .08rem .28rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.12); color: var(--color-textcolor); background: color-mix(in srgb, var(--color-selected) 24%, transparent); }
 
     @media (max-width: 640px) {
         :global(.bard-analysis-help-dialog) { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; }

@@ -128,7 +128,7 @@
 
 <style>
     .context { min-width: 0; }
-    summary { display: flex; align-items: center; gap: .45rem; min-height: 2rem; min-width: 0; cursor: pointer; list-style: none; border-radius: .4rem; }
+    summary { display: flex; align-items: center; gap: .45rem; min-height: 2rem; min-width: 0; cursor: pointer; list-style: none; border-radius: calc(var(--risu-radius-lg) * 0.8); }
     summary::-webkit-details-marker { display: none; }
     summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     summary :global(.chevron) { flex-shrink: 0; color: var(--color-textcolor2); transition: transform .18s cubic-bezier(.16, 1, .3, 1); }
@@ -154,7 +154,7 @@
     .reference img { width: 1.5rem; height: 1.5rem; border-radius: 999px; object-fit: cover; }
     .chip-clear { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border: 0; border-radius: 999px; padding: 0; color: var(--color-textcolor2); background: transparent; }
     .chip-clear:hover:not(:disabled) { color: var(--color-textcolor); background: var(--color-darkbutton); }
-    .wiki { display: flex; flex-direction: column; gap: .1rem; max-height: 14rem; overflow: auto; padding: .4rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: .5rem; }
+    .wiki { display: flex; flex-direction: column; gap: .1rem; max-height: 14rem; overflow: auto; padding: .4rem .5rem; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); }
     .wiki-item { display: flex; align-items: center; gap: .5rem; min-height: 2rem; font-size: .8rem; color: var(--color-textcolor); cursor: pointer; overflow-wrap: anywhere; }
     .wiki-item input { width: 1rem; height: 1rem; flex-shrink: 0; accent-color: var(--color-primary); }
     .hint { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; font-size: .78rem; color: var(--color-textcolor2); line-height: 1.5; }

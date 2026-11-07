@@ -317,7 +317,7 @@
     const externalStyles = $derived(chatTextSurface.active ?
             ("background: " + chatTextSurface.background + ';\n')
         +   (DBState.db.textBorder ? "text-shadow: -1px -1px 0 var(--color-shadow), 1px -1px 0 var(--color-shadow), -1px 1px 0 var(--color-shadow), 1px 1px 0 var(--color-shadow);" : '')
-        +   (DBState.db.textScreenRounded ? "border-radius: 2rem; padding: 1rem;" : '')
+        +   (DBState.db.textScreenRounded ? "border-radius: var(--risu-radius-4xl); padding: 1rem;" : '')
         +   (DBState.db.textScreenBorder ? `border: 0.3rem solid ${DBState.db.textScreenBorder};` : '') : '')
     let bgImg= $state('')
     let lastBg = $state('')

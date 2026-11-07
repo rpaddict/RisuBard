@@ -113,12 +113,12 @@
 </section>
 
 <style>
-    .preview { display: grid; gap: .55rem; margin: .65rem 0; padding: .75rem; border: 1px solid var(--color-darkborderc); border-radius: .6rem; background: color-mix(in srgb, var(--color-selected) 10%, transparent); }
+    .preview { display: grid; gap: .55rem; margin: .65rem 0; padding: .75rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.2); background: color-mix(in srgb, var(--color-selected) 10%, transparent); }
     .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .45rem; }
-    input, button { min-height: 2.4rem; padding: .45rem .6rem; border: 1px solid var(--color-darkborderc); border-radius: .45rem; background: var(--color-darkbg); color: var(--color-textcolor); }
+    input, button { min-height: 2.4rem; padding: .45rem .6rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.9); background: var(--color-darkbg); color: var(--color-textcolor); }
     button { background: var(--color-selected); }
     ol { display: grid; gap: .35rem; margin: 0; padding-left: 1.4rem; }
-    .query-plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .35rem; padding: .5rem; border: 1px solid var(--color-darkborderc); border-radius: .45rem; }
+    .query-plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .35rem; padding: .5rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.9); }
     .query-plan > span { display: grid; gap: .15rem; color: var(--color-textcolor2); }
     li { padding: .35rem; }
     li span, li small { display: block; color: var(--color-textcolor2); }

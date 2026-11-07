@@ -810,9 +810,9 @@
         padding: 8px;
         background: var(--color-darkbg);
         border: 1px solid var(--color-darkborderc);
-        border-radius: 6px;
+        border-radius: var(--risu-radius-md);
         cursor: pointer;
-        box-shadow: 0 2px 8px color-mix(in srgb, var(--color-shadow) 15%, transparent);
+        box-shadow: var(--risu-shadow-floating, 0 2px 8px color-mix(in srgb, var(--color-shadow) 15%, transparent));
         transition: all 0.15s ease;
         color: var(--color-textcolor2);
     }
@@ -831,7 +831,7 @@
 
     .partial-match-failed-modal {
         background: var(--color-darkbg);
-        border-radius: 12px;
+        border-radius: var(--risu-radius-xl);
         padding: 20px;
         width: 50vw;
         max-width: 500px;
@@ -839,7 +839,7 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
-        box-shadow: 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent);
+        box-shadow: var(--risu-shadow-overlay, 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent));
     }
 
     .partial-match-failed-header {
@@ -863,7 +863,7 @@
 
     .partial-delete-modal {
         background: var(--color-bgcolor);
-        border-radius: 12px;
+        border-radius: var(--risu-radius-xl);
         padding: 20px;
         width: 50vw;
         max-width: 1600px;
@@ -871,7 +871,7 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
-        box-shadow: 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent);
+        box-shadow: var(--risu-shadow-overlay, 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent));
     }
 
     .partial-delete-header {
@@ -895,7 +895,7 @@
     .partial-delete-preview {
         padding: 12px;
         background: var(--color-darkbg);
-        border-radius: 8px;
+        border-radius: var(--risu-radius-lg);
         font-size: 13px;
         color: var(--color-textcolor);
         max-height: 100px;
@@ -909,7 +909,7 @@
         gap: 6px;
         padding: 8px 16px;
         border: none;
-        border-radius: 6px;
+        border-radius: var(--risu-radius-md);
         font-size: 14px;
         font-weight: 500;
         cursor: pointer;
@@ -938,7 +938,7 @@
 
     .partial-edit-modal {
         background: var(--color-darkbg);
-        border-radius: 12px;
+        border-radius: var(--risu-radius-xl);
         padding: 20px;
         width: 50vw;
         max-width: 1600px;
@@ -947,7 +947,7 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
-        box-shadow: 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent);
+        box-shadow: var(--risu-shadow-overlay, 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent));
     }
 
     .partial-edit-header {
@@ -977,7 +977,7 @@
         font-size: 11px;
         font-weight: 600;
         padding: 2px 6px;
-        border-radius: 4px;
+        border-radius: var(--risu-radius-sm);
         background: var(--color-success);
         color: var(--color-on-success);
     }
@@ -993,7 +993,7 @@
         max-height: 50vh;
         padding: 12px;
         border: 1px solid var(--color-darkborderc);
-        border-radius: 8px;
+        border-radius: var(--risu-radius-lg);
         background: var(--color-darkbg);
         color: var(--color-textcolor);
         font-family: inherit;
@@ -1020,7 +1020,7 @@
         gap: 6px;
         padding: 8px 16px;
         border: none;
-        border-radius: 6px;
+        border-radius: var(--risu-radius-md);
         font-size: 14px;
         font-weight: 500;
         cursor: pointer;
@@ -1048,7 +1048,7 @@
     /* Match Selection Modal */
     .partial-match-selection-modal {
         background: var(--color-darkbg);
-        border-radius: 12px;
+        border-radius: var(--risu-radius-xl);
         padding: 20px;
         width: 50vw;
         max-width: 1200px;
@@ -1057,7 +1057,7 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
-        box-shadow: 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent);
+        box-shadow: var(--risu-shadow-overlay, 0 8px 32px color-mix(in srgb, var(--color-shadow) 20%, transparent));
     }
 
     .match-selection-header {
@@ -1078,7 +1078,7 @@
         font-size: 13px;
         font-weight: 500;
         padding: 4px 10px;
-        border-radius: 12px;
+        border-radius: var(--risu-radius-xl);
         background: var(--color-darkbg);
         color: var(--color-textcolor);
     }
@@ -1098,7 +1098,7 @@
         gap: 8px;
         padding: 16px;
         border: 1px solid var(--color-darkborderc);
-        border-radius: 8px;
+        border-radius: var(--risu-radius-lg);
         background: var(--color-darkbg);
         cursor: pointer;
         transition: all 0.15s ease;
@@ -1124,14 +1124,14 @@
         color: var(--color-textcolor);
         background: var(--color-bgcolor);
         padding: 2px 8px;
-        border-radius: 4px;
+        border-radius: var(--risu-radius-sm);
     }
 
     .match-confidence {
         font-size: 11px;
         font-weight: 600;
         padding: 3px 8px;
-        border-radius: 4px;
+        border-radius: var(--risu-radius-sm);
         color: var(--color-accenttext);
     }
 
@@ -1154,7 +1154,7 @@
         font-size: 11px;
         font-weight: 500;
         padding: 2px 6px;
-        border-radius: 4px;
+        border-radius: var(--risu-radius-sm);
         background: var(--color-bgcolor);
         color: var(--color-textcolor);
         font-family: monospace;
@@ -1166,7 +1166,7 @@
         color: var(--color-textcolor);
         padding: 8px 12px;
         background: var(--color-bgcolor);
-        border-radius: 6px;
+        border-radius: var(--risu-radius-md);
         border-left: 3px solid var(--color-darkborderc);
         line-height: 1.5;
         font-style: italic;
@@ -1178,7 +1178,7 @@
         color: var(--color-textcolor);
         padding: 10px 12px;
         background: var(--color-bgcolor);
-        border-radius: 6px;
+        border-radius: var(--risu-radius-md);
         border-left: 3px solid var(--color-primary);
         line-height: 1.5;
         font-weight: 500;

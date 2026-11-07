@@ -92,13 +92,13 @@
     p, small { color: color-mix(in srgb, var(--color-textcolor) 78%, var(--color-bgcolor)); font-size: .8rem; line-height: 1.6; }
     p { margin: .6rem 0 .8rem; }
     small { display: block; margin-top: .2rem; }
-    .settings-card { border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, .65rem); background: var(--settings-surface, var(--color-darkbg)); }
+    .settings-card { border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, calc(var(--risu-radius-lg) * 1.3)); background: var(--settings-surface, var(--color-darkbg)); }
     .setting-row, .hotkey-row { display: grid; align-items: center; gap: .8rem; padding: .8rem 1rem; font-size: .85rem; }
     .setting-row { grid-template-columns: minmax(0, 1fr) auto; }
     .hotkey-row { grid-template-columns: minmax(7rem, 1fr) minmax(12rem, 1fr) minmax(7rem, 1fr); }
     .setting-row + .setting-row, .hotkey-row + .hotkey-row { border-top: 1px solid var(--settings-border, var(--color-darkborderc)); }
     .shortcut-heading { display: flex; align-items: center; justify-content: space-between; gap: .7rem; margin-top: 1.2rem; }
-    button, input:not([type=checkbox]), select { min-height: 2.75rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: .45rem; background: var(--color-bgcolor); color: var(--color-textcolor); padding: .4rem .55rem; font-size: .8rem; }
+    button, input:not([type=checkbox]), select { min-height: 2.75rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 0.9); background: var(--color-bgcolor); color: var(--color-textcolor); padding: .4rem .55rem; font-size: .8rem; }
     button { cursor: pointer; }
     button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     input[type=number] { width: 4.5rem; }
@@ -106,7 +106,7 @@
     .modifiers { display: grid; grid-template-columns: repeat(4, 1fr); gap: .35rem; }
     .active { color: var(--color-primary); border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, var(--color-bgcolor)); }
     .key-input { width: 100%; min-width: 0; text-align: center; }
-    .warnings { margin: .8rem 0 0; padding: .8rem .8rem .8rem 1.8rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: .5rem; background: color-mix(in srgb, var(--color-primary) 10%, var(--color-bgcolor)); font-size: .8rem; line-height: 1.6; }
+    .warnings { margin: .8rem 0 0; padding: .8rem .8rem .8rem 1.8rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--risu-radius-lg); background: color-mix(in srgb, var(--color-primary) 10%, var(--color-bgcolor)); font-size: .8rem; line-height: 1.6; }
     @media (max-width: 760px) {
         .hotkey-row { grid-template-columns: minmax(0, 1fr); }
         .setting-row { grid-template-columns: minmax(0, 1fr); }

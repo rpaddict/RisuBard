@@ -659,15 +659,15 @@
 </div>
 
 <style>
-    .view-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border: 1px solid var(--risu-theme-darkborderc); border-radius: .45rem; background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--risu-theme-bgcolor)); }
-    .view-switch button { min-height: 2rem; border: 0; border-radius: .34rem; background: transparent; color: var(--risu-theme-textcolor2); font-size: .82rem; font-weight: 650; cursor: pointer; transition: background-color .15s ease-out, color .15s ease-out; }
+    .view-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.9); background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--risu-theme-bgcolor)); }
+    .view-switch button { min-height: 2rem; border: 0; border-radius: calc(var(--risu-radius-sm) * 1.36); background: transparent; color: var(--risu-theme-textcolor2); font-size: .82rem; font-weight: 650; cursor: pointer; transition: background-color .15s ease-out, color .15s ease-out; }
     .view-switch button:hover { color: var(--risu-theme-textcolor); }
     .view-switch button[aria-pressed='true'] { color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-primary) 30%, var(--risu-theme-darkbg)); }
-    .scale-field { display: grid; gap: .32rem; min-width: 0; margin: 0; padding: .38rem; border: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 72%, transparent); border-radius: .36rem; background: color-mix(in srgb, var(--risu-theme-darkbg) 76%, var(--color-bgcolor)); }
+    .scale-field { display: grid; gap: .32rem; min-width: 0; margin: 0; padding: .38rem; border: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 72%, transparent); border-radius: calc(var(--risu-radius-md) * 0.96); background: color-mix(in srgb, var(--risu-theme-darkbg) 76%, var(--color-bgcolor)); }
     .scale-field legend { float: left; width: 100%; margin-bottom: .1rem; padding: 0; }
     .scale-field legend span { font-size: .78rem; font-weight: 650; }
     .scale-options { clear: both; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .3rem; }
-    .scale-option { position: relative; display: grid; justify-items: center; gap: .05rem; min-height: 3rem; padding: .4rem .25rem; border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 24%, var(--risu-theme-darkborderc)); border-radius: .4rem; color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-primary) 8%, var(--risu-theme-darkbg)); cursor: pointer; transition: border-color .15s ease-out, background-color .15s ease-out; }
+    .scale-option { position: relative; display: grid; justify-items: center; gap: .05rem; min-height: 3rem; padding: .4rem .25rem; border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 24%, var(--risu-theme-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 0.8); color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-primary) 8%, var(--risu-theme-darkbg)); cursor: pointer; transition: border-color .15s ease-out, background-color .15s ease-out; }
     .scale-option input { position: absolute; opacity: 0; pointer-events: none; }
     .scale-option:hover { border-color: color-mix(in srgb, var(--risu-theme-primary) 55%, var(--risu-theme-darkborderc)); background: color-mix(in srgb, var(--risu-theme-primary) 15%, var(--risu-theme-darkbg)); }
     .scale-option:has(input:checked) { border-color: color-mix(in srgb, var(--risu-theme-primary) 80%, var(--risu-theme-darkborderc)); color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-primary) 32%, var(--risu-theme-darkbg)); }
@@ -692,15 +692,15 @@
     .settings-head strong { color: var(--risu-theme-textcolor); font-size: calc(.78rem + 4px); }
     .settings-head small { color: var(--risu-theme-textcolor2); font-size: calc(.6rem + 4px); }
     .settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
-    .settings-head button { min-height: 2.2rem; padding: .35rem .58rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: .38rem; color: var(--risu-theme-textcolor2); background: color-mix(in srgb, var(--risu-theme-darkbg) 86%, var(--color-bgcolor)); font-size: calc(.62rem + 4px); font-weight: 650; cursor: pointer; }
+    .settings-head button { min-height: 2.2rem; padding: .35rem .58rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.76); color: var(--risu-theme-textcolor2); background: color-mix(in srgb, var(--risu-theme-darkbg) 86%, var(--color-bgcolor)); font-size: calc(.62rem + 4px); font-weight: 650; cursor: pointer; }
     .settings-head button.primary-action { border-color: color-mix(in srgb, var(--risu-theme-primary) 58%, var(--risu-theme-darkborderc)); color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-primary) 16%, var(--risu-theme-darkbg)); }
     .settings-head button:disabled { opacity: .45; cursor: default; }
     .scope-line { grid-column: 1 / -1; line-height: 1.45; }
     .global-feedback { grid-column: 1 / -1; color: var(--risu-theme-primary) !important; }
-    .settings-section { display: grid; gap: .32rem; min-width: 0; padding: .46rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: .48rem; background: color-mix(in srgb, var(--risu-theme-darkbg) 54%, var(--risu-theme-bgcolor)); }
+    .settings-section { display: grid; gap: .32rem; min-width: 0; padding: .46rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.96); background: color-mix(in srgb, var(--risu-theme-darkbg) 54%, var(--risu-theme-bgcolor)); }
     .settings-section h3 { margin: 0; color: var(--risu-theme-textcolor); font-size: calc(.68rem + 4px); font-weight: 750; letter-spacing: .01em; }
     .settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .32rem; }
-    .setting-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(5.75rem, .72fr); min-width: 0; align-items: center; gap: .38rem; padding: .3rem .38rem; border: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 72%, transparent); border-radius: .36rem; background: color-mix(in srgb, var(--risu-theme-darkbg) 76%, var(--color-bgcolor)); }
+    .setting-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(5.75rem, .72fr); min-width: 0; align-items: center; gap: .38rem; padding: .3rem .38rem; border: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 72%, transparent); border-radius: calc(var(--risu-radius-md) * 0.96); background: color-mix(in srgb, var(--risu-theme-darkbg) 76%, var(--color-bgcolor)); }
     .setting-field.wide { grid-column: 1 / -1; grid-template-columns: minmax(8rem, .3fr) 1fr; }
     .setting-field.preset-field { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); row-gap: .3rem; }
     .preset-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; min-width: 0; }
@@ -713,9 +713,9 @@
     .help-button { position: relative; display: grid; width: 1.45rem; height: 1.45rem; flex: 0 0 1.45rem; place-items: center; padding: 0; border: 1px solid var(--risu-theme-darkborderc); border-radius: 50%; color: var(--risu-theme-textcolor2); background: transparent; font-size: .75rem; font-weight: 750; cursor: help; }
     .help-button::after { position: absolute; inset: -.58rem; content: ''; }
     .help-button:hover { border-color: var(--risu-theme-primary); color: var(--risu-theme-primary); background: color-mix(in srgb, var(--risu-theme-primary) 10%, transparent); }
-    input, select, textarea { width: 100%; min-width: 0; min-height: 2rem; padding: .28rem .42rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: .32rem; color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-darkbg) 92%, var(--color-bgcolor)); font-size: .78rem; }
+    input, select, textarea { width: 100%; min-width: 0; min-height: 2rem; padding: .28rem .42rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.28); color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-darkbg) 92%, var(--color-bgcolor)); font-size: .78rem; }
     input[type='checkbox'] { width: 1rem; min-height: 1rem; height: 1rem; padding: 0; accent-color: var(--risu-theme-primary); }
-    .toggle-control { display: flex; min-height: 2rem; align-items: center; gap: .4rem; padding: .28rem .42rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: .32rem; color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-darkbg) 92%, var(--color-bgcolor)); font-size: .78rem; cursor: pointer; }
+    .toggle-control { display: flex; min-height: 2rem; align-items: center; gap: .4rem; padding: .28rem .42rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.28); color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-darkbg) 92%, var(--color-bgcolor)); font-size: .78rem; cursor: pointer; }
     textarea { resize: vertical; }
     button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .toggle-control:has(input:focus-visible) { outline: 2px solid var(--risu-theme-primary); outline-offset: 2px; }
 

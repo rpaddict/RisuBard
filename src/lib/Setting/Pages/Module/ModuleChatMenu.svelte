@@ -137,7 +137,7 @@
     .chat-module-scope { display: flex; align-items: center; }
     .chat-module-actions { display: flex; align-items: center; gap: .5rem; margin-left: .25rem; padding-left: .75rem; border-left: 1px solid var(--color-darkborderc); }
     .chat-module-toggle.chat-module-delete:hover { color: var(--color-danger); border-color: var(--color-danger); }
-    .chat-module-toggle { display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; flex: 0 0 auto; padding: 0; border: 1px solid var(--color-darkborderc); border-radius: .4rem; color: var(--color-textcolor2); background: var(--color-darkbg); cursor: pointer; }
+    .chat-module-toggle { display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; flex: 0 0 auto; padding: 0; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); color: var(--color-textcolor2); background: var(--color-darkbg); cursor: pointer; }
     .chat-module-toggle.active { color: var(--color-accenttext); background: var(--color-primary); border-color: var(--color-primary); }
     .chat-module-toggle:hover { border-color: var(--color-info); }
     .chat-module-toggle.preset-enabled { color: var(--color-warning); background: var(--color-warning-bg); border-color: var(--color-warning); box-shadow: 0 0 .45rem color-mix(in srgb, var(--color-warning) 45%, transparent); }

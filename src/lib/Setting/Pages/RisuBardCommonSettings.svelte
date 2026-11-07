@@ -69,7 +69,7 @@
         flex-shrink: 0;
         min-height: 2.25rem;
         padding: .35rem .65rem;
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         color: var(--color-textcolor);
         font-size: .8rem;
         text-align: left;

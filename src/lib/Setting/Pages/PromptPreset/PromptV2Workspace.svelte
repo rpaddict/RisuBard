@@ -420,9 +420,9 @@
         flex-direction: column;
         overflow: hidden;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .9rem;
+        border-radius: calc(var(--risu-radius-2xl) * 0.9);
         background: color-mix(in srgb, var(--color-darkbg) 92%, var(--color-bgcolor));
-        box-shadow: 0 14px 36px color-mix(in srgb, var(--color-bgcolor) 35%, transparent);
+        box-shadow: var(--risu-shadow-overlay, 0 14px 36px color-mix(in srgb, var(--color-bgcolor) 35%, transparent));
     }
 
     .workspace-toolbar {
@@ -440,7 +440,7 @@
         align-items: center;
         gap: .2rem;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .55rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.1);
         padding: .2rem;
         background: color-mix(in srgb, var(--color-darkbg) 72%, transparent);
     }
@@ -452,7 +452,7 @@
         align-items: center;
         justify-content: center;
         gap: .4rem;
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         padding: .35rem .65rem;
         color: var(--color-textcolor2);
         font-size: .78rem;

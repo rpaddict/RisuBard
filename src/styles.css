@@ -282,13 +282,13 @@
   .character-toolbar-button--chat:not(.is-active) {
     background: color-mix(in srgb, var(--color-textcolor) 86%, var(--color-selected));
     color: var(--color-darkbg);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-shadow) 16%, transparent);
+    box-shadow: var(--risu-shadow-raised, 0 1px 2px color-mix(in srgb, var(--color-shadow) 16%, transparent));
   }
 
   .character-toolbar-button.is-active {
     background: var(--color-primary);
     color: var(--color-accenttext);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-shadow) 18%, transparent);
+    box-shadow: var(--risu-shadow-raised, 0 1px 2px color-mix(in srgb, var(--color-shadow) 18%, transparent));
   }
 }
 
@@ -304,7 +304,7 @@
   background: var(--color-darkbg);
   border: 1px solid var(--color-darkborderc);
   border-radius: var(--risu-radius-2xl);
-  box-shadow: 0 1.5rem 4rem color-mix(in srgb, var(--color-shadow) 32%, transparent);
+  box-shadow: var(--risu-shadow-overlay, 0 1.5rem 4rem color-mix(in srgb, var(--color-shadow) 32%, transparent));
 }
 
 .risu-modal-header {
@@ -641,7 +641,7 @@ html {
 .x-risu-risu-file {
   padding: 1rem;
   border: 1px solid var(--risu-theme-selected);
-  border-radius: 0.5rem;
+  border-radius: var(--risu-radius-lg);
   color: var(--FontColorStandard);
   min-width: 0;
   max-width: 20rem;
@@ -722,8 +722,8 @@ html {
 }
 
 .prose :where(kbd):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-shadow) 10%, transparent),
-    0 3px 0 color-mix(in srgb, var(--color-shadow) 10%, transparent);
+  box-shadow: var(--risu-shadow-raised, 0 0 0 1px color-mix(in srgb, var(--color-shadow) 10%, transparent),
+    0 3px 0 color-mix(in srgb, var(--color-shadow) 10%, transparent));
 }
 
 /* Highlight.js token classes share the skin's semantic colors in both modes. */
@@ -762,7 +762,7 @@ code.hljs { padding: 3px 5px; }
 
 .prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *)):not(pre code) {
   background-color: var(--tw-prose-pre-bg);
-  border-radius: 0.25rem;
+  border-radius: var(--risu-radius-sm);
   color: var(--tw-prose-pre-code);
   padding: 0.125rem 0.25rem;
 }
@@ -878,8 +878,8 @@ code.hljs { padding: 3px 5px; }
   width: calc(100% - 1rem);
   max-width: 20rem;
   height: auto;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-shadow) 10%, transparent);
+  border-radius: var(--risu-radius-lg);
+  box-shadow: var(--risu-shadow-raised, 0 2px 4px color-mix(in srgb, var(--color-shadow) 10%, transparent));
 }
 
 .root-loaded-image-dynamic {

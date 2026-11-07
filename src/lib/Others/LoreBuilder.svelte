@@ -325,14 +325,14 @@
     }
     .context-panel, .builder-section {
         border: 1px solid var(--color-darkborderc);
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         padding: .85rem;
         background: var(--color-surface-raised);
     }
     .context-panel legend, .builder-section label { color: var(--color-textcolor); font-size: .88rem; font-weight: 650; }
     .context-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
     .context-panel label {
-        display: flex; align-items: center; gap: .55rem; min-height: 2.75rem; border-radius: .45rem;
+        display: flex; align-items: center; gap: .55rem; min-height: 2.75rem; border-radius: calc(var(--risu-radius-lg) * 0.9);
         padding: .45rem .6rem; color: var(--color-textcolor); background: var(--color-surface-inset); cursor: pointer;
     }
     .context-panel label.unavailable { opacity: .42; cursor: not-allowed; }
@@ -344,12 +344,12 @@
     .message-option > label { grid-row: 1 / span 2; }
     .message-option.unavailable { opacity: .42; }
     .message-option > small { color: var(--color-textcolor2); font-size: .7rem; line-height: 1.25; }
-    .message-range { min-width: 0; border: 1px solid var(--color-darkborderc); border-radius: .4rem; padding: .35rem .45rem; color: var(--color-textcolor); background: var(--color-surface-base); font-size: .75rem; }
+    .message-range { min-width: 0; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.8); padding: .35rem .45rem; color: var(--color-textcolor); background: var(--color-surface-base); font-size: .75rem; }
     .builder-section { display: flex; flex-direction: column; gap: .55rem; }
     .instruction-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: .55rem; }
     .instruction-actions { display: flex; flex-direction: column; justify-content: space-between; gap: .55rem; }
     .builder-textarea {
-        width: 100%; resize: vertical; border: 1px solid var(--color-darkborderc); border-radius: .55rem;
+        width: 100%; resize: vertical; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.1);
         padding: .75rem; color: var(--color-textcolor); background: var(--color-surface-inset); line-height: 1.55; outline: none;
     }
     .builder-textarea:focus-visible {
@@ -368,7 +368,7 @@
     .draft-pane .builder-textarea { box-sizing: border-box; min-height: 0; height: 100%; resize: vertical; overflow-y: scroll; scrollbar-gutter: stable; }
     .error-message {
         margin: 0; border: 1px solid color-mix(in srgb, var(--color-draculared) 55%, var(--color-darkborderc));
-        border-radius: .55rem; padding: .7rem .8rem; color: var(--color-draculared);
+        border-radius: calc(var(--risu-radius-lg) * 1.1); padding: .7rem .8rem; color: var(--color-draculared);
         background: color-mix(in srgb, var(--color-draculared) 10%, var(--color-surface-base)); font-size: .85rem;
     }
     @media (max-width: 700px) {

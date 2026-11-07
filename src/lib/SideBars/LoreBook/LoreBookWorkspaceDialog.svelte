@@ -303,7 +303,7 @@
         padding: 0;
         place-items: center;
         border: 0;
-        border-radius: .72rem;
+        border-radius: calc(var(--risu-radius-xl) * 0.96);
         background: color-mix(in srgb, var(--color-selected) 58%, var(--color-darkbg));
         color: var(--color-textcolor);
         cursor: pointer;
@@ -337,7 +337,7 @@
         width: 2.65rem;
         height: 2.65rem;
         place-items: center;
-        border-radius: .72rem;
+        border-radius: calc(var(--risu-radius-xl) * 0.96);
         background: color-mix(in srgb, var(--color-selected) 58%, var(--color-darkbg));
         color: var(--color-textcolor);
         transform: translateY(-50%);
@@ -353,7 +353,7 @@
         padding: 0;
         place-items: center;
         border: 0;
-        border-radius: .72rem;
+        border-radius: calc(var(--risu-radius-xl) * 0.96);
         background: color-mix(in srgb, var(--color-selected) 58%, var(--color-darkbg));
         color: var(--color-textcolor);
         cursor: pointer;
@@ -374,27 +374,27 @@
     .bard-guide { display: grid; grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr); gap: 1.2rem; align-items: start; color: var(--color-textcolor); }
     .bard-guide-content { display: grid; min-width: 0; gap: 1rem; }
     .bard-guide p, .bard-guide dd { margin: 0; color: var(--color-textcolor2); font-size: .84rem; line-height: 1.65; }
-    .bard-guide-toc { position: sticky; top: 0; display: grid; gap: .2rem; padding: .7rem; border: 1px solid var(--color-darkborderc); border-radius: .65rem; background: color-mix(in srgb, var(--color-selected) 12%, var(--color-darkbg)); }
+    .bard-guide-toc { position: sticky; top: 0; display: grid; gap: .2rem; padding: .7rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.3); background: color-mix(in srgb, var(--color-selected) 12%, var(--color-darkbg)); }
     .bard-guide-toc strong { padding: .2rem .45rem .45rem; color: var(--color-textcolor); font-size: .76rem; letter-spacing: .04em; }
-    .bard-guide-toc a { padding: .42rem .48rem; border-radius: .38rem; color: var(--color-textcolor2); font-size: .77rem; line-height: 1.25; text-decoration: none; }
+    .bard-guide-toc a { padding: .42rem .48rem; border-radius: calc(var(--risu-radius-lg) * 0.76); color: var(--color-textcolor2); font-size: .77rem; line-height: 1.25; text-decoration: none; }
     .bard-guide-toc a:hover, .bard-guide-toc a:focus-visible { background: var(--color-selected); color: var(--color-textcolor); outline: none; }
-    .bard-guide-intro { padding: .85rem 1rem; border-left: .22rem solid var(--color-borderc); border-radius: .45rem; background: color-mix(in srgb, var(--color-selected) 22%, var(--color-darkbg)); color: var(--color-textcolor) !important; }
+    .bard-guide-intro { padding: .85rem 1rem; border-left: .22rem solid var(--color-borderc); border-radius: calc(var(--risu-radius-lg) * 0.9); background: color-mix(in srgb, var(--color-selected) 22%, var(--color-darkbg)); color: var(--color-textcolor) !important; }
     .bard-guide section { display: grid; gap: .45rem; scroll-margin-top: .75rem; }
     .bard-guide h3 { margin: 0; color: var(--color-textcolor); font-size: .92rem; }
     .bard-guide h4 { margin: 0; color: var(--color-textcolor); font-size: .82rem; }
     .bard-guide-rules { display: grid; margin: 0; gap: .45rem; }
-    .bard-guide-rules > div { display: grid; grid-template-columns: minmax(8rem, auto) 1fr; gap: .75rem; padding: .65rem .75rem; border: 1px solid var(--color-darkborderc); border-radius: .55rem; background: color-mix(in srgb, var(--color-selected) 12%, var(--color-darkbg)); }
+    .bard-guide-rules > div { display: grid; grid-template-columns: minmax(8rem, auto) 1fr; gap: .75rem; padding: .65rem .75rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.1); background: color-mix(in srgb, var(--color-selected) 12%, var(--color-darkbg)); }
     .bard-guide-rules dt { color: var(--color-textcolor); font-size: .78rem; font-weight: 700; white-space: nowrap; }
     .bard-guide-rules dd { margin: 0; }
     .bard-guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
-    .bard-guide-grid section { padding: .8rem; border: 1px solid var(--color-darkborderc); border-radius: .6rem; background: color-mix(in srgb, var(--color-selected) 10%, var(--color-darkbg)); }
-    .bard-guide-writing { gap: .7rem !important; padding: 1rem; border: 1px solid color-mix(in srgb, var(--color-borderc) 70%, var(--color-darkborderc)); border-radius: .7rem; background: color-mix(in srgb, var(--color-selected) 8%, var(--color-darkbg)); }
-    .writing-principle { padding: .75rem .85rem; border-radius: .5rem; background: color-mix(in srgb, var(--color-borderc) 12%, transparent); color: var(--color-textcolor) !important; }
+    .bard-guide-grid section { padding: .8rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.2); background: color-mix(in srgb, var(--color-selected) 10%, var(--color-darkbg)); }
+    .bard-guide-writing { gap: .7rem !important; padding: 1rem; border: 1px solid color-mix(in srgb, var(--color-borderc) 70%, var(--color-darkborderc)); border-radius: calc(var(--risu-radius-lg) * 1.4); background: color-mix(in srgb, var(--color-selected) 8%, var(--color-darkbg)); }
+    .writing-principle { padding: .75rem .85rem; border-radius: var(--risu-radius-lg); background: color-mix(in srgb, var(--color-borderc) 12%, transparent); color: var(--color-textcolor) !important; }
     .bard-writing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
     .bard-writing-grid section { padding: .75rem; border-top: 2px solid color-mix(in srgb, var(--color-borderc) 65%, transparent); background: color-mix(in srgb, var(--color-selected) 10%, transparent); }
-    .bard-writing-example { display: grid; gap: .35rem; padding: .8rem .9rem; border-left: .2rem solid var(--color-borderc); border-radius: .45rem; background: color-mix(in srgb, var(--color-selected) 20%, var(--color-darkbg)); }
+    .bard-writing-example { display: grid; gap: .35rem; padding: .8rem .9rem; border-left: .2rem solid var(--color-borderc); border-radius: calc(var(--risu-radius-lg) * 0.9); background: color-mix(in srgb, var(--color-selected) 20%, var(--color-darkbg)); }
     .bard-writing-template { display: grid; gap: .4rem; }
-    .bard-writing-template pre { margin: 0; padding: .8rem .9rem; overflow-x: auto; border: 1px solid var(--color-darkborderc); border-radius: .5rem; background: color-mix(in srgb, var(--color-darkbg) 92%, var(--color-selected)); color: var(--color-textcolor2); font-size: .78rem; line-height: 1.55; white-space: pre-wrap; }
+    .bard-writing-template pre { margin: 0; padding: .8rem .9rem; overflow-x: auto; border: 1px solid var(--color-darkborderc); border-radius: var(--risu-radius-lg); background: color-mix(in srgb, var(--color-darkbg) 92%, var(--color-selected)); color: var(--color-textcolor2); font-size: .78rem; line-height: 1.55; white-space: pre-wrap; }
     .window-resize { position: absolute; z-index: 10; padding: 0; border: 0; border-radius: 0; background: transparent; touch-action: none; }
     .window-resize:hover, .window-resize:focus-visible, .window-resize:global([data-resizing]) { background: color-mix(in srgb, var(--color-borderc) 45%, transparent); outline: none; }
     [data-lorebook-window-resize='n'], [data-lorebook-window-resize='s'] { left: 1rem; right: 1rem; height: .45rem; cursor: ns-resize; }
@@ -419,9 +419,9 @@
         .window-resize { display: none; }
         :global(.lore-dialog-body) { padding: 0; }
         :global(.lore-dialog > :first-child) { min-height: 4rem; padding-right: 4.8rem; }
-        :global(.lore-dialog-close) { right: .65rem; width: 3rem; height: 3rem; border-radius: .9rem; }
+        :global(.lore-dialog-close) { right: .65rem; width: 3rem; height: 3rem; border-radius: calc(var(--risu-radius-2xl) * 0.9); }
         :global(.lore-dialog-close svg) { width: 1.55rem; height: 1.55rem; }
-        :global(.lore-dialog-help) { right: 4rem; width: 3rem; height: 3rem; border-radius: .9rem; }
+        :global(.lore-dialog-help) { right: 4rem; width: 3rem; height: 3rem; border-radius: calc(var(--risu-radius-2xl) * 0.9); }
         :global(.lore-dialog-help svg) { width: 1.55rem; height: 1.55rem; }
         .bard-guide, .bard-guide-rules > div, .bard-guide-grid, .bard-writing-grid { grid-template-columns: minmax(0, 1fr); }
         .bard-guide-toc { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }

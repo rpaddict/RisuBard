@@ -232,7 +232,7 @@
 </ShDialog>
 
 <style>
-    .basic-panel { border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--settings-radius, .75rem); background: var(--settings-surface, var(--risu-theme-bgcolor)); }
+    .basic-panel { border: 1px solid var(--settings-border, var(--risu-theme-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--risu-theme-bgcolor)); }
     .picker-toolbar { display: flex; align-items: center; gap: .25rem; }
     .picker-toolbar :global(.rename-on) { color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-selected) 55%, transparent); }
     .preset-row { display: flex; align-items: center; gap: .25rem; padding-right: .5rem; }
@@ -243,7 +243,7 @@
     .preset-lock { display: inline-flex; width: 2rem; align-items: center; justify-content: center; color: var(--risu-theme-textcolor2); opacity: .6; }
     .builtin-note { display: flex; align-items: center; gap: .4rem; margin: .6rem 0 0; color: var(--risu-theme-textcolor2); font-size: .8rem; }
     .preset-select:disabled { cursor: default; opacity: .6; }
-    .preset-row.selected { border-radius: .375rem; color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-selected) 55%, transparent); }
+    .preset-row.selected { border-radius: var(--risu-radius-md); color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-selected) 55%, transparent); }
     .preset-select { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; justify-content: space-between; padding: .75rem 1rem; text-align: left; }
     .preset-select span { overflow-wrap: anywhere; }
     .preset-select small { flex-shrink: 0; margin-left: .75rem; }

@@ -62,7 +62,7 @@
         min-height: 1.7rem;
         padding: 0 .4rem;
         border: 0;
-        border-radius: .3rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.2);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         font-size: .68rem;

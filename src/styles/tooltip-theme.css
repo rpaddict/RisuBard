@@ -3,7 +3,7 @@
     background-color: var(--color-darkbg);
     color: var(--color-textcolor);
     border: 1px solid var(--color-darkborderc);
-    box-shadow: 0 .25rem .75rem color-mix(in srgb, var(--color-shadow) 24%, transparent);
+    box-shadow: var(--risu-shadow-floating, 0 .25rem .75rem color-mix(in srgb, var(--color-shadow) 24%, transparent));
 }
 
 .tippy-box[data-theme~='risubard'] > .tippy-content {

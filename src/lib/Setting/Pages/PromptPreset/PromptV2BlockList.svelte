@@ -243,7 +243,7 @@
         width: 100%;
         align-items: center;
         gap: .5rem;
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         padding: .55rem .6rem;
         text-align: left;
         transition: background-color 160ms ease;

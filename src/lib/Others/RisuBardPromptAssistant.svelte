@@ -989,7 +989,7 @@
         border-left: 1px solid color-mix(in srgb, var(--risu-theme-primary) 28%, var(--risu-theme-darkborderc));
         color: var(--risu-theme-textcolor);
         background: var(--risu-theme-darkbg);
-        box-shadow: -.8rem 0 2.4rem color-mix(in srgb, var(--color-shadow) 18%, transparent);
+        box-shadow: var(--risu-shadow-overlay, -.8rem 0 2.4rem color-mix(in srgb, var(--color-shadow) 18%, transparent));
         animation: dock-enter .18s ease-out;
         container-type: inline-size;
     }
@@ -1085,7 +1085,7 @@
         height: 1.8rem;
         place-items: center;
         border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 38%, var(--risu-theme-darkborderc));
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         color: var(--risu-theme-primary);
         background: color-mix(in srgb, var(--risu-theme-primary) 9%, transparent);
     }
@@ -1096,7 +1096,7 @@
         height: 2rem;
         place-items: center;
         border: 1px solid transparent;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         cursor: pointer;
@@ -1119,7 +1119,7 @@
         box-sizing: border-box;
         padding: 0 .55rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 82%, var(--color-bgcolor));
         font-size: .78rem;
@@ -1165,13 +1165,13 @@
         box-sizing: border-box;
         padding: .15rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 82%, var(--color-bgcolor));
     }
     .segmented button {
         padding: 0 .65rem;
         border: 0;
-        border-radius: .28rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.12);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         font-size: .74rem;
@@ -1229,7 +1229,7 @@
     .examples button {
         padding: .55rem .7rem;
         border: 1px solid var(--pa-line);
-        border-radius: .4rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.8);
         color: var(--risu-theme-textcolor);
         text-align: left;
         background: color-mix(in srgb, var(--risu-theme-primary) 4%, transparent);
@@ -1260,7 +1260,7 @@
         max-width: 100%;
         padding: .55rem .7rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .5rem;
+        border-radius: var(--risu-radius-lg);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--color-bgcolor));
     }
     .body {
@@ -1289,7 +1289,7 @@
     .markdown :global(strong) { font-weight: 700; }
     .markdown :global(code) {
         padding: .05rem .28rem;
-        border-radius: .25rem;
+        border-radius: var(--risu-radius-sm);
         background: color-mix(in srgb, var(--risu-theme-primary) 10%, transparent);
         font: .74rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
     }
@@ -1297,7 +1297,7 @@
         overflow-x: auto;
         padding: .65rem .75rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 80%, var(--color-darkbg));
         white-space: pre-wrap;
     }
@@ -1316,7 +1316,7 @@
         min-height: 1.75rem;
         padding: 0 .6rem;
         border: 1px solid var(--pa-line);
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-primary) 8%, transparent);
         font-size: .7rem;
@@ -1380,7 +1380,7 @@
         resize: vertical;
         padding: .55rem .65rem;
         border: 1px solid var(--risu-theme-darkborderc);
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         color: var(--risu-theme-textcolor);
         background: color-mix(in srgb, var(--risu-theme-darkbg) 82%, var(--color-bgcolor));
         font-size: .8rem;
@@ -1401,7 +1401,7 @@
         min-height: 2rem;
         padding: 0 .4rem;
         border: 0;
-        border-radius: .35rem;
+        border-radius: calc(var(--risu-radius-sm) * 1.4);
         color: var(--risu-theme-textcolor2);
         background: transparent;
         font-size: .72rem;
@@ -1429,7 +1429,7 @@
             height: auto;
             border: 1px solid color-mix(in srgb, var(--risu-theme-primary) 28%, var(--risu-theme-darkborderc));
             border-right: 0;
-            border-radius: .6rem 0 0 .6rem;
+            border-radius: calc(var(--risu-radius-lg) * 1.2) 0 0 calc(var(--risu-radius-lg) * 1.2);
         }
         .collapsed .rail { padding: .8rem 0; }
         .dock-resizer { display: none; }

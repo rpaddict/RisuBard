@@ -86,7 +86,7 @@ describe('chat file save slot connections', () => {
         expect(shortcutsSource).toContain('display: flex')
         expect(shortcutsSource).toContain('margin: 0 auto .5rem')
         expect(shortcutsSource).toContain('border: 1px solid var(--color-darkborderc)')
-        expect(shortcutsSource).toContain('border-radius: 1.5rem')
+        expect(shortcutsSource).toContain('border-radius: var(--risu-radius-3xl)')
         expect(shortcutsSource).toContain('background: var(--color-bgcolor)')
         expect(shortcutsSource).toContain('width: 2.25rem')
         expect(shortcutsSource).toContain('border-radius: 999px')

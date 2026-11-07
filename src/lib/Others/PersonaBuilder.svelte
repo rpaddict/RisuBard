@@ -404,7 +404,7 @@
     .context-panel,
     .builder-section {
         border: 1px solid var(--color-darkborderc);
-        border-radius: .65rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.3);
         padding: .85rem;
         background: var(--color-surface-raised);
     }
@@ -421,7 +421,7 @@
         align-items: center;
         gap: .55rem;
         min-height: 2.75rem;
-        border-radius: .45rem;
+        border-radius: calc(var(--risu-radius-lg) * 0.9);
         padding: .45rem .6rem;
         color: var(--color-textcolor);
         background: var(--color-surface-inset);
@@ -442,7 +442,7 @@
         width: 100%;
         resize: vertical;
         border: 1px solid var(--color-darkborderc);
-        border-radius: .55rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.1);
         padding: .75rem;
         color: var(--color-textcolor);
         background: var(--color-surface-inset);
@@ -466,7 +466,7 @@
     .error-message {
         margin: 0;
         border: 1px solid color-mix(in srgb, var(--color-draculared) 55%, var(--color-darkborderc));
-        border-radius: .55rem;
+        border-radius: calc(var(--risu-radius-lg) * 1.1);
         padding: .7rem .8rem;
         color: var(--color-draculared);
         background: color-mix(in srgb, var(--color-draculared) 10%, var(--color-surface-base));

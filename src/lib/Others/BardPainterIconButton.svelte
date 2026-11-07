@@ -18,7 +18,7 @@
 <button type="button" class="icon-button" class:labeled={!!text} class:danger={tone === 'danger'} class:accent={tone === 'accent'} aria-label={label} aria-pressed={pressed} aria-expanded={expanded} {disabled} {onclick} use:tooltip={label}>{@render children()}{#if text}<span>{text}</span>{/if}</button>
 
 <style>
-    .icon-button { display: inline-grid; place-items: center; flex-shrink: 0; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: .4rem; background: transparent; color: var(--color-textcolor2); transition: background-color .15s ease-out, color .15s ease-out, border-color .15s ease-out; }
+    .icon-button { display: inline-grid; place-items: center; flex-shrink: 0; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: calc(var(--risu-radius-lg) * 0.8); background: transparent; color: var(--color-textcolor2); transition: background-color .15s ease-out, color .15s ease-out, border-color .15s ease-out; }
     .icon-button.labeled { display: inline-flex; align-items: center; gap: .35rem; width: auto; padding: 0 .65rem 0 .55rem; border: 1px solid var(--color-darkborderc); color: var(--color-textcolor); font-size: .78rem; white-space: nowrap; }
     .icon-button.labeled :global(svg) { color: var(--color-textcolor2); flex-shrink: 0; }
     .icon-button.accent { border-color: color-mix(in srgb, var(--color-primary) 70%, var(--color-darkborderc)); background: color-mix(in srgb, var(--color-primary) 16%, transparent); }
