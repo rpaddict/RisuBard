@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
     addAuthorPost,
     addComment,
+    addTab,
     analyzeChat,
+    endSeries,
+    episodeLabel,
+    postTabId,
+    setChatTarget,
+    startSeries,
     applyGenerationResult,
     applyRosterResult,
     banReader,
@@ -476,5 +482,149 @@ describe('index options', () => {
         expect(index.conceptPresets).toEqual([{ id: 'p1', name: '추리', concept: '깐깐함', level: 4, harshness: 3 }])
         expect(index.appearance).toEqual({ style: 'forum', scale: 1.4 })
         expect(normalizeReaderBoardIndex(null).appearance).toEqual({ style: 'card', scale: 1 })
+    })
+})
+
+describe('side stories', () => {
+    const SIDE = 'char:chat-if'
+
+    /** Main story 1~2화 in chat A, then chat B copied at that point with a side story. */
+    function branched() {
+        const main = views(8)
+        let board = publish(boardWithReaders(), main, 0, 1)
+        board = publish(board, main, 2, 3)
+        const copy = [...main.slice(0, 4), ...views(6, 'b')]
+        const tab = addTab(board, { id: 'tab-if', name: 'IF 스토리' })
+        const series = startSeries(board, { id: 's1', chatKey: SIDE, views: copy, tabId: tab.id, title: '로맨스 외전' })
+        return { main, copy, board, series }
+    }
+
+    /** Publishes the next side-story episode with a reader thread and returns that thread. */
+    function applyAndThread(board: ReaderBoard, chat: ChatMessageView[]) {
+        const plan = prepareGeneration({ board, chatKey: SIDE, views: chat, range: { start: 8, end: 9 }, random: () => 0 })!
+        applyGenerationResult(plan, { episode: { title: '', summary: '' }, threads: [{ author: 'knight0011', title: '외전 감상', body: '좋다' }] }, { createId })
+        return { board: plan.board, post: plan.board.posts.at(-1)! }
+    }
+
+    it('branches a copied chat off after the main episodes it holds', () => {
+        const { copy, board, series } = branched()
+        expect(series).toMatchObject({ branchNo: 2, status: 'serial', chatKey: SIDE })
+        expect(board.chatKeys).toContain(SIDE)
+        const analysis = analyzeChat(board, SIDE, copy)
+        expect(analysis.lineage).toHaveLength(0)
+        expect(analysis.nextStart).toBe(4)
+    })
+
+    it('numbers side-story episodes on their own and opens with a notice', () => {
+        const { copy, series } = branched()
+        let { board } = branched()
+        const plan = prepareGeneration({ board, chatKey: SIDE, views: copy, range: { start: 4, end: 5 }, random: () => 0 })!
+        expect(plan.episode).toMatchObject({ no: 1, seriesId: series.id })
+        expect(plan.events[0]).toContain('본편 2화 뒤에서 갈라진')
+        const notice = plan.board.posts.find((post) => post.no === plan.eventPostNo)!
+        expect(notice.title).toBe('외전 『로맨스 외전』 연재 시작')
+        expect(postTabId(plan.board, notice)).toBe('tab-if')
+        board = publish(board, copy, 4, 5, SIDE)
+        board = publish(board, copy, 6, 7, SIDE)
+        const episodes = board.episodes.filter((episode) => episode.seriesId === series.id)
+        expect(episodes.map((episode) => episode.no)).toEqual([1, 2])
+        expect(episodeLabel(episodes[1], board)).toBe('로맨스 외전 2화')
+        const thread = applyAndThread(board, copy)
+        expect(postTabId(thread.board, thread.post)).toBe('tab-if')
+        expect(postTabId(board, board.posts.find((post) => post.no === episodes[1].postNo)!)).toBe('tab-if')
+    })
+
+    it('lets the main chat go on from the branch point as if nothing happened', () => {
+        const { main, copy } = branched()
+        let { board } = branched()
+        board = publish(board, copy, 4, 7, SIDE)
+        const analysis = analyzeChat(board, CHAT, main)
+        expect(analysis.removed).toHaveLength(0)
+        expect(analysis.lineage.map((episode) => episode.no)).toEqual([1, 2])
+        expect(analysis.nextStart).toBe(4)
+        board = publish(board, main, 4, 5)
+        const third = board.episodes.at(-1)!
+        expect(third).toMatchObject({ no: 3, revision: 0 })
+        expect(third.seriesId).toBeUndefined()
+        expect(episodeLabel(third, board)).toBe('3화')
+    })
+
+    it('rewinds only the side story in its chat, and never an ended one', () => {
+        const { copy } = branched()
+        let { board } = branched()
+        board = publish(board, copy, 4, 5, SIDE)
+        board = publish(board, copy, 6, 7, SIDE)
+        const rewound = copy.slice(0, 6)
+        const analysis = analyzeChat(board, SIDE, rewound)
+        expect(analysis.removed.map((episode) => episode.no)).toEqual([2])
+        expect(analysis.removed[0].seriesId).toBe('s1')
+        expect(endSeries(board, 's1')).toBe(true)
+        expect(board.posts.at(-1)).toMatchObject({ kind: 'event', seriesId: 's1' })
+        expect(analyzeChat(board, SIDE, rewound).removed).toHaveLength(0)
+        // An ended side story takes no new episodes.
+        expect(prepareGeneration({ board, chatKey: SIDE, views: copy, range: { start: 8, end: 9 }, random: () => 0 })).toBeNull()
+    })
+
+    it('keeps a side story written in the main chat when the chat is rewound to the branch', () => {
+        const chat = views(6)
+        let board = publish(boardWithReaders(), chat, 0, 1)
+        addTab(board, { id: 't', name: 'IF' })
+        startSeries(board, { id: 's1', chatKey: CHAT, views: chat, tabId: 't', title: 'IF 루트' })
+        board = publish(board, chat, 2, 5)
+        expect(board.episodes.at(-1)).toMatchObject({ seriesId: 's1', no: 1 })
+        expect(setChatTarget(board, CHAT)).toBe(true)
+        const rewound = [...chat.slice(0, 2), ...views(2, 'n')]
+        const analysis = analyzeChat(board, CHAT, rewound)
+        expect(analysis.removed).toHaveLength(0)
+        expect(analysis.nextStart).toBe(2)
+        board = publish(board, rewound, 2, 3)
+        expect(board.episodes.at(-1)).toMatchObject({ no: 2 })
+        expect(board.episodes.at(-1)!.seriesId).toBeUndefined()
+        expect(board.episodes.find((episode) => episode.seriesId === 's1')?.status).toBe('published')
+    })
+
+    it('starts a second side story in the same tab from a fresh chat', () => {
+        const { copy } = branched()
+        let { board } = branched()
+        board = publish(board, copy, 4, 5, SIDE)
+        const fresh = views(4, 'c')
+        const second = startSeries(board, { id: 's2', chatKey: 'char:chat-c', views: fresh, tabId: 'tab-if', title: '캐릭터 2 외전' })
+        expect(second.branchNo).toBeUndefined()
+        board = publish(board, fresh, 0, 1, 'char:chat-c')
+        expect(board.episodes.at(-1)).toMatchObject({ seriesId: 's2', no: 1 })
+        expect(board.series.filter((item) => item.tabId === 'tab-if')).toHaveLength(2)
+    })
+
+    it('tells the readers which line the new episode is on and keeps the scores apart', () => {
+        const { copy } = branched()
+        let { board } = branched()
+        board = publish(board, copy, 4, 5, SIDE)
+        const plan = prepareGeneration({ board, chatKey: SIDE, views: copy, range: { start: 6, end: 7 }, random: () => 0 })!
+        const request = buildGenerationRequest(plan, '이상한 나라')
+        expect(request[0].content).toContain('본편의 다음 화가 아니다')
+        expect(request[1].content).toContain('외전 [IF 스토리 › 로맨스 외전] (본편 2화 뒤에서 갈라진 다른 전개, 연재 중)')
+        expect(request[1].content).toContain('새 화 본문 (로맨스 외전 2화)')
+        expect(workScore(board, board.currentWorkId).episodes).toBe(2)
+    })
+
+    it('round-trips tabs, side stories and chat targets', () => {
+        const { copy } = branched()
+        let { board } = branched()
+        board = publish(board, copy, 4, 5, SIDE)
+        const restored = normalizeReaderBoard(JSON.parse(JSON.stringify(board)))!
+        expect(restored.tabs).toEqual(board.tabs)
+        expect(restored.series).toEqual(board.series)
+        expect(restored.chatTargets).toEqual({ [SIDE]: 's1' })
+        expect(restored.episodes.at(-1)?.seriesId).toBe('s1')
+        // Boards from before side stories have none.
+        const old = normalizeReaderBoard({ ...JSON.parse(JSON.stringify(boardWithReaders())), tabs: undefined, series: undefined, chatTargets: undefined })!
+        expect(old).toMatchObject({ tabs: [], series: [], chatTargets: {} })
+    })
+
+    it('ends side stories with their work', () => {
+        const { board } = branched()
+        startNewWork(board, { id: 'w2', title: '신작', kind: 'new', chatKey: CHAT })
+        expect(board.series[0].status).toBe('ended')
+        expect(board.chatTargets).toEqual({})
     })
 })

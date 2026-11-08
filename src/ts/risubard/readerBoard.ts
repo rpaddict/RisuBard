@@ -55,6 +55,35 @@ export interface ReaderBoardWork {
     endedAt?: number
 }
 
+/** Built-in tab of the main story; user tabs hold side stories. */
+export const MAIN_TAB_ID = 'main'
+export const MAIN_TAB_NAME = '본편'
+
+/** A tab of side stories (외전) beside the main story. */
+export interface ReaderBoardTab {
+    id: string
+    name: string
+    createdAt: number
+}
+
+/**
+ * One side story in a tab, written in one chat. Its episodes are numbered on
+ * their own and never continue or replace the main story's.
+ */
+export interface ReaderBoardSeries {
+    id: string
+    workId: string
+    tabId: string
+    title: string
+    /** Chat the side story is written in. */
+    chatKey: string
+    status: 'serial' | 'ended'
+    /** Main-story episode the side story branches off after, if any. */
+    branchNo?: number
+    createdAt: number
+    endedAt?: number
+}
+
 export interface ReaderTheory {
     id: string
     /** Work the theory is about. */
@@ -107,6 +136,8 @@ export interface ReaderBoardPost {
     title: string
     body: string
     episodeId?: string
+    /** Side story a notice belongs to; episode posts go by their episode. */
+    seriesId?: string
     comments: ReaderBoardComment[]
     createdAt: number
 }
@@ -114,7 +145,9 @@ export interface ReaderBoardPost {
 export interface ReaderBoardEpisode {
     id: string
     workId: string
-    /** Episode number in the work (restarts after a rewind). */
+    /** Side story this episode belongs to; none for the main story. */
+    seriesId?: string
+    /** Episode number in its story line (restarts after a rewind). */
     no: number
     /** 0 for the first version of this number, then 1, 2... */
     revision: number
@@ -163,6 +196,11 @@ export interface ReaderBoard {
     /** Always at least one; the last started one is current. */
     works: ReaderBoardWork[]
     currentWorkId: string
+    /** Side-story tabs; the main story's tab is built in. */
+    tabs: ReaderBoardTab[]
+    series: ReaderBoardSeries[]
+    /** chatKey -> side story the chat publishes to; absent means the main story. */
+    chatTargets: Record<string, string>
     readers: ReaderBoardReader[]
     episodes: ReaderBoardEpisode[]
     posts: ReaderBoardPost[]
@@ -342,6 +380,9 @@ export function createReaderBoard(input: {
         settings: normalizeReaderBoardSettings({ ...defaultReaderBoardSettings(), ...input.settings }),
         works: [firstWork(now)],
         currentWorkId: FIRST_WORK_ID,
+        tabs: [],
+        series: [],
+        chatTargets: {},
         readers: [],
         episodes: [],
         posts: [],
@@ -438,6 +479,7 @@ function normalizePost(value: unknown): ReaderBoardPost | null {
         title: text(value.title, 300),
         body: text(value.body, 20000),
         ...(typeof value.episodeId === 'string' ? { episodeId: value.episodeId } : {}),
+        ...(typeof value.seriesId === 'string' && value.seriesId ? { seriesId: value.seriesId.slice(0, 80) } : {}),
         comments: Array.isArray(value.comments) ? value.comments.map(normalizeComment).filter((item): item is ReaderBoardComment => !!item) : [],
         createdAt: clampInt(value.createdAt, 0, Number.MAX_SAFE_INTEGER, 0),
     }
@@ -455,6 +497,7 @@ function normalizeEpisode(value: unknown, workId: string): ReaderBoardEpisode | 
     return {
         id: value.id,
         workId: workIdOf(value.workId, workId),
+        ...(typeof value.seriesId === 'string' && value.seriesId ? { seriesId: value.seriesId.slice(0, 80) } : {}),
         no: clampInt(value.no, 1, 1e9, 1),
         revision: clampInt(value.revision, 0, 1e6, 0),
         title: text(value.title, 200),
@@ -467,6 +510,31 @@ function normalizeEpisode(value: unknown, workId: string): ReaderBoardEpisode | 
         createdAt: clampInt(value.createdAt, 0, Number.MAX_SAFE_INTEGER, 0),
         ...(typeof value.retractedAt === 'number' ? { retractedAt: value.retractedAt } : {}),
         ...(typeof value.editedAt === 'number' ? { editedAt: value.editedAt } : {}),
+    }
+}
+
+function normalizeTab(value: unknown): ReaderBoardTab | null {
+    if (!isRecord(value) || typeof value.id !== 'string' || !value.id || value.id === MAIN_TAB_ID) return null
+    return {
+        id: value.id.slice(0, 80),
+        name: text(value.name, 40).trim() || '외전',
+        createdAt: clampInt(value.createdAt, 0, Number.MAX_SAFE_INTEGER, 0),
+    }
+}
+
+function normalizeSeries(value: unknown, workId: string, tabIds: Set<string>): ReaderBoardSeries | null {
+    if (!isRecord(value) || typeof value.id !== 'string' || !value.id) return null
+    if (typeof value.tabId !== 'string' || !tabIds.has(value.tabId)) return null
+    return {
+        id: value.id.slice(0, 80),
+        workId: workIdOf(value.workId, workId),
+        tabId: value.tabId,
+        title: text(value.title, 80).trim() || '외전',
+        chatKey: text(value.chatKey, 400),
+        status: value.status === 'ended' ? 'ended' : 'serial',
+        ...(typeof value.branchNo === 'number' && value.branchNo > 0 ? { branchNo: clampInt(value.branchNo, 1, 1e9, 1) } : {}),
+        createdAt: clampInt(value.createdAt, 0, Number.MAX_SAFE_INTEGER, 0),
+        ...(typeof value.endedAt === 'number' ? { endedAt: value.endedAt } : {}),
     }
 }
 
@@ -518,7 +586,25 @@ export function normalizeReaderBoard(value: unknown): ReaderBoard | null {
     const readers = Array.isArray(value.readers) ? value.readers.map((item) => normalizeReader(item, fallbackWork)).filter((item): item is ReaderBoardReader => !!item) : []
     const maxTheory = readers.flatMap((reader) => reader.theories)
         .reduce((max, theory) => Math.max(max, Number(theory.id.replace(/^t/, '')) || 0), 0)
-    const episodes = Array.isArray(value.episodes) ? value.episodes.map((item) => normalizeEpisode(item, fallbackWork)).filter((item): item is ReaderBoardEpisode => !!item) : []
+    const tabs = Array.isArray(value.tabs) ? [...new Map(value.tabs.map(normalizeTab).filter((item): item is ReaderBoardTab => !!item).map((tab) => [tab.id, tab])).values()] : []
+    const tabIds = new Set(tabs.map((tab) => tab.id))
+    const series = Array.isArray(value.series)
+        ? [...new Map(value.series.map((item) => normalizeSeries(item, fallbackWork, tabIds)).filter((item): item is ReaderBoardSeries => !!item).map((item) => [item.id, item])).values()]
+        : []
+    const seriesIds = new Set(series.map((item) => item.id))
+    const chatTargets: Record<string, string> = {}
+    if (isRecord(value.chatTargets)) {
+        for (const [key, target] of Object.entries(value.chatTargets)) if (typeof target === 'string' && seriesIds.has(target)) chatTargets[key] = target
+    }
+    // An episode of a side story that is gone falls back to the main story.
+    const episodes = Array.isArray(value.episodes)
+        ? value.episodes.map((item) => normalizeEpisode(item, fallbackWork)).filter((item): item is ReaderBoardEpisode => !!item)
+            .map((episode) => {
+                if (!episode.seriesId || seriesIds.has(episode.seriesId)) return episode
+                const { seriesId: _, ...rest } = episode
+                return rest
+            })
+        : []
     const workOfEpisode = (episodeId: string) => episodes.find((episode) => episode.id === episodeId)?.workId ?? fallbackWork
     return {
         version: READER_BOARD_VERSION,
@@ -536,6 +622,9 @@ export function normalizeReaderBoard(value: unknown): ReaderBoard | null {
         settings: normalizeReaderBoardSettings(value.settings),
         works,
         currentWorkId,
+        tabs,
+        series,
+        chatTargets,
         readers,
         episodes,
         posts,
@@ -641,13 +730,13 @@ export interface WorkScore {
 }
 
 /**
- * Average scores of a work's published episodes in story order. With `limit`,
+ * Average scores of a work's published main-story episodes in story order. With `limit`,
  * only its first episodes count, so a new work's opening can be held against
  * the previous work's opening.
  */
 export function workScore(board: ReaderBoard, workId: string, limit?: number): WorkScore {
     const episodes = new Map(board.episodes
-        .filter((episode) => episode.workId === workId && episode.status === 'published')
+        .filter((episode) => episode.workId === workId && episode.status === 'published' && !episode.seriesId)
         .map((episode) => [episode.id, episode]))
     const rows = board.metrics
         .filter((metric) => episodes.has(metric.episodeId) && metric.raters > 0)
@@ -686,6 +775,12 @@ export function startNewWork(board: ReaderBoard, input: {
     ended.status = 'ended'
     ended.endedPostNo = board.nextPostNo - 1
     ended.endedAt = now
+    for (const item of board.series) {
+        if (item.workId !== ended.id || item.status === 'ended') continue
+        item.status = 'ended'
+        item.endedAt = now
+    }
+    board.chatTargets = {}
     for (const reader of board.readers) {
         const opinion = reader.opinion.trim()
         if (opinion) {
@@ -722,6 +817,104 @@ export function startNewWork(board: ReaderBoard, input: {
     if (input.notice?.body.trim()) addAuthorPost(board, { ...input.notice, now })
     board.updatedAt = now
     return work
+}
+
+// ---------------------------------------------------------------- side stories
+
+export function findSeries(board: ReaderBoard, id: string | undefined): ReaderBoardSeries | undefined {
+    return id ? board.series.find((item) => item.id === id) : undefined
+}
+
+/** Side story this chat publishes to in the current work, or undefined for the main story. */
+export function chatSeries(board: ReaderBoard, chatKey: string): ReaderBoardSeries | undefined {
+    const series = findSeries(board, board.chatTargets[chatKey])
+    return series && series.workId === board.currentWorkId && series.chatKey === chatKey ? series : undefined
+}
+
+export function tabName(board: ReaderBoard, tabId: string): string {
+    if (tabId === MAIN_TAB_ID) return MAIN_TAB_NAME
+    return board.tabs.find((tab) => tab.id === tabId)?.name ?? '외전'
+}
+
+/** "IF 스토리 › 캐릭터 1 로맨스" */
+export function seriesLabel(board: ReaderBoard, series: ReaderBoardSeries): string {
+    return `${tabName(board, series.tabId)} › ${series.title}`
+}
+
+/** Tab a post shows under: its episode's side story, or the main story. */
+export function postTabId(board: ReaderBoard, post: ReaderBoardPost): string {
+    const seriesId = post.seriesId ?? (post.episodeId ? board.episodes.find((episode) => episode.id === post.episodeId)?.seriesId : undefined)
+    return findSeries(board, seriesId)?.tabId ?? MAIN_TAB_ID
+}
+
+export function addTab(board: ReaderBoard, input: { id: string; name: string; now?: number }): ReaderBoardTab {
+    const tab = { id: input.id, name: input.name.trim().slice(0, 40) || '외전', createdAt: input.now ?? Date.now() }
+    board.tabs.push(tab)
+    board.updatedAt = tab.createdAt
+    return tab
+}
+
+/**
+ * Starts a side story in a tab, written in this chat from now on. When the
+ * chat already holds main-story episodes (a copied chat), the side story
+ * branches off after the last of them.
+ */
+export function startSeries(board: ReaderBoard, input: {
+    id: string
+    chatKey: string
+    views: ChatMessageView[]
+    tabId: string
+    title: string
+    now?: number
+}): ReaderBoardSeries {
+    const now = input.now ?? Date.now()
+    const base = analyzeLine(board, input.chatKey, input.views, undefined).lineage
+    const series: ReaderBoardSeries = {
+        id: input.id,
+        workId: board.currentWorkId,
+        tabId: board.tabs.some((tab) => tab.id === input.tabId) ? input.tabId : (board.tabs[0]?.id ?? input.tabId),
+        title: input.title.trim().slice(0, 80) || `외전 ${board.series.filter((item) => item.workId === board.currentWorkId).length + 1}`,
+        chatKey: input.chatKey,
+        status: 'serial',
+        ...(base.length > 0 ? { branchNo: base[base.length - 1].no } : {}),
+        createdAt: now,
+    }
+    board.series.push(series)
+    board.chatTargets[input.chatKey] = series.id
+    if (!board.chatKeys.includes(input.chatKey)) board.chatKeys.push(input.chatKey)
+    board.updatedAt = now
+    return series
+}
+
+/** Points the chat at the main story (no id) or at one of its own side stories. */
+export function setChatTarget(board: ReaderBoard, chatKey: string, seriesId?: string): boolean {
+    const series = findSeries(board, seriesId)
+    if (seriesId && (!series || series.chatKey !== chatKey || series.workId !== board.currentWorkId)) return false
+    if (series) board.chatTargets[chatKey] = series.id
+    else delete board.chatTargets[chatKey]
+    board.updatedAt = Date.now()
+    return true
+}
+
+/** Finishes a side story: a notice goes up and its episodes are never rewound. */
+export function endSeries(board: ReaderBoard, seriesId: string, now = Date.now()): boolean {
+    const series = findSeries(board, seriesId)
+    if (!series || series.status === 'ended') return false
+    series.status = 'ended'
+    series.endedAt = now
+    const count = board.episodes.filter((episode) => episode.seriesId === series.id && episode.status === 'published').length
+    board.posts.push({
+        no: board.nextPostNo++,
+        kind: 'event',
+        author: '게시판 알림',
+        title: `외전 『${series.title}』 완결`,
+        body: `${tabName(board, series.tabId)} 탭의 외전 『${series.title}』이(가) ${count}화로 완결되었습니다.`,
+        seriesId: series.id,
+        comments: [],
+        createdAt: now,
+    })
+    board.updatedAt = now
+    return true
 }
 
 // ---------------------------------------------------------------- audience
@@ -806,33 +999,68 @@ export interface ChatAnalysis {
  * chat (or inherited by a fork) whose messages disappeared were rewound away;
  * every later episode of the same chat goes with them. Episodes from another
  * chat of a shared board are left alone unless this chat still contains them.
+ *
+ * A chat writing a side story compares that story's own episodes; the main
+ * story's episodes it holds (a copied chat) are only where it branched off.
+ * The main story ignores side stories, so rewinding a chat back to the
+ * branch point leaves them published. Ended side stories are never rewound.
  */
 export function analyzeChat(board: ReaderBoard, chatKey: string, views: ChatMessageView[]): ChatAnalysis {
+    return analyzeLine(board, chatKey, views, chatSeries(board, chatKey))
+}
+
+function analyzeLine(board: ReaderBoard, chatKey: string, views: ChatMessageView[], target: ReaderBoardSeries | undefined): ChatAnalysis {
     const position = new Map<string, number>()
     views.forEach((view, index) => { if (!position.has(view.key)) position.set(view.key, index) })
     // Ended works are finished, not rewound: only the current work is compared.
     const published = board.episodes.filter((episode) => episode.status === 'published' && episode.workId === board.currentWorkId)
-    const lineage: ReaderBoardEpisode[] = []
     const removed: ReaderBoardEpisode[] = []
     const edited: ReaderBoardEpisode[] = []
-    let broken = false
-    let end = -1
-    for (const episode of published) {
-        const own = episode.chatKey === chatKey
-        const indexes = episode.messageKeys.map((key) => position.get(key))
-        const present = indexes.length > 0 && indexes.every((index) => index !== undefined)
-        // Messages must also still come after the previous episode.
-        const ordered = present && (indexes[0] as number) > end
-        if (!broken && present && ordered) {
-            lineage.push(episode)
-            end = Math.max(end, ...(indexes as number[]))
-            const changed = episode.messageKeys.some((key, i) => views[position.get(key) as number].hash !== episode.messageHashes[i])
-            if (changed) edited.push(episode)
-            continue
+    const walk = (episodes: ReaderBoardEpisode[], own: (episode: ReaderBoardEpisode) => boolean, watchEdits: (episode: ReaderBoardEpisode) => boolean) => {
+        const lineage: ReaderBoardEpisode[] = []
+        let broken = false
+        let end = -1
+        for (const episode of episodes) {
+            const indexes = episode.messageKeys.map((key) => position.get(key))
+            const present = indexes.length > 0 && indexes.every((index) => index !== undefined)
+            // Messages must also still come after the previous episode.
+            const ordered = present && (indexes[0] as number) > end
+            if (!broken && present && ordered) {
+                lineage.push(episode)
+                end = Math.max(end, ...(indexes as number[]))
+                const changed = episode.messageKeys.some((key, i) => views[position.get(key) as number].hash !== episode.messageHashes[i])
+                if (changed && watchEdits(episode)) edited.push(episode)
+                continue
+            }
+            if (own(episode)) {
+                broken = true
+                removed.push(episode)
+            }
         }
-        if (own) {
-            broken = true
-            removed.push(episode)
+        return { lineage, end }
+    }
+    const main = walk(
+        published.filter((episode) => !episode.seriesId),
+        (episode) => episode.chatKey === chatKey,
+        // A side-story chat only borrows the main story; its copies of old
+        // messages are not the main story's text.
+        (episode) => !target || episode.chatKey === chatKey,
+    )
+    let lineage = main.lineage
+    let end = main.end
+    if (target) {
+        const writing = target.status === 'serial'
+        const side = walk(published.filter((episode) => episode.seriesId === target.id), () => writing, () => writing)
+        lineage = side.lineage
+        end = Math.max(end, side.end)
+    }
+    // Messages this chat already published in any story line are not published again.
+    const gone = new Set(removed.map((episode) => episode.id))
+    for (const episode of published) {
+        if (gone.has(episode.id)) continue
+        for (const key of episode.messageKeys) {
+            const index = position.get(key)
+            if (index !== undefined && index > end) end = index
         }
     }
     const nextStart = end + 1
@@ -889,11 +1117,13 @@ export function forkReaderBoard(source: ReaderBoard, input: { id: string; chatKe
     copy.name = input.name?.trim() || `${source.name} (분기)`
     copy.chatKeys = [input.chatKey]
     copy.forkedFrom = { boardId: source.id, boardName: source.name, postNo: source.nextPostNo - 1 }
-    // Every inherited episode now belongs to the new chat, so a rewind in it
-    // retracts them like its own.
+    // Every inherited main-story episode now belongs to the new chat, so a
+    // rewind in it retracts them like its own. Side stories stay with the
+    // chats that wrote them.
     for (const episode of copy.episodes) {
-        if (episode.status === 'published') episode.chatKey = input.chatKey
+        if (episode.status === 'published' && !episode.seriesId) episode.chatKey = input.chatKey
     }
+    copy.chatTargets = {}
     copy.createdAt = now
     copy.updatedAt = now
     return copy
@@ -906,6 +1136,7 @@ export function duplicateReaderBoard(source: ReaderBoard, input: { id: string; n
     copy.id = input.id
     copy.name = input.name?.trim() || `${source.name} (사본)`
     copy.chatKeys = []
+    copy.chatTargets = {}
     copy.createdAt = now
     copy.updatedAt = now
     return copy
@@ -993,12 +1224,12 @@ export function orderComments(post: ReaderBoardPost): { comment: ReaderBoardComm
     return ordered
 }
 
-/** Retracted episodes and the newest one of each work can be removed outright. */
+/** Retracted episodes and the newest one of each story line can be removed outright. */
 export function canDeleteEpisode(board: ReaderBoard, episodeId: string): boolean {
     const episode = board.episodes.find((item) => item.id === episodeId)
     if (!episode) return false
     if (episode.status === 'retracted') return true
-    return !board.episodes.some((item) => item.workId === episode.workId && item.status === 'published' && item.no > episode.no)
+    return !board.episodes.some((item) => item.workId === episode.workId && item.seriesId === episode.seriesId && item.status === 'published' && item.no > episode.no)
 }
 
 /**
@@ -1093,19 +1324,26 @@ export function trimMiddle(value: string, limit: number): string {
     return `${value.slice(0, head)}\n\n[... 중간 ${(value.length - limit).toLocaleString()}자 생략 ...]\n\n${value.slice(-tail)}`
 }
 
-export function episodeLabel(episode: Pick<ReaderBoardEpisode, 'no' | 'revision'>): string {
-    return `${episode.no}화${episode.revision > 0 ? ` (개정판${episode.revision > 1 ? ` ${episode.revision}` : ''})` : ''}`
+/** "3화", or "로맨스 외전 3화" for a side story when the board is given. */
+export function episodeLabel(episode: Pick<ReaderBoardEpisode, 'no' | 'revision' | 'seriesId'>, board?: ReaderBoard): string {
+    const series = board ? findSeries(board, episode.seriesId) : undefined
+    return `${series ? `${series.title} ` : ''}${episode.no}화${episode.revision > 0 ? ` (개정판${episode.revision > 1 ? ` ${episode.revision}` : ''})` : ''}`
 }
 
-export function episodeTitle(episode: ReaderBoardEpisode): string {
-    return `${episodeLabel(episode)}${episode.title ? ` ${episode.title}` : ''}`
+export function episodeTitle(episode: ReaderBoardEpisode, board?: ReaderBoard): string {
+    return `${episodeLabel(episode, board)}${episode.title ? ` ${episode.title}` : ''}`
 }
 
-function rangeLabel(episodes: ReaderBoardEpisode[]): string {
-    const numbers = episodes.map((episode) => episode.no)
-    const min = Math.min(...numbers)
-    const max = Math.max(...numbers)
-    return min === max ? `${min}화` : `${min}~${max}화`
+/** "2~3화", per story line: "2화, 로맨스 외전 1~2화". */
+function rangeLabel(episodes: ReaderBoardEpisode[], board: ReaderBoard): string {
+    const lines = new Map<string, number[]>()
+    for (const episode of episodes) lines.set(episode.seriesId ?? '', [...(lines.get(episode.seriesId ?? '') ?? []), episode.no])
+    return [...lines].map(([seriesId, numbers]) => {
+        const series = findSeries(board, seriesId)
+        const min = Math.min(...numbers)
+        const max = Math.max(...numbers)
+        return `${series ? `${series.title} ` : ''}${min === max ? `${min}화` : `${min}~${max}화`}`
+    }).join(', ')
 }
 
 /** Weighted pick without replacement; mentioned readers always come. */
@@ -1172,8 +1410,8 @@ export function prepareGeneration(input: {
             target.status = 'retracted'
             target.retractedAt = now
         }
-        events.push(`작가가 이미 연재했던 ${rangeLabel(analysis.removed)}를 내렸다. 독자들은 그 화들을 이미 읽었고 내용을 기억한다. 지금 게시판에서는 사라진 상태다.`)
-        notices.push(`작가가 ${rangeLabel(analysis.removed)}를 내렸습니다. 이미 읽은 독자들은 내용을 기억합니다.`)
+        events.push(`작가가 이미 연재했던 ${rangeLabel(analysis.removed, board)}를 내렸다. 독자들은 그 화들을 이미 읽었고 내용을 기억한다. 지금 게시판에서는 사라진 상태다.`)
+        notices.push(`작가가 ${rangeLabel(analysis.removed, board)}를 내렸습니다. 이미 읽은 독자들은 내용을 기억합니다.`)
     }
     if (analysis.edited.length > 0) {
         for (const episode of analysis.edited) {
@@ -1181,20 +1419,42 @@ export function prepareGeneration(input: {
             target.messageHashes = target.messageKeys.map((key) => input.views.find((view) => view.key === key)?.hash ?? '')
             target.editedAt = now
         }
-        events.push(`작가가 ${rangeLabel(analysis.edited)}의 본문을 조용히 수정했다.`)
-        notices.push(`작가가 ${rangeLabel(analysis.edited)}의 본문을 수정했습니다.`)
+        events.push(`작가가 ${rangeLabel(analysis.edited, board)}의 본문을 조용히 수정했다.`)
+        notices.push(`작가가 ${rangeLabel(analysis.edited, board)}의 본문을 수정했습니다.`)
     }
     if (!board.chatKeys.includes(input.chatKey)) board.chatKeys.push(input.chatKey)
+
+    // Side story this chat writes; an ended one takes no new episodes.
+    const series = chatSeries(board, input.chatKey)
+    let slice: ChatMessageView[] = []
+    if (input.range && focus === undefined && series?.status !== 'ended') {
+        const start = Math.max(analysis.nextStart, input.range.start)
+        const end = Math.min(input.views.length - 1, input.range.end)
+        // The user's own turns are the author's prompts, not the novel.
+        slice = end >= start ? input.views.slice(start, end + 1).filter((view) => view.role === 'char') : []
+    }
+    const opening = !!series && slice.length > 0 && !board.episodes.some((item) => item.seriesId === series.id)
+    if (series && opening) {
+        const tab = tabName(board, series.tabId)
+        events.push(`작가가 '${tab}' 탭에 새 외전 『${series.title}』 연재를 시작했다. ${series.branchNo ? `본편 ${series.branchNo}화 뒤에서 갈라진 다른 전개다.` : '본편과 따로 진행되는 이야기다.'} 외전에서 일어나는 일은 본편에서 일어난 일이 아니다.`)
+        notices.push(`'${tab}' 탭에서 외전 『${series.title}』 연재를 시작합니다.${series.branchNo ? ` 본편 ${series.branchNo}화 뒤에서 갈라지는 이야기입니다.` : ''}`)
+    }
 
     let eventPostNo: number | undefined
     if (events.length > 0) {
         eventPostNo = board.nextPostNo++
+        const lines = new Set([...analysis.removed, ...analysis.edited].map((item) => item.seriesId ?? ''))
+        if (opening) lines.add(series!.id)
+        const only = lines.size === 1 ? [...lines][0] : ''
         board.posts.push({
             no: eventPostNo,
             kind: 'event',
             author: '게시판 알림',
-            title: analysis.removed.length > 0 ? `${rangeLabel(analysis.removed)}가 내려갔습니다` : `${rangeLabel(analysis.edited)} 본문이 수정되었습니다`,
+            title: analysis.removed.length > 0
+                ? `${rangeLabel(analysis.removed, board)}가 내려갔습니다`
+                : analysis.edited.length > 0 ? `${rangeLabel(analysis.edited, board)} 본문이 수정되었습니다` : `외전 『${series!.title}』 연재 시작`,
             body: notices.join('\n'),
+            ...(only ? { seriesId: only } : {}),
             comments: [],
             createdAt: now,
         })
@@ -1203,18 +1463,15 @@ export function prepareGeneration(input: {
     let episode: ReaderBoardEpisode | undefined
     let episodePostNo: number | undefined
     let episodeText = ''
-    if (input.range && focus === undefined) {
-        const start = Math.max(analysis.nextStart, input.range.start)
-        const end = Math.min(input.views.length - 1, input.range.end)
-        // The user's own turns are the author's prompts, not the novel.
-        const slice = end >= start ? input.views.slice(start, end + 1).filter((view) => view.role === 'char') : []
+    {
         if (slice.length > 0) {
-            const no =analysis.lineage.length > 0 ? analysis.lineage[analysis.lineage.length - 1].no + 1 : 1
-            const revision = board.episodes.filter((item) => item.status === 'retracted' && item.no === no && item.workId === board.currentWorkId).length
+            const no = analysis.lineage.length > 0 ? analysis.lineage[analysis.lineage.length - 1].no + 1 : 1
+            const revision = board.episodes.filter((item) => item.status === 'retracted' && item.no === no && item.workId === board.currentWorkId && item.seriesId === series?.id).length
             episodePostNo = board.nextPostNo++
             episode = {
                 id: `ep-${now.toString(36)}-${episodePostNo}`,
                 workId: board.currentWorkId,
+                ...(series ? { seriesId: series.id } : {}),
                 no,
                 revision,
                 title: '',
@@ -1231,7 +1488,7 @@ export function prepareGeneration(input: {
                 no: episodePostNo,
                 kind: 'episode',
                 author: board.settings.authorName,
-                title: episodeLabel(episode),
+                title: episodeLabel(episode, board),
                 body: '',
                 episodeId: episode.id,
                 comments: [],
@@ -1370,13 +1627,32 @@ function describePreviousWork(board: ReaderBoard): string {
 }
 
 function describeStory(board: ReaderBoard, plan: GenerationPlan): string {
-    const lines: string[] = []
-    for (const episode of board.episodes) {
-        if (episode.id === plan.episode?.id || episode.workId !== board.currentWorkId) continue
+    const shown = board.episodes.filter((episode) => episode.id !== plan.episode?.id && episode.workId === board.currentWorkId)
+    const describe = (episode: ReaderBoardEpisode) => {
         const state = episode.status === 'retracted' ? ' [내려간 화, 독자는 읽었음]' : ''
-        lines.push(`- ${episodeTitle(episode)}${state}: ${episode.summary || '(요약 없음)'}`)
+        return `- ${episodeTitle(episode)}${state}: ${episode.summary || '(요약 없음)'}`
     }
-    return lines.length > 0 ? lines.join('\n') : '(아직 연재된 화 없음)'
+    const main = shown.filter((episode) => !episode.seriesId).map(describe)
+    const sides = board.series.filter((series) => series.workId === board.currentWorkId).flatMap((series) => {
+        const episodes = shown.filter((episode) => episode.seriesId === series.id)
+        if (episodes.length === 0) return []
+        const where = series.branchNo ? `본편 ${series.branchNo}화 뒤에서 갈라진 다른 전개` : '본편과 따로 진행되는 이야기'
+        return [`외전 [${seriesLabel(board, series)}] (${where}${series.status === 'ended' ? ', 완결' : ', 연재 중'}):\n${episodes.map(describe).join('\n')}`]
+    })
+    if (main.length === 0 && sides.length === 0) return '(아직 연재된 화 없음)'
+    if (sides.length === 0) return main.join('\n')
+    return [`본편:\n${main.length > 0 ? main.join('\n') : '(아직 없음)'}`, ...sides].join('\n\n')
+}
+
+/** How readers keep side stories apart from the main story. */
+function seriesRules(board: ReaderBoard, plan: GenerationPlan): string[] {
+    if (!board.series.some((series) => series.workId === board.currentWorkId)) return []
+    const writing = findSeries(board, plan.episode?.seriesId)
+    return [
+        '- 이 게시판에는 본편과 별도로 외전이 탭으로 나뉘어 연재된다. 외전은 본편과 갈라진 다른 이야기다. 외전에서 일어난 일을 본편의 사실로 섞지 않고, 본편에서 일어난 일을 외전의 사실로 섞지도 않는다.',
+        '- 독자들은 본편과 외전을 모두 읽었으므로 둘을 비교하거나 외전 이야기를 꺼낼 수 있다(예: "외전에서는 고백까지 했는데 본편은 아직이네").',
+        writing ? `- 이번에 올라온 새 화는 외전 [${seriesLabel(board, writing)}]의 화다. 본편의 다음 화가 아니다.` : '',
+    ].filter(Boolean)
 }
 
 function audienceLine(board: ReaderBoard): string {
@@ -1427,6 +1703,7 @@ export function buildGenerationRequest(plan: GenerationPlan, storyName: string, 
             '- 본문에 남은 이미지 표시, 상태창, 스탯 표, 선택지, 시스템 메시지 같은 서식은 연재 사이트가 자동으로 붙이는 삽화와 정보창이다. 작가의 실수나 복붙 흔적으로 보지 않고 지적하지 않는다. 그 안의 수치나 상태는 작품 정보로만 받아들인다.',
             '- 독자는 이 글이 AI로 쓰였거나 롤플레이 기록이라고 생각하지 않고, 그런 추측이나 언급을 하지 않는다. 오직 연재 소설로 읽는다.',
             ...workRules(board),
+            ...seriesRules(board, plan),
         ].join('\n'),
         JSON_RULES,
         [
@@ -1469,7 +1746,7 @@ export function buildGenerationRequest(plan: GenerationPlan, storyName: string, 
             ? `이번에는 들어오지 않은 독자(댓글 쓰지 말 것):\n${listed.filter((reader) => !active.has(reader.handle)).map((reader) => describeReader(board, reader, false)).join('\n')}`
             : '',
         `이번에 반응할 게시글:\n${targets.join('\n\n')}`,
-        plan.episode ? `새 화 본문 (${episodeLabel(plan.episode)}):\n<episode>\n${plan.episodeText}\n</episode>` : '',
+        plan.episode ? `새 화 본문 (${episodeLabel(plan.episode, board)}):\n<episode>\n${plan.episodeText}\n</episode>` : '',
     ].filter(Boolean).join('\n\n')
     return [
         { role: 'system', content: system },
@@ -1581,7 +1858,7 @@ export function applyGenerationResult(
         episode.title = stripEpisodeNumber(text(info.title, 200))
         episode.summary = text(info.summary, 4000).trim()
         const post = board.posts.find((item) => item.no === plan.episodePostNo)!
-        post.title = episodeTitle(episode)
+        post.title = episodeTitle(episode, board)
         post.body = episode.summary
     }
 
@@ -1616,6 +1893,8 @@ export function applyGenerationResult(
                 author: name,
                 title,
                 body: text(item.body, 20000).trim(),
+                // Talk about a side-story episode stays in its tab.
+                ...(plan.episode?.seriesId ? { seriesId: plan.episode.seriesId } : {}),
                 comments: [],
                 createdAt: now,
             }
@@ -1684,7 +1963,8 @@ export function applyGenerationResult(
         const average = (key: keyof typeof rated[number]) => rated.length
             ? Math.round(rated.reduce((sum, item) => sum + item[key], 0) / rated.length * 10) / 10
             : 0
-        const previous = board.metrics.filter((metric) => metric.workId === plan.episode!.workId && metric.raters > 0).at(-1)
+        const lineOf = (episodeId: string) => board.episodes.find((item) => item.id === episodeId)?.seriesId
+        const previous = board.metrics.filter((metric) => metric.workId === plan.episode!.workId && metric.raters > 0 && lineOf(metric.episodeId) === plan.episode!.seriesId).at(-1)
         const crowd = simulateAudience({
             subscribers: board.audience.subscribers,
             scores: rated.length ? { fun: average('fun'), immersion: average('immersion'), nextIntent: average('nextIntent') } : null,

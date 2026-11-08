@@ -43,7 +43,18 @@
     import {
         addAuthorPost,
         addComment,
+        addTab,
         analyzeChat,
+        chatSeries,
+        endSeries,
+        findSeries,
+        MAIN_TAB_ID,
+        MAIN_TAB_NAME,
+        postTabId,
+        seriesLabel,
+        setChatTarget,
+        startSeries,
+        tabName,
         banReader,
         canDeleteEpisode,
         deleteEpisode,
@@ -164,6 +175,16 @@
     // Progress of a split run: episodes done out of total.
     let progress = $state<{ done: number; total: number } | null>(null)
 
+    // Feed tab: everything, the main story, or one side-story tab.
+    let feedTab = $state<string>('all')
+    // Where this chat publishes: the main story, one of its side stories, or a new one.
+    const NEW_TAB = '__new-tab'
+    let targetOpen = $state(false)
+    let targetChoice = $state<string>('main')
+    let newSeriesTabId = $state<string>(NEW_TAB)
+    let newTabName = $state('IF 스토리')
+    let newSeriesTitle = $state('')
+
     let manageScope = $state<'character' | 'all'>('character')
     let editingReader = $state<string | null>(null)
 
@@ -184,7 +205,33 @@
     const totalTurns = $derived(turnIndexes.length)
     const firstTurn = $derived(analysis ? turnIndexes.filter((i) => i < analysis.nextStart).length + 1 : 1)
     const rangeStory = $derived(analysis && totalTurns >= firstTurn ? Math.max(0, Math.min(rangeEnd, totalTurns) - rangeStart + 1) : 0)
-    const canPublish = $derived(rangeStory > 0)
+    const target = $derived(board && linked ? chatSeries(board, chatKey) : undefined)
+    const targetEnded = $derived(target?.status === 'ended')
+    const canPublish = $derived(rangeStory > 0 && target?.status !== 'ended')
+    // Side stories this chat wrote in the current work.
+    const ownSeries = $derived(board ? board.series.filter((item) => item.chatKey === chatKey && item.workId === board!.currentWorkId) : [])
+    // Main-story episodes this chat holds: where a new side story would branch off.
+    const branchPreview = $derived.by(() => {
+        if (!board) return 0
+        const keys = new Set(views.map((view) => view.key))
+        const held = board.episodes.filter((episode) => !episode.seriesId && episode.status === 'published' && episode.workId === board!.currentWorkId
+            && episode.messageKeys.length > 0 && episode.messageKeys.every((key) => keys.has(key)))
+        return held.length > 0 ? Math.max(...held.map((episode) => episode.no)) : 0
+    })
+    const feedTabs = $derived(board && board.tabs.length > 0
+        ? [{ id: 'all', name: '전체' }, { id: MAIN_TAB_ID, name: MAIN_TAB_NAME }, ...board.tabs.map((tab) => ({ id: tab.id, name: tab.name }))]
+        : [])
+    const tabEpisodeCount = $derived.by(() => {
+        const counts = new Map<string, number>()
+        if (!board) return counts
+        for (const episode of board.episodes) {
+            if (episode.status !== 'published') continue
+            const tab = findSeries(board, episode.seriesId)?.tabId ?? MAIN_TAB_ID
+            counts.set(tab, (counts.get(tab) ?? 0) + 1)
+            counts.set('all', (counts.get('all') ?? 0) + 1)
+        }
+        return counts
+    })
     const splitSize = $derived(board?.settings.splitSize ?? 0)
     const plannedRanges = $derived(canPublish ? turnRanges(rangeStart, rangeEnd, splitSize) : [])
     const canUndo = $derived(!!undoRecord && !!board && undoRecord.after === board.updatedAt && undoRecord.chatKey === chatKey)
@@ -196,7 +243,9 @@
         ? index.boards.filter((item) => item.characterId === currentCharacter.chaId && !matches.some((match) => match.id === item.id)).slice(0, 4)
         : [])
     const canRun = $derived(linked && !running && (canPublish || pendingAuthorCount > 0 || (analysis?.removed.length ?? 0) > 0 || (analysis?.edited.length ?? 0) > 0))
-    const posts = $derived(board ? [...board.posts].reverse() : [])
+    const posts = $derived(board
+        ? [...board.posts].reverse().filter((post) => feedTab === 'all' || !board!.tabs.length || postTabId(board!, post) === (board!.tabs.some((tab) => tab.id === feedTab) ? feedTab : MAIN_TAB_ID))
+        : [])
     const PAGE_SIZE = 10
     const pageCount = $derived(Math.max(1, Math.ceil(posts.length / PAGE_SIZE)))
     const pagePosts = $derived(posts.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE))
@@ -409,6 +458,8 @@
         newWorkTarget = null
         board = id ? await loadReaderBoard(id) : null
         if (view === 'manage' && board) view = 'board'
+        targetOpen = false
+        if (!board?.tabs.some((tab) => tab.id === feedTab)) feedTab = 'all'
         await loadUndo()
         resetRange()
     }
@@ -464,7 +515,7 @@
         notice = '게시판을 만들었습니다. 첫 생성 때 독자 명단이 함께 만들어집니다.'
     }
 
-    async function adoptMatch(summary: ReaderBoardSummary, mode: 'fork' | 'share') {
+    async function adoptMatch(summary: ReaderBoardSummary, mode: 'fork' | 'share' | 'side') {
         if (!chatKey) return
         const source = await loadReaderBoard(summary.id)
         if (!source) {
@@ -481,7 +532,12 @@
             const result = await linkChat(source, chatKey, index)
             index = result.index
             await showBoard(result.board)
-            notice = `'${source.name}'을(를) 이 챗과 함께 씁니다.`
+            if (mode === 'side') {
+                view = 'board'
+                openTarget('new')
+                notice = `'${source.name}'에 외전으로 연재합니다. 탭과 외전 제목을 정한 뒤 적용을 누르세요.`
+            }
+            else notice = `'${source.name}'을(를) 이 챗과 함께 씁니다.`
         }
     }
 
@@ -594,6 +650,44 @@
         catch (cause) {
             notice = errorText(cause)
         }
+    }
+
+    function openTarget(choice?: string) {
+        if (!board) return
+        targetChoice = choice ?? target?.id ?? 'main'
+        newSeriesTabId = board.tabs.at(-1)?.id ?? NEW_TAB
+        newTabName = 'IF 스토리'
+        newSeriesTitle = ''
+        targetOpen = true
+    }
+
+    async function applyTarget() {
+        if (!board || !chatKey) return
+        if (targetChoice === 'new') {
+            const tabId = board.tabs.some((tab) => tab.id === newSeriesTabId)
+                ? newSeriesTabId
+                : addTab(board, { id: `tab-${Date.now().toString(36)}`, name: newTabName }).id
+            const series = startSeries(board, { id: `series-${Date.now().toString(36)}`, chatKey, views, tabId, title: newSeriesTitle })
+            feedTab = 'all'
+            notice = `이 챗은 이제 '${seriesLabel(board, series)}'에 연재합니다. 외전은 1화부터 따로 번호를 매기고, 첫 화를 올릴 때 연재 시작 알림이 함께 올라갑니다.`
+        }
+        else {
+            const next = targetChoice === 'main' ? undefined : findSeries(board, targetChoice)
+            if (!setChatTarget(board, chatKey, next?.id)) return
+            notice = next ? `이 챗은 이제 '${seriesLabel(board, next)}'에 연재합니다.` : '이 챗은 이제 본편에 연재합니다.'
+        }
+        targetOpen = false
+        await persist()
+        resetRange()
+    }
+
+    async function finishSeries() {
+        if (!board || !target || target.status === 'ended') return
+        const count = board.episodes.filter((episode) => episode.seriesId === target!.id && episode.status === 'published').length
+        if (!(await alertConfirm(`외전 『${target.title}』을(를) ${count}화로 완결할까요? 완결 알림이 올라가고, 이 외전에는 더 연재할 수 없습니다. 이후 이 챗을 되감아도 외전 화는 내려가지 않습니다.`))) return
+        endSeries(board, target.id)
+        await persist()
+        notice = `외전 『${target.title}』을(를) 완결했습니다. 이 챗에서 계속 쓰려면 연재 위치를 바꾸세요.`
     }
 
     function generate() {
@@ -714,7 +808,7 @@
         if (!board || !post.episodeId) return
         const episode = episodeById.get(post.episodeId)
         if (!episode) return
-        if (!(await alertConfirm(`${episodeTitle(episode)}을(를) 댓글과 지표째 지울까요? 이 화의 메시지는 다시 연재할 수 있습니다. 이 화를 읽고 바뀐 독자의 생각은 남으니, 방금 올린 화라면 '되돌리기'가 더 깔끔합니다.`))) return
+        if (!(await alertConfirm(`${episodeTitle(episode, board)}을(를) 댓글과 지표째 지울까요? 이 화의 메시지는 다시 연재할 수 있습니다. 이 화를 읽고 바뀐 독자의 생각은 남으니, 방금 올린 화라면 '되돌리기'가 더 깔끔합니다.`))) return
         deleteEpisode(board, post.episodeId)
         await persist()
         resetRange()
@@ -974,16 +1068,67 @@
                 {#if analysis.removed.length > 0}
                     <div class="banner warn" data-reader-board-rewind>
                         <RotateCcwIcon size={14} />
-                        <span>{analysis.removed.map((episode) => `${episode.no}화`).join(', ')}의 메시지가 챗에서 사라졌습니다. 다음 생성 때 내려간 화로 처리되고, 독자들이 알아챕니다.</span>
+                        <span>{analysis.removed.map((episode) => episodeLabel(episode, board!)).join(', ')}의 메시지가 챗에서 사라졌습니다. 다음 생성 때 내려간 화로 처리되고, 독자들이 알아챕니다.</span>
                     </div>
                 {:else if analysis.edited.length > 0}
                     <div class="banner">
                         <PencilIcon size={14} />
-                        <span>{analysis.edited.map((episode) => `${episode.no}화`).join(', ')} 본문이 바뀌었습니다. 다음 생성 때 수정 알림이 올라갑니다.</span>
+                        <span>{analysis.edited.map((episode) => episodeLabel(episode, board!)).join(', ')} 본문이 바뀌었습니다. 다음 생성 때 수정 알림이 올라갑니다.</span>
                     </div>
                 {/if}
                 <div class="publish-bar">
-                    {#if totalTurns >= firstTurn}
+                    <div class="target-row" data-reader-board-target>
+                        <span class="target-label">연재 위치</span>
+                        <b class="target-name">{target ? seriesLabel(board, target) : MAIN_TAB_NAME}</b>
+                        {#if target}
+                            <span class="tag" class:subtle={targetEnded}>{targetEnded ? '완결' : target.branchNo ? `본편 ${target.branchNo}화에서 갈라짐` : '외전'}</span>
+                        {/if}
+                        <span class="titlebar-spacer"></span>
+                        {#if target && !targetEnded}
+                            <button type="button" class="link-button" disabled={running} onclick={() => void finishSeries()} data-reader-board-series-end><CheckIcon size={12} /> 완결</button>
+                        {/if}
+                        <button type="button" class="link-button accent" disabled={running} onclick={() => targetOpen ? targetOpen = false : openTarget()} aria-expanded={targetOpen} data-reader-board-target-open><GitBranchIcon size={12} /> {targetOpen ? '닫기' : '바꾸기'}</button>
+                    </div>
+                    {#if targetOpen}
+                        <form class="target-form" onsubmit={(event) => { event.preventDefault(); void applyTarget() }} data-reader-board-target-form>
+                            <div class="target-options" role="radiogroup" aria-label="이 챗의 연재 위치">
+                                <label class="setting check"><input type="radio" name="rb-target" value="main" bind:group={targetChoice} /> <span>{MAIN_TAB_NAME}</span></label>
+                                {#each ownSeries as item (item.id)}
+                                    {@const count = board.episodes.filter((episode) => episode.seriesId === item.id && episode.status === 'published').length}
+                                    <label class="setting check" class:disabled={item.status === 'ended'}>
+                                        <input type="radio" name="rb-target" value={item.id} bind:group={targetChoice} disabled={item.status === 'ended' && item.id !== target?.id} />
+                                        <span>{seriesLabel(board, item)} <small class="muted tabular">{count}화{item.status === 'ended' ? ', 완결' : ''}</small></span>
+                                    </label>
+                                {/each}
+                                <label class="setting check"><input type="radio" name="rb-target" value="new" bind:group={targetChoice} data-reader-board-target-new /> <span>새 외전 시작</span></label>
+                            </div>
+                            {#if targetChoice === 'new'}
+                                <div class="setting-row">
+                                    <label class="setting">
+                                        <span>탭</span>
+                                        <select class="field" bind:value={newSeriesTabId} data-reader-board-series-tab>
+                                            {#each board.tabs as tab (tab.id)}<option value={tab.id}>{tab.name}</option>{/each}
+                                            <option value={NEW_TAB}>새 탭 만들기</option>
+                                        </select>
+                                    </label>
+                                    {#if newSeriesTabId === NEW_TAB}
+                                        <label class="setting"><span>새 탭 이름</span><input class="field" bind:value={newTabName} maxlength="40" placeholder="IF 스토리" data-reader-board-tab-name /></label>
+                                    {/if}
+                                </div>
+                                <label class="setting"><span>외전 제목</span><input class="field" bind:value={newSeriesTitle} maxlength="80" placeholder="예: 캐릭터 1 로맨스 외전" data-reader-board-series-title /></label>
+                                <p class="hint flush">{branchPreview > 0 ? `이 챗에 본편 ${branchPreview}화까지 들어 있어서, 본편 ${branchPreview}화 뒤에서 갈라진 이야기로 소개됩니다.` : '본편과 따로 진행되는 이야기로 소개됩니다.'} 외전은 1화부터 따로 번호를 매기고, 본편의 화 번호와 점수에 섞이지 않습니다.</p>
+                            {:else if targetChoice === 'main' && ownSeries.length > 0}
+                                <p class="hint flush">외전 화는 그대로 남습니다. 이 챗을 갈림길까지 되감고 본편으로 이어 써도 외전은 내려가지 않습니다.</p>
+                            {/if}
+                            <div class="form-actions">
+                                <ShButton variant="outline" size="sm" type="button" onclick={() => targetOpen = false}><XIcon size={14} /> 취소</ShButton>
+                                <ShButton variant="primary" size="sm" type="submit" disabled={targetChoice === (target?.id ?? 'main')} data-reader-board-target-apply><CheckIcon size={14} /> 적용</ShButton>
+                            </div>
+                        </form>
+                    {/if}
+                    {#if targetEnded}
+                        <p class="muted small">외전 『{target?.title}』은(는) 완결되었습니다. 이 챗에서 더 연재하려면 연재 위치를 바꾸세요.{pendingAuthorCount > 0 ? ` 작가 글 ${pendingAuthorCount}건에 대한 반응은 받을 수 있습니다.` : ''}</p>
+                    {:else if totalTurns >= firstTurn}
                         <div class="range" aria-label="연재 범위">
                             <span>연재할 턴</span>
                             <input class="field num" type="number" min={firstTurn} max={rangeEnd} value={rangeStart} disabled={running}
@@ -1140,10 +1285,11 @@
                                     <div class="board-actions">
                                         <ShButton variant="primary" size="xs" onclick={() => void adoptMatch(item, 'fork')} data-reader-board-fork><GitBranchIcon size={12} /> 분기해서 이어받기</ShButton>
                                         <ShButton variant="outline" size="xs" onclick={() => void adoptMatch(item, 'share')}><LinkIcon size={12} /> 같은 게시판 함께 쓰기</ShButton>
+                                        <ShButton variant="outline" size="xs" onclick={() => void adoptMatch(item, 'side')} data-reader-board-side><FilePlusIcon size={12} /> 외전으로 연재</ShButton>
                                     </div>
                                 </div>
                             {/each}
-                            <p class="hint">분기는 지금까지의 독자 기억을 복사해 따로 이어 갑니다. 이 챗에서 사라진 화는 다음 생성 때 내려간 화로 처리됩니다. 함께 쓰기는 두 챗이 한 게시판에 연재합니다.</p>
+                            <p class="hint">분기는 지금까지의 독자 기억을 복사해 따로 이어 갑니다. 이 챗에서 사라진 화는 다음 생성 때 내려간 화로 처리됩니다. 함께 쓰기는 두 챗이 한 게시판에 연재합니다. 외전으로 연재하면 같은 독자에게 본편과 따로 번호를 매긴 외전을 탭으로 나눠 보여 줍니다.</p>
                         </div>
                     {/if}
                     <form class="create" onsubmit={(event) => { event.preventDefault(); void createBoard() }}>
@@ -1202,7 +1348,18 @@
                         {/if}
                     </div>
                 {/if}
-                {#if posts.length === 0}
+                {#if feedTabs.length > 0}
+                    <div class="line-tabs" role="tablist" aria-label="연재 탭" data-reader-board-line-tabs>
+                        {#each feedTabs as tab (tab.id)}
+                            <button type="button" role="tab" aria-selected={feedTab === tab.id} class:active={feedTab === tab.id} onclick={() => { feedTab = tab.id; page = 1 }}>
+                                {tab.name} <span class="count tabular">{tabEpisodeCount.get(tab.id) ?? 0}</span>
+                            </button>
+                        {/each}
+                    </div>
+                {/if}
+                {#if posts.length === 0 && feedTab !== 'all'}
+                    <p class="empty">이 탭에는 아직 연재된 화가 없습니다. 챗의 연재 위치를 이 탭의 외전으로 바꾸고 연재하면 여기에 올라갑니다.</p>
+                {:else if posts.length === 0}
                     <p class="empty">아직 글이 없습니다. 챗을 진행한 뒤 '연재하고 반응 받기'를 누르면 첫 화가 올라갑니다.</p>
                 {:else}
                     <div class="feed-head">
@@ -1223,9 +1380,10 @@
                             <button type="button" class="fold" aria-expanded={!isFolded} aria-label={isFolded ? '펴기' : '접기'} title={isFolded ? '펴기' : '접기'} onclick={() => toggleFold(post.no)} data-reader-board-fold>
                                 <ChevronDownIcon size={14} />
                             </button>
-                            {#if episode}<span class="ep-no tabular">{episodeLabel(episode)}</span>{/if}
+                            {#if episode}<span class="ep-no tabular">{episodeLabel(episode, board)}</span>{/if}
                             <h3>{episode ? (episode.title || '부제 없음') : post.title}</h3>
                             {#if episode && board.works.length > 1 && episode.workId !== board.currentWorkId}<span class="tag subtle">{workLabel(workById.get(episode.workId) ?? { no: 0, title: '이전 작품' })}</span>{/if}
+                            {#if feedTab === 'all' && board.tabs.length > 0 && postTabId(board, post) !== MAIN_TAB_ID}<span class="tag subtle">{tabName(board, postTabId(board, post))}</span>{/if}
                             {#if retracted}<span class="tag warn">내려감</span>{/if}
                             {#if episode?.editedAt}<span class="tag subtle">수정됨</span>{/if}
                             {#if pending}<span class="tag subtle">반응 대기</span>{/if}
@@ -1422,7 +1580,7 @@
                                     {#each rows as metric (metric.episodeId)}
                                         {@const episode = episodeById.get(metric.episodeId)}
                                         <tr class:retracted={episode?.status === 'retracted'}>
-                                            <th scope="row">{episode ? `${episode.no}화${episode.revision ? '′'.repeat(Math.min(3, episode.revision)) : ''}` : `#${metric.postNo}`}</th>
+                                            <th scope="row">{episode ? `${findSeries(board, episode.seriesId)?.title ? `${findSeries(board, episode.seriesId)!.title} ` : ''}${episode.no}화${episode.revision ? '′'.repeat(Math.min(3, episode.revision)) : ''}` : `#${metric.postNo}`}</th>
                                             {#each [metric.fun, metric.immersion, metric.plausibility, metric.nextIntent] as value, i (i)}
                                                 <td><span class="cell"><span class="tabular">{value.toFixed(1)}</span><span class="meter" aria-hidden="true"><span style:width={bar(value)}></span></span></span></td>
                                             {/each}
@@ -1654,6 +1812,25 @@
         background: color-mix(in srgb, var(--risu-theme-draculared) 8%, var(--risu-theme-darkbg));
     }
     .publish-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .45rem .6rem; }
+    .target-row { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; min-width: 0; font-size: .72rem; }
+    .target-label { color: var(--risu-theme-textcolor2); font-weight: 600; }
+    .target-name { min-width: 0; overflow-wrap: anywhere; color: var(--risu-theme-textcolor); font-weight: 700; }
+    .target-form {
+        display: grid; flex: 1 1 100%; gap: .55rem; padding: .6rem; border: 1px solid var(--rb-line);
+        border-radius: calc(var(--risu-radius-lg) * 0.8); background: var(--rb-field);
+    }
+    .target-options { display: grid; gap: .35rem; }
+    .target-options .disabled { opacity: .55; }
+    .line-tabs { display: flex; gap: .2rem; margin: 0 0 .1rem; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--rb-line); }
+    .line-tabs button {
+        display: inline-flex; flex: 0 0 auto; align-items: center; gap: .3rem; padding: .35rem .55rem; margin-bottom: -1px;
+        border: 0; border-bottom: 2px solid transparent; color: var(--risu-theme-textcolor2); background: transparent;
+        font-size: .74rem; font-weight: 600; cursor: pointer;
+    }
+    .line-tabs button:hover { color: var(--risu-theme-textcolor); }
+    .line-tabs button.active { color: var(--risu-theme-primary); border-bottom-color: var(--risu-theme-primary); }
+    .line-tabs button:focus-visible { outline: 2px solid var(--risu-theme-primary); outline-offset: -2px; }
+    .line-tabs .count { color: var(--risu-theme-textcolor2); font-size: .66rem; font-weight: 500; }
     .range { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; font-size: .72rem; color: var(--risu-theme-textcolor2); }
     .range > span:first-child { font-weight: 600; }
     .publish-actions { display: flex; align-items: center; gap: .4rem; margin-left: auto; }
