@@ -47,7 +47,7 @@ export const uiSkinTokenDefinitions: readonly UiSkinTokenDefinition[] = [
     { token: 'shadow-floating', group: 'shadow-role', defaultValue: '' },
     { token: 'shadow-overlay', group: 'shadow-role', defaultValue: '' },
 
-    // Unset by default. When a skin sets a length, message cards cut by the chat viewport or the
-    // fixed composer are clipped there with this corner radius (see messageEdgeClip.ts).
+    // No effect since 0.9.93: clipping the card also cut off the inline edit popup and split the
+    // card at the composer. Still accepted so skins made for 0.9.92 keep installing.
     { token: 'message-clip-radius', group: 'clip', defaultValue: '' },
 ]

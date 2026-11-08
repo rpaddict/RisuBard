@@ -69,7 +69,6 @@ import { isMobile } from 'src/ts/platform'
     import { scrollWithinContainer } from './scrollWithin';
     import { observeChatScroll } from './observeChatScroll';
     import { reverseAutoscroll } from './reverseAutoscroll';
-    import { messageEdgeClip } from 'src/ts/gui/messageEdgeClip';
     import {
         captureChatScrollAnchor,
         createChatScrollEndAnchor,
@@ -1909,7 +1908,6 @@ import { isMobile } from 'src/ts/platform'
         <div data-skin-part="chat-screen" class="h-full w-full flex flex-col-reverse overflow-y-auto overscroll-y-contain relative default-chat-screen"
             bind:this={chatScrollContainer}
             use:reverseAutoscroll
-            use:messageEdgeClip
             data-custom-background={(DBState.db.customBackground?.length ?? 0) >= 2 ? '' : undefined}
             class:nodeonly-standard={DBState.db.theme === ''}
             class:no-chat-width-wide={DBState.db.theme === '' && DBState.db.nodeOnlyStandardChatWidth === 'wide'}

@@ -108,7 +108,7 @@ RisuBard 앱 화면 전체(사이드바, 채팅, 설정, 창)의 색, 모서리,
 | `shadow`, `shadow-2xs` ~ `shadow-2xl`, `shadow-popover` | 그림자 크기별 값. `shadow-popover`는 드롭다운 |
 | `shadow-raised`, `shadow-floating`, `shadow-overlay` | 작은 부품, 떠 있는 카드, 창과 서랍의 깊이 그림자를 한꺼번에 바꿉니다 |
 | `font-ui`, `font-prose`, `font-display`, `font-numeric` | 글꼴 묶음을 직접 적을 때. 보통은 `fonts`를 쓰세요 |
-| `message-clip-radius` | 화면보다 긴 메시지 카드가 화면 위쪽이나 입력창 위에서 잘릴 때 그 자리를 이 반지름으로 둥글게 깎습니다. 카드 모서리를 크게 둥글린 스킨에 쓰세요 (예: `1.5rem`) |
+| `message-clip-radius` | 효과가 없습니다. 0.9.92에서 만든 스킨이 그대로 설치되도록 받아만 둡니다 |
 
 기본값 참고: `radius-md` 0.375rem, `radius-lg` 0.5rem, `radius-2xl` 1rem, `radius-3xl` 1.5rem.
 
