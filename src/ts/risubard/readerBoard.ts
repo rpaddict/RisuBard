@@ -1759,20 +1759,73 @@ export function stripEpisodeNumber(title: string): string {
     return title.trim().replace(/^(?:제\s*)?\d+\s*화(?:\s*[:.\-–—|)]\s*|\s+)/, '').trim()
 }
 
-/** Pulls the JSON object out of a reply that may carry fences or prose. */
-export function parseModelJson(reply: string): Record<string, unknown> {
-    const candidates: string[] = [reply.trim()]
-    const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(reply)
-    if (fence) candidates.push(fence[1].trim())
-    const first = reply.indexOf('{')
-    const last = reply.lastIndexOf('}')
-    if (first >= 0 && last > first) candidates.push(reply.slice(first, last + 1))
-    for (const candidate of candidates) {
-        try {
-            const value = JSON.parse(candidate)
-            if (isRecord(value)) return value
+/** Top-level `{...}` spans, matched with string-aware brace counting. */
+function balancedObjects(source: string): string[] {
+    const found: string[] = []
+    let depth = 0
+    let start = -1
+    let inString = false
+    let escaped = false
+    for (let i = 0; i < source.length; i++) {
+        const char = source[i]
+        if (inString) {
+            if (escaped) escaped = false
+            else if (char === '\\') escaped = true
+            else if (char === '"') inString = false
+            continue
         }
-        catch {}
+        if (char === '"') {
+            if (depth > 0) inString = true
+        }
+        else if (char === '{') {
+            if (depth === 0) start = i
+            depth++
+        }
+        else if (char === '}' && depth > 0) {
+            depth--
+            if (depth === 0) found.push(source.slice(start, i + 1))
+        }
+    }
+    return found
+}
+
+/** Escapes raw newlines and tabs that some models leave inside JSON strings. */
+function escapeControlsInStrings(source: string): string {
+    let out = ''
+    let inString = false
+    let escaped = false
+    for (const char of source) {
+        if (inString) {
+            if (escaped) escaped = false
+            else if (char === '\\') escaped = true
+            else if (char === '"') inString = false
+            else if (char === '\n') { out += '\\n'; continue }
+            else if (char === '\r') { out += '\\r'; continue }
+            else if (char === '\t') { out += '\\t'; continue }
+        }
+        else if (char === '"') inString = true
+        out += char
+    }
+    return out
+}
+
+/** Pulls the JSON object out of a reply that may carry thinking, fences or prose. */
+export function parseModelJson(reply: string): Record<string, unknown> {
+    // Reasoning shown as <Thoughts>/<think> often drafts JSON of its own; drop it first.
+    const cleaned = reply.replace(/<(Thoughts|think|thinking)>[\s\S]*?<\/\1>/gi, '').trim()
+    const candidates: string[] = [cleaned]
+    const fences = [...cleaned.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)].map((match) => match[1].trim())
+    candidates.push(...fences.reverse())
+    // The answer follows any leftover drafts, so the last object wins.
+    candidates.push(...balancedObjects(cleaned).reverse())
+    for (const candidate of candidates) {
+        for (const attempt of [candidate, escapeControlsInStrings(candidate)]) {
+            try {
+                const value = JSON.parse(attempt)
+                if (isRecord(value)) return value
+            }
+            catch {}
+        }
     }
     throw new Error('모델 응답에서 JSON을 찾지 못했습니다.')
 }

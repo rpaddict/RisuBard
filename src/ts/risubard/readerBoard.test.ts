@@ -223,6 +223,14 @@ describe('parsing and files', () => {
         expect(() => parseModelJson('없음')).toThrow()
     })
 
+    it('skips thinking drafts, braces in prose and raw newlines in strings', () => {
+        expect(parseModelJson('<Thoughts>\n초안 {"readers":[{"handle":"x"\n</Thoughts>\n\n{"readers":[]}')).toEqual({ readers: [] })
+        expect(parseModelJson('<think>{"a":0}</think>{"a":1}')).toEqual({ a: 1 })
+        expect(parseModelJson('형식은 {handle} 이다.\n{"a":"}"}')).toEqual({ a: '}' })
+        expect(parseModelJson('{"a":"첫 줄\n둘째 줄"}')).toEqual({ a: '첫 줄\n둘째 줄' })
+        expect(parseModelJson('```json\n{"a":1}\n```\n```json\n{"a":2}\n```')).toEqual({ a: 2 })
+    })
+
     it('round-trips a board through the HTML export', () => {
         const chat = views(2)
         const board = publish(boardWithReaders(), chat, 0, 1)
