@@ -49,16 +49,33 @@ describe('inline collection organizer list', () => {
         expect(keyboardHandler).toContain("event.target.closest('button, a, input, select, textarea')")
     })
 
-    test('places clear selection before search and exposes contextual bulk deletion', () => {
+    test('keeps the search row clear and floats selection, reorder and bulk actions only while items are selected', () => {
         const component = source('src/lib/UI/CollectionOrganizerList.svelte')
 
-        expect(component).toMatch(/copy\.clearSelection[\s\S]*?<TextInput[^>]*bind:value=\{search\}/)
         expect(component).toContain('onDeleteItems?:')
-        expect(component).toContain('copy.deleteSelected')
-        expect(component).toContain('deleteSelectedItems')
-        const managerToolbar = component.match(/\{#if managerLayout\}\s*<span class="text-xs text-textcolor2">([\s\S]*?)\{#if toolbar\}/)?.[1] ?? ''
-        expect(managerToolbar).toContain('bind:value={moveTarget}')
-        expect(managerToolbar).toContain('onclick={bulkMove}')
+        const selectionBar = component.match(/\{#if selectedItemIds\.length\}\s*<div class="collection-selection-bar"([\s\S]*?)\{\/if\}\s*<div bind:this=\{listElement\}/)?.[1] ?? ''
+        expect(selectionBar).toContain('copy.clearSelection')
+        expect(selectionBar).toContain('bind:value={moveTarget}')
+        expect(selectionBar).toContain('onclick={bulkMove}')
+        expect(selectionBar).toContain('copy.deleteSelected')
+        expect(selectionBar).toContain('deleteSelectedItems')
+        expect(selectionBar).toContain('moveSelection(false)')
+        expect(selectionBar).toContain('moveSelection(true)')
+        expect(selectionBar).toContain('copy.selectVisible')
+        expect(component).not.toContain('collection-bulk-actions')
+        const searchRow = component.match(/<div class="collection-toolbar[\s\S]*?<\/div>/)?.[0] ?? ''
+        expect(searchRow).not.toContain('copy.clearSelection')
+        expect(component).toMatch(/\.collection-selection-bar\s*\{[^}]*position:\s*absolute/)
+    })
+
+    test('fits more manager rows: grid columns, landscape side-by-side folders, folder chips on narrow portrait', () => {
+        const component = source('src/lib/UI/CollectionOrganizerList.svelte')
+
+        expect(component).toMatch(/\.collection-items--manager\s*\{[^}]*display:\s*grid[^}]*repeat\(auto-fill/)
+        expect(component).toContain('container-type: size')
+        expect(component).toContain('@container collection-manager (min-width: 720px) or ((min-width: 520px) and (orientation: landscape))')
+        expect(component).toContain('@container collection-manager not ((min-width: 720px) or ((min-width: 520px) and (orientation: landscape)))')
+        expect(component).toContain('return width < 720 && !(width >= 520 && width > height)')
     })
 
     test('prompt presets render their native actions inside the inline organizer', () => {

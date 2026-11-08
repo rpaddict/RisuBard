@@ -579,6 +579,20 @@
         font-weight: 450;
     }
 
+    /* Plugin rows carry two action columns, so their grid columns need more room than module rows. */
+    :global([data-collection-organizer-list="plugins"]) { --collection-item-min: 22rem; }
+
+    /* The power button already shows the enabled state; touch, narrow and short screens keep the name only. */
+    @media (pointer: coarse), (max-width: 640px), (max-height: 640px) {
+        .plugin-item-meta { display: none; }
+    }
+
+    /* Narrow item columns: the name takes its own line and every action lines up in one row beneath it. */
+    @container collection-items (max-width: 520px) {
+        .plugin-item-title { flex-basis: 100%; }
+        .plugin-item-actions .plugin-action-column { flex-direction: row; }
+    }
+
     .plugin-item-actions {
         display: flex;
         flex-wrap: wrap;

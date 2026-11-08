@@ -237,6 +237,12 @@
         padding-bottom: 0;
     }
 
+    /* Short landscape tablets: trim the page chrome so module and plugin lists keep their height. */
+    @media (min-width: 768px) and (max-height: 640px) {
+        .settings-page:has(> :global(.settings-standard-page--resizable)) { padding-top: 1rem; }
+        .settings-page:has(> :global(.settings-standard-page--resizable)) :global(.settings-standard-page__header) { margin-bottom: .75rem; }
+    }
+
     .settings-page:has(> :global(.settings-standard-page--full-width)) {
         width: 100%;
         max-width: 100%;

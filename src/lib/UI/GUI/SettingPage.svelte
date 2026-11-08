@@ -92,6 +92,11 @@
     .settings-standard-page--resizable > .settings-standard-page__body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; }
     .settings-standard-page--resizable > .settings-standard-page__body > :global([data-settings-preset-header]),
     .settings-standard-page--resizable > .settings-standard-page__body > :global([data-settings-section-tabs]) { flex-shrink: 0; }
+    /* Short landscape screens: drop the page summary and give the list the freed height. */
+    @media (max-height: 640px) and (min-width: 641px) {
+        .settings-standard-page--resizable { height: var(--manager-height, calc(100dvh - 2rem)); min-height: 0; }
+        .settings-standard-page--resizable > .settings-standard-page__header > p { display: none; }
+    }
     @media (max-width: 640px) {
         .settings-standard-page--resizable { left: auto; width: 100%; height: max(38rem, calc(100dvh - 8rem)); max-height: none; transform: none; padding-bottom: 0; }
     }

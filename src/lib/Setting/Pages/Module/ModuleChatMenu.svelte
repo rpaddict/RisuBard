@@ -84,7 +84,7 @@
                             {#if module.mcp}<Waypoints size={18}/>{/if}
                             <strong>{module.name}</strong>
                         </div>
-                        {#if module.description}<p>{module.description}</p>{/if}
+                        {#if module.description}<p class="chat-module-description" title={module.description}>{module.description}</p>{/if}
                         {#if !alertMode && personaEnabled}
                             <p class="chat-module-inherited">{copy.personaEnabled}</p>
                         {/if}
@@ -128,10 +128,17 @@
 </ShDialog>
 
 <style>
-    .chat-module-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; min-width: 0; height: 100%; }
-    .chat-module-copy { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
-    .chat-module-name { display: flex; align-items: center; gap: .4rem; }
-    .chat-module-copy p { margin: .3rem 0 0; font-size: .85rem; color: var(--color-textcolor2); }
+    .chat-module-row { display: flex; flex-wrap: nowrap; align-items: center; gap: .75rem; min-width: 0; height: 100%; }
+    .chat-module-copy { flex: 1 1 6rem; min-width: 0; overflow-wrap: anywhere; }
+    .chat-module-name { display: flex; align-items: center; gap: .4rem; min-width: 0; }
+    .chat-module-name strong { display: -webkit-box; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+    .chat-module-copy p { margin: .15rem 0 0; font-size: .85rem; color: var(--color-textcolor2); }
+    .chat-module-copy .chat-module-description { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Touch, narrow and short screens list titles only, so many modules can be checked at a glance. */
+    @media (pointer: coarse), (max-width: 640px), (max-height: 640px) {
+        .chat-module-copy .chat-module-description { display: none; }
+        :global(.chat-module-dialog .risu-modal-header [data-dialog-description]) { display: none; }
+    }
     .chat-module-copy .chat-module-inherited { color: var(--color-info); }
     .chat-module-scopes { display: flex; flex: 0 0 auto; gap: .5rem; margin-left: auto; }
     .chat-module-scope { display: flex; align-items: center; }
@@ -143,4 +150,15 @@
     .chat-module-toggle.preset-enabled { color: var(--color-warning); background: var(--color-warning-bg); border-color: var(--color-warning); box-shadow: 0 0 .45rem color-mix(in srgb, var(--color-warning) 45%, transparent); }
     .chat-module-toggle:focus-visible { outline: 2px solid var(--color-info); outline-offset: 2px; }
     .chat-module-toggle:disabled { opacity: .45; cursor: not-allowed; }
+    /* Flat landscape phones: trim the dialog frame so more rows fit. */
+    @media (max-height: 480px) {
+        :global(.chat-module-dialog) { padding: .75rem; gap: .5rem; }
+        :global(.chat-module-dialog .risu-modal-header) { padding-bottom: .35rem; }
+    }
+    /* Narrow item columns: tighten the toggle cluster so module names keep their width. */
+    @container collection-items (max-width: 420px) {
+        .chat-module-row { gap: .5rem; }
+        .chat-module-scopes, .chat-module-actions { gap: .3rem; }
+        .chat-module-actions { margin-left: 0; padding-left: .4rem; }
+    }
 </style>

@@ -193,7 +193,7 @@
                             {#if preset.image}
                                 <img src={preset.image} alt="icon" class="size-6 shrink-0 rounded-md" decoding="async"/>
                             {/if}
-                            <span class="min-w-0 flex-1 basis-40 wrap-anywhere">{preset.name}</span>
+                            <span class="min-w-0 flex-1 basis-24 wrap-anywhere line-clamp-2">{preset.name}</span>
                         {/if}
                         <div class="preset-manager-actions ml-auto flex max-w-full flex-wrap items-center">
                             {#if DBState.db.showPromptComparison}

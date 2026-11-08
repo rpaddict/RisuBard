@@ -5,6 +5,7 @@
     import {
         ChevronDownIcon,
         ChevronUpIcon,
+        CheckCheckIcon,
         CheckIcon,
         FolderIcon,
         FolderPlusIcon,
@@ -12,6 +13,7 @@
         PencilIcon,
         SquareIcon,
         TrashIcon,
+        XIcon,
     } from '@lucide/svelte'
     import { v4 as uuidv4 } from 'uuid'
     import { language } from 'src/lang'
@@ -82,9 +84,15 @@
     let paneLimit = $state(680)
     const paneId = $props.id()
 
+    // Folders sit beside the items on wide or landscape frames, above them only on narrow portrait ones.
+    // Keep in sync with the @container conditions in the style block.
+    function stackedLayout(width: number, height: number) {
+        return width < 720 && !(width >= 520 && width > height)
+    }
+
     onMount(() => {
         const observer = new ResizeObserver(([entry]) => {
-            compact = entry.contentRect.width < 720
+            compact = stackedLayout(entry.contentRect.width, entry.contentRect.height)
             paneLimit = Math.max(0, compact ? entry.contentRect.height - 252 : entry.contentRect.width - 332)
             const rect = folderElement.getBoundingClientRect()
             folderSize = compact ? rect.height : rect.width
@@ -95,7 +103,7 @@
 
     function startPaneResize() {
         const { width, height } = organizerElement.getBoundingClientRect()
-        const vertical = width < 720
+        const vertical = stackedLayout(width, height)
         const rect = folderElement.getBoundingClientRect()
         const initial = vertical ? rect.height : rect.width
         const limit = Math.max(0, vertical ? height - 252 : width - 332)
@@ -366,6 +374,19 @@
         saveState(reorderVisibleCollectionItems(currentState(), reordered))
     }
 
+    // Touch-friendly reorder: the floating selection bar moves the selected group one slot at a time.
+    function moveSelection(movingDown: boolean) {
+        const visibleIds = visibleItems.map((item) => item.id)
+        const selected = new Set(selectedItemIds)
+        const visibleGroup = visibleIds.filter((id) => selected.has(id))
+        if (!visibleGroup.length) return
+        const edgeItemId = movingDown ? visibleGroup.at(-1)! : visibleGroup[0]
+        const targetItemId = visibleIds[visibleIds.indexOf(edgeItemId) + (movingDown ? 1 : -1)]
+        if (!targetItemId) return
+        const reordered = reorderCollectionItemDragGroup(visibleIds, visibleGroup, visibleGroup[0], targetItemId)
+        saveState(reorderVisibleCollectionItems(currentState(), reordered))
+    }
+
     function startItemDrag(event: DragEvent, itemId: string) {
         if (managerLayout && event.target instanceof Element && event.target.closest('button, a, input, select, textarea')) {
             event.preventDefault()
@@ -422,8 +443,8 @@
 >
   <div class="collection-organizer-layout">
     <aside bind:this={folderElement} id={`${paneId}-folders`} class="flex min-h-0 min-w-0 flex-col p-2">
-        <div class="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-textcolor2">{collectionLabel}</div>
-        <div class="min-h-0 grow overflow-y-auto">
+        <div class="collection-folder-label mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-textcolor2">{collectionLabel}</div>
+        <div class="collection-folder-scroll min-h-0 grow overflow-y-auto">
             <button
                 class="flex min-h-9 w-full items-center justify-between rounded-md px-2 text-left hover:bg-selected/30 focus-visible:ring-2 focus-visible:ring-borderc/50"
                 class:bg-selected={selectedFolderId === undefined}
@@ -441,8 +462,8 @@
                 <span>{copy.uncategorized}</span><span class="text-xs text-textcolor2">{folderCounts.uncategorized}</span>
             </button>
 
-            <div class="my-2 border-t border-darkborderc"></div>
-            <div class="flex flex-col gap-1" role="list" aria-label={copy.folders}>
+            <div class="collection-folder-divider my-2 border-t border-darkborderc"></div>
+            <div class="collection-folder-list flex flex-col gap-1" role="list" aria-label={copy.folders}>
                 {#each organizerState.folders as folder, folderIndex (folder.id)}
                     <div
                         class="collection-folder group flex min-h-10 flex-wrap items-center rounded-md hover:bg-selected/30"
@@ -501,9 +522,6 @@
 
     <section class="collection-items-pane flex min-h-0 min-w-0 flex-col gap-2 overflow-auto p-3">
         <div class="collection-toolbar flex min-w-0 shrink-0 flex-wrap items-center gap-2">
-            {#if managerLayout}
-                <ShButton variant="ghost" size="sm" disabled={!selectedItemIds.length} onclick={() => { selectedItemIds = [] }}>{copy.clearSelection}</ShButton>
-            {/if}
             <TextInput className="min-w-0 flex-1 basis-48" bind:value={search} placeholder={copy.searchPlaceholder} />
             {#if statusOptions.length > 0}
                 <select
@@ -517,11 +535,26 @@
                     {/each}
                 </select>
             {/if}
-            {#if managerLayout}
-                <span class="text-xs text-textcolor2">{copy.selectedCount.replace('{}', String(selectedItemIds.length))}</span>
-                {#if selectedItemIds.length}
+            {#if toolbar}{@render toolbar(selectedFolderId)}{/if}
+        </div>
+
+        <!-- Floats over the list so selecting never shifts the rows under a sweeping pointer. -->
+        {#if selectedItemIds.length}
+            <div class="collection-selection-bar" role="toolbar" aria-label={copy.selectedCount.replace('{}', String(selectedItemIds.length))}>
+                <span class="collection-selection-count">{copy.selectedCount.replace('{}', String(selectedItemIds.length))}</span>
+                <div class="collection-selection-order">
+                    <ShButton variant="ghost" size="icon-sm" aria-label={copy.moveItemUp} title={copy.moveItemUp} onclick={() => moveSelection(false)}><ChevronUpIcon /></ShButton>
+                    <ShButton variant="ghost" size="icon-sm" aria-label={copy.moveItemDown} title={copy.moveItemDown} onclick={() => moveSelection(true)}><ChevronDownIcon /></ShButton>
+                    {#if !managerLayout}
+                        <ShButton variant="ghost" size="icon-sm" aria-label={copy.selectVisible} title={copy.selectVisible} onclick={() => {
+                            selectedItemIds = Array.from(new Set([...selectedItemIds, ...visibleItems.map((item) => item.id)]))
+                        }}><CheckCheckIcon /></ShButton>
+                    {/if}
+                    <ShButton variant="ghost" size="icon-sm" aria-label={copy.clearSelection} title={copy.clearSelection} onclick={() => { selectedItemIds = [] }}><XIcon /></ShButton>
+                </div>
+                <div class="collection-selection-move">
                     <select
-                        class="min-h-8 min-w-0 max-w-full basis-36 rounded-md border border-darkborderc bg-darkbg px-2 text-sm text-textcolor focus:outline-none focus:ring-2 focus:ring-borderc/50"
+                        class="min-h-8 min-w-0 max-w-56 flex-1 rounded-md border border-darkborderc bg-darkbg px-2 text-sm text-textcolor focus:outline-none focus:ring-2 focus:ring-borderc/50"
                         bind:value={moveTarget}
                         aria-label={copy.moveTarget}
                     >
@@ -532,41 +565,14 @@
                         {/each}
                     </select>
                     <ShButton variant="outline" size="sm" disabled={!moveTarget} onclick={bulkMove}>{copy.moveSelected}</ShButton>
-                {/if}
-                {#if onDeleteItems}
-                    <ShButton variant="destructive" size="sm" disabled={!selectedItemIds.length} onclick={deleteSelectedItems}><TrashIcon size={15} />{copy.deleteSelected}</ShButton>
-                {/if}
-            {/if}
-            {#if toolbar}{@render toolbar(selectedFolderId)}{/if}
-        </div>
-
-        {#if !managerLayout}
-        <div class="collection-bulk-actions flex min-w-0 shrink-0 flex-wrap items-center gap-2 rounded-md bg-selected/10 px-2 py-1.5">
-            <ShButton variant="ghost" size="sm" onclick={() => {
-                selectedItemIds = Array.from(new Set([...selectedItemIds, ...visibleItems.map((item) => item.id)]))
-            }}>{copy.selectVisible}</ShButton>
-            <ShButton variant="ghost" size="sm" disabled={!selectedItemIds.length} onclick={() => { selectedItemIds = [] }}>{copy.clearSelection}</ShButton>
-            <span class="text-xs text-textcolor2">{copy.selectedCount.replace('{}', String(selectedItemIds.length))}</span>
-            <div class="min-w-0 grow"></div>
-            <select
-                class="min-h-8 min-w-0 max-w-full basis-36 rounded-md border border-darkborderc bg-darkbg px-2 text-sm text-textcolor focus:outline-none focus:ring-2 focus:ring-borderc/50"
-                bind:value={moveTarget}
-                aria-label={copy.moveTarget}
-            >
-                <option value="">{copy.chooseFolder}</option>
-                <option value="__uncategorized__">{copy.uncategorized}</option>
-                {#each organizerState.folders as folder (folder.id)}
-                    <option value={folder.id}>{folder.name}</option>
-                {/each}
-            </select>
-            <ShButton variant="outline" size="sm" disabled={!selectedItemIds.length || !moveTarget} onclick={bulkMove}>{copy.moveSelected}</ShButton>
-            {#if onDeleteItems}
-                <ShButton variant="destructive" size="sm" disabled={!selectedItemIds.length} onclick={deleteSelectedItems}><TrashIcon size={15} />{copy.deleteSelected}</ShButton>
-            {/if}
-        </div>
+                    {#if onDeleteItems}
+                        <ShButton variant="destructive" size="icon-sm" aria-label={copy.deleteSelected} title={copy.deleteSelected} onclick={deleteSelectedItems}><TrashIcon size={16} /></ShButton>
+                    {/if}
+                </div>
+            </div>
         {/if}
 
-        <div bind:this={listElement} class="collection-items flex min-h-40 flex-1 flex-col divide-y divide-darkborderc overflow-y-auto rounded-md border border-darkborderc" class:collection-items--manager={managerLayout} role="list" aria-label={copy.items}>
+        <div bind:this={listElement} class="collection-items flex min-h-40 flex-1 flex-col divide-y divide-darkborderc overflow-y-auto rounded-md border border-darkborderc" class:collection-items--manager={managerLayout} class:collection-items--selecting={selectedItemIds.length > 0} role="list" aria-label={copy.items}>
             {#if visibleItems.length === 0}
                 <p class="m-auto p-6 text-sm text-textcolor2">{copy.noItems}</p>
             {:else}
@@ -667,7 +673,7 @@
 </div>
 
 <style>
-    .collection-organizer { container-name: collection-manager; container-type: inline-size; width: 100%; height: min(70dvh, 46rem); min-height: 0; flex: 1; border-color: var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--color-bgcolor)); }
+    .collection-organizer { container-name: collection-manager; container-type: size; width: 100%; height: min(70dvh, 46rem); min-height: 0; flex: 1; border-color: var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--color-bgcolor)); }
     .collection-organizer-layout { display: grid; height: 100%; min-width: 0; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: clamp(6rem, var(--collection-folder-height, 16rem), max(6rem, calc(100% - 15rem))) .75rem minmax(0, 1fr); }
     .collection-splitter { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 0; border: 0; background: var(--color-darkbg); cursor: row-resize; touch-action: none; }
     .collection-splitter span { width: 2rem; height: 3px; border-radius: calc(var(--risu-radius-sm) * 0.75); background: var(--color-borderc); }
@@ -677,8 +683,16 @@
     .collection-folder-summary { width: 100%; }
     .collection-folder-actions { width: 100%; justify-content: flex-end; gap: .25rem; padding: 0 .3rem .3rem; }
     .collection-item { transition: background-color 180ms ease, border-color 180ms ease; }
-    .collection-items--manager { gap: .7rem; border: 0; border-radius: 0; background: transparent; }
-    .collection-item--manager { align-items: stretch; overflow: hidden; min-height: 4.75rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--color-bgcolor)); }
+    /* Rows stay title-sized, so the list fills its width with as many columns as fit: one on phones, two or three on wide or landscape screens. */
+    .collection-items--manager { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--collection-item-min, 18rem)), 1fr)); grid-auto-rows: max-content; align-content: start; gap: .5rem; border: 0; border-radius: 0; background: transparent; }
+    .collection-items--selecting { padding-bottom: 4.5rem; }
+    .collection-items-pane { position: relative; }
+    .collection-selection-bar { position: absolute; right: .75rem; bottom: .75rem; left: .75rem; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .4rem .5rem .4rem .75rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: color-mix(in srgb, var(--color-selected) 18%, var(--settings-surface, var(--color-bgcolor))); box-shadow: var(--risu-shadow-floating, 0 .5rem 1.5rem -.5rem color-mix(in srgb, var(--color-shadow) 55%, transparent)); }
+    .collection-selection-order { display: flex; flex: 1 1 auto; align-items: center; gap: .1rem; }
+    .collection-selection-move { display: flex; flex: 1 1 16rem; min-width: 0; align-items: center; justify-content: flex-end; gap: .4rem; }
+    .collection-selection-count { font-size: .8rem; font-weight: 600; color: var(--color-textcolor); font-variant-numeric: tabular-nums; }
+    .collection-item--manager:has(:global([aria-expanded="true"])) { grid-column: 1 / -1; }
+    .collection-item--manager { align-items: stretch; overflow: hidden; min-height: 3.25rem; border: 1px solid var(--settings-border, var(--color-darkborderc)); border-radius: var(--settings-radius, var(--risu-radius-xl)); background: var(--settings-surface, var(--color-bgcolor)); }
     .collection-item--manager .collection-item-content { min-width: 0; padding: .45rem .7rem; }
     .collection-item--selected { border-color: color-mix(in srgb, var(--color-borderc) 70%, var(--settings-border, var(--color-darkborderc))); background: color-mix(in srgb, var(--color-selected) 22%, var(--settings-surface, var(--color-bgcolor))); }
     .collection-item-selection-rail { display: flex; width: 2.5rem; flex: 0 0 2.5rem; align-self: stretch; align-items: center; justify-content: center; border-right: 1px solid var(--settings-border, var(--color-darkborderc)); background: color-mix(in srgb, var(--settings-surface, var(--color-bgcolor)) 88%, var(--risu-theme-textcolor)); }
@@ -687,18 +701,43 @@
     .collection-item-content--drag-handle { cursor: grab; }
     .collection-item-content--drag-handle:active { cursor: grabbing; }
     .collection-item-content--drag-handle :global(button), .collection-item-content--drag-handle :global(a), .collection-item-content--drag-handle :global(input), .collection-item-content--drag-handle :global(select), .collection-item-content--drag-handle :global(textarea) { cursor: pointer; }
-    @container collection-manager (min-width: 720px) {
-        .collection-organizer-layout { grid-template-rows: minmax(0, 1fr); grid-template-columns: clamp(13rem, var(--collection-folder-width, 17rem), calc(100% - 21rem)) .75rem minmax(0, 1fr); }
+    @container collection-manager (min-width: 720px) or ((min-width: 520px) and (orientation: landscape)) {
+        .collection-organizer-layout { grid-template-rows: minmax(0, 1fr); grid-template-columns: clamp(13rem, var(--collection-folder-width, min(17rem, 28cqw)), calc(100% - 21rem)) .75rem minmax(0, 1fr); }
         .collection-splitter { cursor: col-resize; }
         .collection-splitter span { width: 3px; height: 2rem; }
     }
+    /* Narrow portrait: folders collapse into a wrapping chip strip so the item list keeps most of the height. */
+    @container collection-manager not ((min-width: 720px) or ((min-width: 520px) and (orientation: landscape))) {
+        /* Until the splitter sets a height, the strip only takes what its chips need. An unset height invalidates the track and selects the fallback. */
+        .collection-organizer-layout {
+            --collection-folder-track: clamp(5.5rem, var(--collection-folder-height), max(5.5rem, calc(100% - 15rem)));
+            grid-template-rows: var(--collection-folder-track, fit-content(max(5.5rem, calc(100% - 15rem)))) .75rem minmax(0, 1fr);
+        }
+        .collection-folder-label, .collection-folder-divider { display: none; }
+        .collection-folder-scroll { display: flex; flex-wrap: wrap; align-content: flex-start; gap: .25rem; }
+        .collection-folder-scroll > button { width: auto; gap: .6rem; padding-inline: .7rem; }
+        .collection-folder-list { flex-direction: row; flex-wrap: wrap; gap: .25rem; }
+        .collection-folder { flex-direction: row; align-items: center; min-height: 2.25rem; padding: 0; }
+        .collection-folder-summary { width: auto; padding-block: .35rem; }
+        .collection-folder:not(.bg-selected) .collection-folder-actions { display: none; }
+        .collection-folder-actions { width: auto; padding: 0 .3rem 0 0; }
+        .collection-items-pane { padding: .5rem; }
+    }
+    /* Flat frames (landscape phones): denser rows and padding so more items fit in the short height. */
+    @container collection-manager (max-height: 440px) {
+        .collection-items-pane { gap: .4rem; padding: .5rem; }
+        .collection-items--manager { gap: .35rem; }
+        .collection-item--manager { min-height: 2.75rem; }
+        .collection-item--manager .collection-item-content { padding-block: .2rem; }
+    }
     @container collection-items (max-width: 520px) {
-        .collection-item:not(.collection-item--manager) { display: grid; grid-template-columns: 1.5rem 2rem minmax(0, 1fr); }
-        .collection-item-content { grid-column: 1 / -1; grid-row: 2; }
-        .collection-item--manager .collection-item-content { grid-column: auto; grid-row: auto; }
-        .collection-item-order { grid-column: 3; grid-row: 1; justify-self: end; }
-        .collection-toolbar :global(input) { flex-basis: 100%; }
-        .collection-bulk-actions :global(button) { height: auto; min-height: 2.25rem; max-width: 100%; white-space: normal; }
+        /* One line per item: selection, handle, content and order buttons share the row. */
+        .collection-item:not(.collection-item--manager) { align-items: center; gap: .25rem; padding: .3rem .4rem; }
+        .collection-item-select { margin: -.3rem 0 -.3rem -.4rem; padding: .3rem 0 .3rem .4rem; align-items: center; }
+        .collection-item-select input { margin-top: 0; }
+        .collection-item-order { display: none; }
+        .collection-toolbar :global(input) { flex-basis: 6rem; }
+        .collection-toolbar select { min-width: 0; flex: 0 1 7rem; }
     }
     @media (pointer: coarse) {
         .collection-folder-actions :global(button), .collection-item-order :global(button), .collection-toolbar :global(button) { min-width: 2.5rem; min-height: 2.5rem; }

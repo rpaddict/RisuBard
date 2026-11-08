@@ -192,11 +192,13 @@
                             {#if rmodule.mcp}
                                 <Waypoints size={18} class="shrink-0" />
                             {/if}
-                            <span class="block min-w-0">{rmodule.name}</span>
+                            <span class="module-item-label">{rmodule.name}</span>
                         </div>
-                        <div class="module-item-description">
-                            <span class="text-sm text-textcolor2">{rmodule.description || 'No description provided'}</span>
-                        </div>
+                        {#if rmodule.description}
+                            <div class="module-item-description">
+                                <span class="text-sm text-textcolor2" title={rmodule.description}>{rmodule.description}</span>
+                            </div>
+                        {/if}
                     </div>
                     <div class="module-item-actions">
                         <ShButton
@@ -359,8 +361,8 @@
         flex-direction: column;
         align-items: flex-start;
         justify-content: center;
-        gap: .3rem;
-        flex: 1 1 10rem;
+        gap: .15rem;
+        flex: 1 1 6rem;
         min-width: 0;
         overflow-wrap: anywhere;
     }
@@ -399,9 +401,33 @@
         filter: drop-shadow(0 0 .28rem color-mix(in srgb, var(--color-info) 75%, transparent));
     }
 
-    .module-item-description {
+    .module-item-label {
+        display: -webkit-box;
         min-width: 0;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+    }
+
+    /* One quiet line on desktop; touch, narrow and short screens show titles only so more modules fit. */
+    .module-item-description {
+        width: 100%;
+        min-width: 0;
+        overflow: hidden;
         font-weight: 400;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         overflow-wrap: anywhere;
+    }
+
+    @media (pointer: coarse), (max-width: 640px), (max-height: 640px) {
+        .module-item-description { display: none; }
+    }
+
+    /* A squeezed item column (folders beside the list on a small landscape screen) stacks actions 2x2 so titles keep their width. */
+    @container collection-items (max-width: 330px) {
+        .module-item-actions { display: grid; grid-template-columns: repeat(2, auto); }
     }
 </style>
