@@ -11,9 +11,10 @@
     import SelectInput from "../UI/GUI/SelectInput.svelte";
     import { emptyModelBinding } from "src/ts/preset/types";
     import type { Chat } from "src/ts/storage/database.svelte";
+    import { chatUsesModelPreset } from "src/ts/process/request/modelPresetBinding";
 
     interface Props {
-        bindingTarget?: Pick<Chat, 'useModelPreset' | 'modelBinding'>;
+        bindingTarget?: Pick<Chat, 'useModelPreset' | 'subUseModelPreset' | 'modelBinding'>;
         onBindingChange?: () => void;
     }
 
@@ -33,11 +34,10 @@
     // Effective regime for THIS chat (mirrors resolveChatModelBinding): a lock
     // forces it; under 'none' it's the chat's OWN stored choice only (the
     // new-chat default is snapshotted at creation, not read here).
-    let presetRegime = $derived(
-        lock === 'preset' ? true :
-        lock === 'legacy' ? false :
-        (target?.useModelPreset ?? false)
-    );
+    // The main slot and the sub slot (with its aux tasks) choose separately.
+    let mainPreset = $derived(chatUsesModelPreset(target, 'main', lock));
+    let subPreset = $derived(chatUsesModelPreset(target, 'sub', lock));
+    let presetRegime = $derived(mainPreset || subPreset);
 
     // Seed the bundle when entering binding regime: copy the global default if
     // set (visible write-time seeding, not a runtime fallback), else start empty.
@@ -60,11 +60,24 @@
         b.aux.otherAx ??= '';
     }
 
-    function onModeChange(v: 'legacy' | 'preset') {
+    // An unset sub mode follows the main mode, so switching only the main
+    // mode still switches both, as before. Remember the choice for new chats.
+    function onModeChange(slot: 'main' | 'sub', v: 'legacy' | 'preset') {
         if (!target) return;
-        target.useModelPreset = v === 'preset';
-        if (!bindingTarget) DBState.db.useModelPresetByDefault = target.useModelPreset;
-        if (target.useModelPreset) ensureBinding();
+        const sub = subPreset;
+        if (slot === 'main') target.useModelPreset = v === 'preset';
+        const main = target.useModelPreset ?? false;
+        const nextSub = slot === 'sub' ? v === 'preset' : sub;
+        if (slot === 'sub' || target.subUseModelPreset !== undefined) {
+            if (nextSub === main) delete target.subUseModelPreset;
+            else target.subUseModelPreset = nextSub;
+        }
+        if (!bindingTarget) {
+            DBState.db.useModelPresetByDefault = main;
+            if (target.subUseModelPreset === undefined) delete DBState.db.subUseModelPresetByDefault;
+            else DBState.db.subUseModelPresetByDefault = target.subUseModelPreset;
+        }
+        if (main || nextSub) ensureBinding();
         onBindingChange();
     }
 
@@ -75,7 +88,9 @@
     async function confirmSetAsDefault() {
         if (!target?.modelBinding) return;
         if (!(await alertConfirm(language.modelPresetSetDefaultConfirm))) return;
-        DBState.db.useModelPresetByDefault = true;
+        DBState.db.useModelPresetByDefault = mainPreset;
+        if (subPreset === mainPreset) delete DBState.db.subUseModelPresetByDefault;
+        else DBState.db.subUseModelPresetByDefault = subPreset;
         DBState.db.defaultModelBinding = structuredClone($state.snapshot(target.modelBinding));
         notifySuccess(language.modelPresetDefaultSaved);
     }
@@ -90,29 +105,48 @@
 <div class="flex flex-col gap-1 mt-4">
     {#if target && lock === 'none'}
         <!-- Per-chat model-mode picker. Hidden when a global lock is set. -->
-        <div class="text-[11px] text-textcolor2 px-1">{language.modelModeLabel}</div>
-        <div class="flex gap-1 items-stretch">
-            <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between gap-1 px-1">
+            <span class="text-[11px] text-textcolor2">{language.modelModeLabel}</span>
+            <ShButton size="icon" className="shrink-0" onclick={openModelModeSettings} title={language.modelModeSettingsTitle}>
+                <SettingsIcon size={16} />
+            </ShButton>
+        </div>
+        <div class="grid grid-cols-2 gap-1" data-model-mode-slots>
+            <div class="flex min-w-0 flex-col gap-0.5">
+                <span class="text-[11px] text-textcolor2 px-1">{language.modelModeMain}</span>
                 <SelectInput
-                    value={presetRegime ? 'preset' : 'legacy'}
-                    onchange={(e) => onModeChange(e.currentTarget.value as 'legacy' | 'preset')}
+                    value={mainPreset ? 'preset' : 'legacy'}
+                    ariaLabel={language.modelModeMain}
+                    onchange={(e) => onModeChange('main', e.currentTarget.value as 'legacy' | 'preset')}
                 >
                     <option value="legacy">{language.modelModeLegacy}</option>
                     <option value="preset">{language.modelModePreset}</option>
                 </SelectInput>
             </div>
-            <ShButton size="icon" className="shrink-0" onclick={openModelModeSettings} title={language.modelModeSettingsTitle}>
-                <SettingsIcon size={16} />
-            </ShButton>
+            <div class="flex min-w-0 flex-col gap-0.5">
+                <span class="text-[11px] text-textcolor2 px-1">{language.modelModeSub}</span>
+                <SelectInput
+                    value={subPreset ? 'preset' : 'legacy'}
+                    ariaLabel={language.modelModeSub}
+                    onchange={(e) => onModeChange('sub', e.currentTarget.value as 'legacy' | 'preset')}
+                >
+                    <option value="legacy">{language.modelModeLegacy}</option>
+                    <option value="preset">{language.modelModePreset}</option>
+                </SelectInput>
+            </div>
         </div>
     {/if}
     <div class="text-[11px] text-textcolor2 px-1{target && lock === 'none' ? ' mt-3' : ''}">
-        {presetRegime ? language.modelPresetBindingTitle : `${language.model}/${language.submodel}`}
+        {mainPreset && subPreset ? language.modelPresetBindingTitle : `${language.model}/${language.submodel}`}
     </div>
 
-    {#if !presetRegime}
-        <!-- Classic regime: global model selection, untouched. -->
+    {#if mainPreset && target?.modelBinding}
+        <ModelPresetList warnIfEmpty bind:value={target.modelBinding.main} onChange={onBindingChange} />
+    {:else if !mainPreset}
         <ModelList compact bind:value={DBState.db.aiModel} />
+    {/if}
+    {#if !subPreset}
+        <!-- Classic sub/aux: global model selection, untouched. -->
         <div class="flex gap-1 items-stretch">
             <div class="flex-1 min-w-0">
                 <ModelList compact bind:value={DBState.db.subModel} />
@@ -139,7 +173,6 @@
         {/if}
     {:else if target?.modelBinding}
         <!-- Binding regime: per-chat ModelPreset bundle. -->
-        <ModelPresetList warnIfEmpty bind:value={target.modelBinding.main} onChange={onBindingChange} />
         <div class="flex gap-1 items-stretch">
             <div class="flex-1 min-w-0">
                 <ModelPresetList warnIfEmpty bind:value={target.modelBinding.sub} onChange={onBindingChange} />

@@ -4,7 +4,7 @@
 // Tailwind's rounded-* and shadow-* utilities read the radius and shadow
 // tokens through the @theme block, so components follow a skin unchanged.
 
-export type UiSkinTokenGroup = 'font' | 'radius' | 'shadow' | 'shadow-role'
+export type UiSkinTokenGroup = 'font' | 'radius' | 'shadow' | 'shadow-role' | 'clip'
 
 export interface UiSkinTokenDefinition {
     token: string
@@ -46,4 +46,8 @@ export const uiSkinTokenDefinitions: readonly UiSkinTokenDefinition[] = [
     { token: 'shadow-raised', group: 'shadow-role', defaultValue: '' },
     { token: 'shadow-floating', group: 'shadow-role', defaultValue: '' },
     { token: 'shadow-overlay', group: 'shadow-role', defaultValue: '' },
+
+    // Unset by default. When a skin sets a length, message cards cut by the chat viewport or the
+    // fixed composer are clipped there with this corner radius (see messageEdgeClip.ts).
+    { token: 'message-clip-radius', group: 'clip', defaultValue: '' },
 ]

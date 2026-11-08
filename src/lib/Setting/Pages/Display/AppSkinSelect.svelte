@@ -4,13 +4,15 @@
     import { CheckIcon, ClipboardPasteIcon, DownloadIcon, ExternalLinkIcon, FileUpIcon, Trash2Icon, TriangleAlertIcon } from '@lucide/svelte';
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte';
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte';
-    import { resolveSkinFontStacks, type AppSkin, type AppSkinFont } from 'src/ts/gui/appSkin';
+    import { type AppSkin, type AppSkinFont } from 'src/ts/gui/appSkin';
+    import { appSkinSwatch, defaultAppSkinSwatch, type AppSkinSwatch } from 'src/ts/gui/appSkinSwatch';
     import { detectInstalledFont } from 'src/ts/gui/appSkinFonts';
     import {
         exportAppSkin,
         importAppSkinFile,
         installAppSkinFromText,
         isAppSkinSuppressed,
+        listAppSkins,
         missingSkinFonts,
         removeAppSkin,
         selectAppSkin,
@@ -19,24 +21,13 @@
     let pasteOpen = $state(false);
     let pasteText = $state('');
     const copy = $derived(language.appSkin);
-    const skins = $derived((DBState.db.appSkins ?? []) as AppSkin[]);
+    const entries = $derived(listAppSkins(DBState.db));
+    const skins = $derived(entries.map((entry) => entry.skin));
     const activeId = $derived(DBState.db.appSkinId ?? '');
     const suppressed = isAppSkinSuppressed();
     const activeSkin = $derived(skins.find((skin) => skin.id === activeId));
     // The default card shows the user's own color scheme, not whatever skin is active.
-    const defaultSwatch = $derived.by(() => {
-        const scheme = DBState.db.colorScheme;
-        return {
-            ground: scheme.bgcolor,
-            surface: scheme.darkbg,
-            border: scheme.darkBorderc,
-            text: scheme.textcolor,
-            accent: scheme.primary,
-            accentText: scheme.accentText ?? scheme.textcolor,
-            radius: '0.375rem',
-            font: 'inherit',
-        };
-    });
+    const defaultSwatch = $derived(defaultAppSkinSwatch(DBState.db.colorScheme));
 
     async function installPasted() {
         // Close first: the replace confirmation opens as an app alert, which sits under an open dialog.
@@ -45,21 +36,7 @@
         else pasteOpen = true;
     }
 
-    // Preview swatch from the skin's own colors; missing roles fall back to the current theme.
-    function swatch(skin: AppSkin) {
-        const c = skin.colors ?? {};
-        const t = skin.tokens ?? {};
-        return {
-            ground: c.bgcolor ?? 'var(--color-bgcolor)',
-            surface: c.darkbg ?? 'var(--color-darkbg)',
-            border: c.darkborderc ?? 'var(--color-darkborderc)',
-            text: c.textcolor ?? 'var(--color-textcolor)',
-            accent: c.primary ?? 'var(--color-primary)',
-            accentText: c.accenttext ?? 'var(--color-accenttext)',
-            radius: t['radius-md'] ?? 'var(--risu-radius-md)',
-            font: resolveSkinFontStacks(skin).ui ?? 'inherit',
-        };
-    }
+    const swatch = appSkinSwatch;
 
     type FontStatus = 'embedded' | 'installed' | 'missing' | 'unknown';
     // Embedded fonts ship inside the skin; the rest must be installed on this device.
@@ -76,7 +53,7 @@
     const roleText = (role: AppSkinFont['role']) => role ? (copy as Record<string, string>)[`fontRole${role}`] : copy.fontRoleNone;
 </script>
 
-{#snippet preview(s: ReturnType<typeof swatch> | null)}
+{#snippet preview(s: AppSkinSwatch | null)}
     <span
         class="block h-16 overflow-hidden rounded-md border"
         style:background-color={s?.ground ?? 'var(--color-bgcolor)'}
@@ -130,7 +107,7 @@
             <span class="block truncate text-xs text-textcolor2">{copy.defaultSkinDetail}</span>
         </button>
 
-        {#each skins as skin (skin.id)}
+        {#each entries as { skin, builtin } (skin.id)}
             {@const selected = activeId === skin.id}
             {@const missingCount = suppressed ? 0 : missingSkinFonts(skin).length}
             <div
@@ -161,12 +138,14 @@
                     {@render preview(swatch(skin))}
                     <span class="mt-2 block truncate text-sm font-medium text-textcolor" title={skin.name}>{skin.name}</span>
                     <span class="block truncate text-xs text-textcolor2" title={skin.description ?? skin.source}>
-                        {skin.source ? copy.sourceLabel.replace('{}', skin.source) : (skin.description ?? skin.id)}
+                        {builtin ? copy.builtinLabel : skin.source ? copy.sourceLabel.replace('{}', skin.source) : (skin.description ?? skin.id)}
                     </span>
                 </button>
                 <div class="mt-1.5 flex justify-end gap-1">
                     <ShButton variant="ghost" size="icon-xs" aria-label={`${copy.export}: ${skin.name}`} title={copy.export} onclick={() => exportAppSkin(skin.id)}><DownloadIcon /></ShButton>
-                    <ShButton variant="ghost" size="icon-xs" aria-label={`${copy.remove}: ${skin.name}`} title={copy.remove} onclick={() => removeAppSkin(skin.id)}><Trash2Icon /></ShButton>
+                    {#if !builtin}
+                        <ShButton variant="ghost" size="icon-xs" aria-label={`${copy.remove}: ${skin.name}`} title={copy.remove} onclick={() => removeAppSkin(skin.id)}><Trash2Icon /></ShButton>
+                    {/if}
                 </div>
             </div>
         {/each}

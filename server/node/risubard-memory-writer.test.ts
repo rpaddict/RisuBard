@@ -444,7 +444,7 @@ describe('BardWiki memory writer skill', () => {
         }), ['a1', 'a2'])).toThrow(/order|assistant/i)
     })
 
-    test('keeps legacy reboot turns without retrieval fields and rejects invalid new time hints', () => {
+    test('keeps legacy reboot turns without retrieval fields and degrades invalid time hints', () => {
         const base = {
             turns: [{ title: '도착', establishedEvents: ['라비안이 도착했다.'] }],
             stateChanges: [], characterKnowledge: [], persistentFacts: [],
@@ -455,13 +455,29 @@ describe('BardWiki memory writer skill', () => {
                 assistantMessageId: 'a1', title: '도착',
                 establishedEvents: ['라비안이 도착했다.'],
             })
-        expect(() => parseRebootBatchDraft(JSON.stringify({
+        expect(parseRebootBatchDraft(JSON.stringify({
             ...base,
             turns: [{
                 ...base.turns[0], keywords: ['도착'],
                 temporalHint: { elapsedDays: 1, evidence: '' },
             }],
-        }), ['a1'])).toThrow(/temporalHint\.evidence/)
+        }), ['a1']).turns[0].temporalHint).toEqual({ elapsedDays: null, evidence: '' })
+    })
+
+    test('a continuing scene without a quotable time cue does not fail the turn', () => {
+        const draft = parseMemoryWriterDraft(JSON.stringify({
+            title: '대화', establishedEvents: ['둘이 이야기를 나눴다.'],
+            stateChanges: [], characterKnowledge: [], persistentFacts: [],
+            openContinuity: [], canonicalUpdateCandidates: [],
+            temporalHint: {
+                elapsedDays: 0, evidence: '', timeline: 'present',
+                flashbackAmount: null, flashbackUnit: 'week', calendar: 'x'.repeat(200),
+            },
+        }))
+        expect(draft.temporalHint).toEqual({
+            elapsedDays: null, evidence: '', timeline: 'present',
+            flashbackAmount: null, flashbackUnit: 'day', calendar: 'x'.repeat(120),
+        })
     })
 
     test('binds trusted reboot assistant IDs instead of model-generated IDs', () => {

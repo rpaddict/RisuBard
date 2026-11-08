@@ -497,9 +497,13 @@ async function runNarrativeConfirmation(
     }
     catch (error) {
         if (generationSignal.aborted) return false
-        const reason = (error instanceof Error
+        // The validator hint names the failing field, so a report can be diagnosed.
+        const validationHint = typeof error === 'object' && error !== null
+            ? (error as { validationHint?: unknown }).validationHint : undefined
+        const hint = typeof validationHint === 'string' && validationHint ? ` (${validationHint})` : ''
+        const reason = ((error instanceof Error
             ? error.message
-            : String(error)).trim().slice(0, 512)
+            : String(error)) + hint).trim().slice(0, 512)
         for (const turn of turns) {
             const failed = findNarrativeMessage(input.characterId, input.chatId, turn.targetMessageId)
             if (failed && failed.risubardMemoryConfirmed !== true) {

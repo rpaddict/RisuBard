@@ -10,6 +10,7 @@ import { alertConfirm, notifyError, notifySuccess, notifyWarning } from '../aler
 import { SafeModeStore } from '../stores.svelte'
 import { compileAppSkinCss, validateAppSkin, type AppSkin, type AppSkinFont } from './appSkin'
 import { detectInstalledFont, fontBytesToDataUrl, fontDataUrlToBytes, sniffFontFormat } from './appSkinFonts'
+import { BUILTIN_APP_SKINS } from './builtinSkins'
 
 export const APP_SKIN_STYLE_ID = 'risu-app-skin'
 let lastReportedBrokenSkin = ''
@@ -104,10 +105,24 @@ ${language.appSkin.missingFontsWhere}`, source: 'app-skin' },
     )
 }
 
+/** Installed skins first, then built-in skins whose id no installed skin has taken. */
+export function listAppSkins(db = getDatabase()): { skin: AppSkin, builtin: boolean }[] {
+    const installed = (db.appSkins ?? []).filter(Boolean)
+    const ids = new Set(installed.map((skin) => skin.id))
+    return [
+        ...installed.map((skin) => ({ skin, builtin: false })),
+        ...BUILTIN_APP_SKINS.filter((skin) => !ids.has(skin.id)).map((skin) => ({ skin, builtin: true })),
+    ]
+}
+
+export function findAppSkin(id: string, db = getDatabase()): AppSkin | undefined {
+    return db.appSkins?.find((skin) => skin?.id === id) ?? BUILTIN_APP_SKINS.find((skin) => skin.id === id)
+}
+
 export function applyAppSkin(db = getDatabase()) {
     if (typeof document === 'undefined') return
     const id = db.appSkinId ?? ''
-    const stored = id && !isAppSkinSuppressed() ? db.appSkins?.find((skin) => skin?.id === id) : undefined
+    const stored = id && !isAppSkinSuppressed() ? findAppSkin(id, db) : undefined
     if (!stored) {
         clearAppliedSkin()
         return
@@ -215,7 +230,7 @@ export async function buildAppSkinFile(skin: AppSkin): Promise<AppSkin> {
 }
 
 export async function exportAppSkin(id: string) {
-    const skin = getDatabase().appSkins?.find((entry) => entry.id === id)
+    const skin = findAppSkin(id)
     if (!skin) return
     downloadFile(`${skin.id}.risuskin`, JSON.stringify(await buildAppSkinFile(skin), null, 2))
 }

@@ -33,7 +33,7 @@ export function buildWikiContinuationChat(source: Chat, id: string): Chat {
     const settings: Partial<Chat> = {}
     const keys = ['note', 'localLore', 'scriptstate', 'modules', 'bindedPersona', 'bindedBotPreset', 'fmIndex', 'folderId',
         'risuBardWikiGuide', 'risuBardSettings', 'savedToggleValues', 'togglePresetBaseline',
-        'useLocallySetGlobalVariables', 'GLGlobalVariables', 'useModelPreset', 'modelBinding', 'usePromptPresetParams'] as const
+        'useLocallySetGlobalVariables', 'GLGlobalVariables', 'useModelPreset', 'subUseModelPreset', 'modelBinding', 'usePromptPresetParams'] as const
     for (const key of keys) {
         if (source[key] !== undefined) Object.assign(settings, { [key]: structuredClone(source[key]) })
     }

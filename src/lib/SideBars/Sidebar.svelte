@@ -48,6 +48,7 @@
     import { language } from "../../lang";
     import isEqual from "lodash/isEqual";
     import SidebarAvatar from "./SidebarAvatar.svelte";
+    import SidebarAppSkins from './SidebarAppSkins.svelte';
     import ShSwitch from "../UI/GUI/ShSwitch.svelte";
     import { getCharacterIndexObject, makeAgoText, selectSingleFile } from "src/ts/util";
     import { checkCharOrder, getFileSrc, requestImmediateSave, saveAsset } from "src/ts/globalApi.svelte";
@@ -1406,7 +1407,8 @@
   {/if}
   {#if sideBarMode === 0}
     {#if $selectedCharID < 0 || $settingsOpen}
-      <span class="block text-base font-semibold text-textcolor mt-2">{language.recentChatsTitle}</span>
+      <SidebarAppSkins />
+      <span class="block text-base font-semibold text-textcolor mt-4">{language.recentChatsTitle}</span>
       <div class="flex items-center justify-between gap-2 mt-2">
         <span class="text-sm text-textcolor2">{language.hideRecentChats}</span>
         <ShSwitch

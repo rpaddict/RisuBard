@@ -21,6 +21,16 @@
 .nodeonly-standard.no-chat-width-wide { --no-chat-max-width: 72rem; }
 .nodeonly-standard.no-chat-width-full { --no-chat-max-width: 100%; }
 
+/* 사용자 배경 그림(설정 > 환경)은 이 스크롤 영역 뒤 틀에 깔린다. 그림이 있으면 채팅 영역과
+   메시지 줄을 비워 그림이 보이게 하고, 메시지 카드는 제 바탕색을 지켜 글자를 읽을 수 있게 둔다.
+   스킨이 chat-screen에 칠한 배경보다도 앞선다. */
+.default-chat-screen[data-custom-background] {
+  background: transparent !important;
+}
+.default-chat-screen[data-custom-background] .risu-chat {
+  background-color: transparent !important;
+}
+
 /* 메시지 바깥 배경 */
 .nodeonly-standard .risu-chat {
   background-color: color-mix(

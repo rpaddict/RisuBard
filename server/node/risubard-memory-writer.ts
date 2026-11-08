@@ -396,39 +396,29 @@ function boundedArray(
     return value
 }
 
+/**
+ * The time hint is best-effort metadata, so a bad value degrades to "unknown time"
+ * instead of failing the whole turn. A continuing scene often has no quotable time
+ * cue, and the provider schema cannot require evidence only when elapsedDays is set.
+ */
 export function parseTemporalHint(value: unknown): SemanticTemporalHint | undefined {
-    if (value === undefined) return undefined
-    if (!isRecord(value)) throw new Error('temporalHint must be an object')
+    if (!isRecord(value)) return undefined
+    const nonNegative = (amount: unknown) =>
+        Number.isSafeInteger(amount) && (amount as number) >= 0 ? amount as number : null
+    const evidence = typeof value.evidence === 'string'
+        ? value.evidence.trim().slice(0, 240) : ''
+    const elapsedDays = evidence ? nonNegative(value.elapsedDays) : null
     // Drafts saved before flashbacks and in-story dates carry only the first two fields.
     const extended = ['timeline', 'flashbackAmount', 'flashbackUnit', 'calendar']
-    exactKeys(value, ['elapsedDays', 'evidence',
-        ...(extended.some((key) => Object.hasOwn(value, key)) ? extended : [])], 'temporalHint')
-    if (value.elapsedDays !== null
-        && (!Number.isSafeInteger(value.elapsedDays)
-            || (value.elapsedDays as number) < 0)) {
-        throw new Error('temporalHint.elapsedDays must be a non-negative integer or null')
-    }
-    if (typeof value.evidence !== 'string' || value.evidence.length > 240
-        || (value.elapsedDays !== null && !value.evidence.trim())) {
-        throw new Error('temporalHint.evidence is invalid')
-    }
-    if (value.timeline === undefined) {
-        return { elapsedDays: value.elapsedDays as number | null, evidence: value.evidence }
-    }
-    if ((value.timeline !== 'present' && value.timeline !== 'flashback')
-        || (value.flashbackAmount !== null && (!Number.isSafeInteger(value.flashbackAmount)
-            || (value.flashbackAmount as number) < 0))
-        || !STORY_TIME_UNITS.includes(value.flashbackUnit as StoryTimeUnit)
-        || typeof value.calendar !== 'string' || value.calendar.length > 120) {
-        throw new Error('temporalHint timeline fields are invalid')
-    }
+    if (!extended.some((key) => Object.hasOwn(value, key))) return { elapsedDays, evidence }
     return {
-        elapsedDays: value.elapsedDays as number | null,
-        evidence: value.evidence,
-        timeline: value.timeline,
-        flashbackAmount: value.flashbackAmount as number | null,
-        flashbackUnit: value.flashbackUnit as StoryTimeUnit,
-        calendar: value.calendar,
+        elapsedDays,
+        evidence,
+        timeline: value.timeline === 'flashback' ? 'flashback' : 'present',
+        flashbackAmount: nonNegative(value.flashbackAmount),
+        flashbackUnit: STORY_TIME_UNITS.includes(value.flashbackUnit as StoryTimeUnit)
+            ? value.flashbackUnit as StoryTimeUnit : 'day',
+        calendar: typeof value.calendar === 'string' ? value.calendar.trim().slice(0, 120) : '',
     }
 }
 

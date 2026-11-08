@@ -1200,7 +1200,7 @@ export function newChatModelDefaults(
     previousChat?: Pick<Chat, 'bindedPersona' | '_placeholder' | 'bindedBotPreset'
         | 'usePromptPresetParams' | 'useLocallySetGlobalVariables'
         | 'GLGlobalVariables' | 'togglePresetBaseline'> | null,
-): Partial<Pick<Chat, 'useModelPreset' | 'modelBinding' | 'supaMemory' | 'bindedPersona'
+): Partial<Pick<Chat, 'useModelPreset' | 'subUseModelPreset' | 'modelBinding' | 'supaMemory' | 'bindedPersona'
     | 'bindedBotPreset' | 'usePromptPresetParams' | 'useLocallySetGlobalVariables'
     | 'GLGlobalVariables' | 'togglePresetBaseline'>> {
     const db = getDatabase()
@@ -1217,11 +1217,14 @@ export function newChatModelDefaults(
     if (!db.disableToggleBinding) {
         Object.assign(defaults, newChatToggleDefaults(db, character, previousChat))
     }
-    if (!db.useModelPresetByDefault) return defaults
+    const mainPreset = db.useModelPresetByDefault === true
+    const subPreset = db.subUseModelPresetByDefault ?? mainPreset
+    if (!mainPreset && !subPreset) return defaults
     const def = db.defaultModelBinding
     return {
         ...defaults,
-        useModelPreset: true,
+        useModelPreset: mainPreset,
+        ...(subPreset !== mainPreset ? { subUseModelPreset: subPreset } : {}),
         modelBinding: def ? structuredClone($state.snapshot(def)) : emptyModelBinding(),
     }
 }
@@ -2197,6 +2200,8 @@ export interface Database{
     // P4 dual-regime global default binding (plan v6 §7). Copied into new chats
     // (seeding); useModelPresetByDefault seeds the new-chat regime toggle.
     useModelPresetByDefault?: boolean
+    /** New-chat sub/aux regime; undefined follows useModelPresetByDefault. */
+    subUseModelPresetByDefault?: boolean
     defaultModelBinding?: ModelBindingSet
     // Global model-mode lock. 'legacy'/'preset' force every chat into that
     // regime (the per-chat dropdown is hidden); 'none' lets each chat decide,
@@ -2983,6 +2988,8 @@ export interface Chat{
     // is the regime toggle; modelBinding (the bundle) persists across toggling so
     // it is restored on re-enable. Off (or absent) => classic global model path.
     useModelPreset?: boolean
+    /** Sub/aux model regime chosen apart from the main model; undefined follows useModelPreset. */
+    subUseModelPreset?: boolean
     modelBinding?: ModelBindingSet
     /** Per-chat opt-in: when this chat's MAIN request goes through a ModelPreset,
      * override the preset's sampling parameters with the active prompt preset's

@@ -9,17 +9,17 @@ describe('sidebar model mode persistence', () => {
         const modelBind = read('src/lib/SideBars/ModelBind.svelte')
         const chatList = read('src/lib/SideBars/SideChatList.svelte')
 
-        expect(modelBind).toContain(
-            'if (!bindingTarget) DBState.db.useModelPresetByDefault = target.useModelPreset;'
+        expect(modelBind).toMatch(
+            /if \(!bindingTarget\) \{\s*DBState\.db\.useModelPresetByDefault = main;[\s\S]*DBState\.db\.subUseModelPresetByDefault = target\.subUseModelPreset;/
         )
         expect(chatList).toContain('...newChatModelDefaults(chara, activeChat)')
     })
 
-    test('saving a preset binding as default also makes preset mode the new-chat default', () => {
+    test('saving a preset binding as default also saves the main and sub modes as new-chat defaults', () => {
         const modelBind = read('src/lib/SideBars/ModelBind.svelte')
 
         expect(modelBind).toMatch(
-            /async function confirmSetAsDefault[\s\S]*DBState\.db\.useModelPresetByDefault = true;[\s\S]*DBState\.db\.defaultModelBinding/
+            /async function confirmSetAsDefault[\s\S]*DBState\.db\.useModelPresetByDefault = mainPreset;[\s\S]*DBState\.db\.subUseModelPresetByDefault = subPreset;[\s\S]*DBState\.db\.defaultModelBinding/
         )
     })
 })

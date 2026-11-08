@@ -235,6 +235,30 @@ describe('RisuBardMemoryActivity', () => {
         )
     })
 
+    it('shows a failed canonical entry when analysis threw before writing a receipt', async () => {
+        const target = document.body.appendChild(document.createElement('div'))
+        mounted = mount(RisuBardMemoryActivity, {
+            target,
+            props: {
+                characterId: 'character',
+                chatId: 'pending-only',
+                messages: [{
+                    role: 'char', data: 'reply', chatId: 'assistant-pending',
+                    risubardWikiPending: {
+                        reason: '정본 저장 검증 실패',
+                        failedAt: '2026-09-01T04:07:45.000Z',
+                    },
+                }],
+            },
+        })
+
+        await vi.waitFor(() => {
+            expect(document.body.textContent).toContain('BardWiki 정본 반영')
+            expect(document.body.textContent).toContain('정본에 저장하지 못했습니다: 정본 저장 검증 실패')
+            expect(document.querySelector('.result-entry')?.getAttribute('data-outcome')).toBe('failed')
+        })
+    })
+
     it('shows per-generation chat and wiki provenance without prompt bodies', async () => {
         mocks.loadChatRequestEvidence.mockResolvedValue({
             schemaVersion: 1,

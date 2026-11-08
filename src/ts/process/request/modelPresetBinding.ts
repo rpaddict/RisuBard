@@ -37,6 +37,8 @@ export type ResolvedBinding =
 /** Chat-compatible model settings carried by request targets. */
 export interface ModelBindingTarget {
     useModelPreset?: boolean
+    /** Sub/aux regime; undefined follows useModelPreset. */
+    subUseModelPreset?: boolean
     modelBinding?: ModelBindingSet
     usePromptPresetParams?: boolean
 }
@@ -59,6 +61,18 @@ export function resolveRequestModelBindingTarget(
 function findPreset(id: string | undefined, presets: ModelPreset[]): ModelPreset | undefined {
     if (!id) return undefined
     return presets.find((p) => p.id === id)
+}
+
+/** Whether the main slot, or the sub slot with its aux tasks, uses a ModelPreset. */
+export function chatUsesModelPreset(
+    chat: ModelBindingTarget | null | undefined,
+    slot: 'main' | 'sub',
+    lock: 'none' | 'legacy' | 'preset' = getDatabase().nodeOnlyModelModeLock ?? 'none',
+): boolean {
+    if (lock === 'preset') return true
+    if (lock === 'legacy') return false
+    const main = chat?.useModelPreset ?? false
+    return slot === 'main' ? main : (chat?.subUseModelPreset ?? main)
 }
 
 export function resolveChatModelBinding(
@@ -88,10 +102,8 @@ export function resolveChatModelBinding(
     // (useModelPresetByDefault) is snapshotted into chats at creation
     // (newChatModelDefaults), never read here — reading it here would
     // retroactively flip every existing undecided chat.
-    const usePreset =
-        lock === 'preset' ? true :
-        lock === 'legacy' ? false :
-        (chat?.useModelPreset ?? false)
+    // The main slot and the sub/aux slots pick their regime separately.
+    const usePreset = chatUsesModelPreset(chat, mode === 'model' ? 'main' : 'sub', lock)
 
     if (!usePreset) {
         return { kind: 'classic' }

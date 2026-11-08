@@ -80,6 +80,41 @@ describe('resolveChatModelBinding — regime gate', () => {
     })
 })
 
+describe('resolveChatModelBinding — main and sub regimes chosen separately', () => {
+    const SUB = { id: 'p-sub', name: 'Sub' } as any
+    beforeEach(() => { mockDb.modelPresets = [PRESET, SUB] })
+    function mixedBinding() {
+        const b = bindingWith('p-main')
+        b.sub = 'p-sub'
+        return b
+    }
+
+    test('an unset sub regime follows the main regime', () => {
+        const chat = { useModelPreset: true, modelBinding: mixedBinding() } as any
+        expect(resolveChatModelBinding(chat, 'submodel')).toEqual({ kind: 'modelPreset', preset: SUB })
+        expect(resolveChatModelBinding(chat, 'memory')).toEqual({ kind: 'modelPreset', preset: SUB })
+    })
+
+    test('preset main with legacy sub sends sub and aux requests down the classic path', () => {
+        const chat = { useModelPreset: true, subUseModelPreset: false, modelBinding: mixedBinding() } as any
+        expect(resolveChatModelBinding(chat, 'model')).toEqual({ kind: 'modelPreset', preset: PRESET })
+        expect(resolveChatModelBinding(chat, 'submodel')).toEqual({ kind: 'classic' })
+        expect(resolveChatModelBinding(chat, 'otherAx')).toEqual({ kind: 'classic' })
+    })
+
+    test('legacy main with preset sub uses the preset only for sub and aux requests', () => {
+        const chat = { useModelPreset: false, subUseModelPreset: true, modelBinding: mixedBinding() } as any
+        expect(resolveChatModelBinding(chat, 'model')).toEqual({ kind: 'classic' })
+        expect(resolveChatModelBinding(chat, 'translate')).toEqual({ kind: 'modelPreset', preset: SUB })
+    })
+
+    test('a global lock overrides the separate sub choice', () => {
+        mockDb.nodeOnlyModelModeLock = 'legacy'
+        const chat = { useModelPreset: false, subUseModelPreset: true, modelBinding: mixedBinding() } as any
+        expect(resolveChatModelBinding(chat, 'submodel')).toEqual({ kind: 'classic' })
+    })
+})
+
 describe('resolveChatModelBinding — per-module override', () => {
     const MODULE_PRESET = { id: 'p-module', name: 'Module' } as any
     const classicChat = { useModelPreset: undefined, modelBinding: undefined } as any

@@ -57,9 +57,22 @@
     let requestEntries = $derived(attachWikiInquiryDiagnostics(storedEvidence?.requests ?? [], messages))
     let receiptEntries = $derived(messages.flatMap((message) => {
         const receipt = message.risubardCanonicalReceipt
-        if (message.role !== 'char' || !receipt) return []
+        const pending = message.role === 'char' ? message.risubardWikiPending : undefined
+        // A thrown analysis leaves only the pending reason, so show it as a failed entry.
+        const pendingEntry = pending?.failedAt
+            && (!receipt || !receipt.warnings.join(' ').includes((pending.reason ?? '').slice(0, 80)))
+            ? [{
+                id: `${message.chatId ?? pending.failedAt}-pending`,
+                timestamp: pending.failedAt,
+                failed: true,
+                eventCount: 0,
+                changeCount: 0,
+                message: `정본에 저장하지 못했습니다: ${pending.reason || '알 수 없는 오류'}`,
+            }]
+            : []
+        if (message.role !== 'char' || !receipt) return pendingEntry
         const failed = canonicalTurnFailureWarning(receipt) !== undefined
-        return [{
+        return [...pendingEntry, {
             id: message.chatId ?? receipt.recordedAt,
             timestamp: receipt.recordedAt,
             failed,
@@ -421,7 +434,7 @@
                     {/if}
                     {#if item.request.outcome === 'response-received'}
                         <p class="transport-note">
-                            모델 응답을 받은 기록입니다. 검증·저장 결과는 시간순 로그의 정본 처리 항목을 확인하세요.
+                            모델 응답을 받은 기록입니다. 검증·저장 결과는 이 목록에서 '정본 처리' 표시가 붙은 'BardWiki 정본 반영' 항목에 따로 남습니다.
                         </p>
                     {:else if item.request.failureCategory}
                         <p class="transport-note" data-failure-category={item.request.failureCategory}>

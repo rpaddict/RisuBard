@@ -155,7 +155,7 @@ function applyMemorySavePromptSettings(chat: Chat, currentChat?: Chat): void {
     // Save slots rewind story state, not the current sidebar preferences.
     for (const key of [
         'bindedPersona', 'bindedBotPreset', 'usePromptPresetParams',
-        'useModelPreset', 'modelBinding', 'useLocallySetGlobalVariables',
+        'useModelPreset', 'subUseModelPreset', 'modelBinding', 'useLocallySetGlobalVariables',
         'togglePresetBaseline',
     ] as const) {
         delete chat[key]

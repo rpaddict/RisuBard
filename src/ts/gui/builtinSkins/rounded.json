@@ -1,0 +1,19 @@
+{
+  "skinApi": 1,
+  "id": "rounded",
+  "name": "둥근 기본",
+  "description": "기본 화면의 색은 그대로 두고 모서리만 메시지 입력창처럼 둥글게. 썸네일, 메뉴 버튼, 메시지 카드, 창이 모두 둥글어집니다.",
+  "tokens": {
+    "radius": "0.75rem",
+    "radius-xs": "0.5rem",
+    "radius-sm": "0.75rem",
+    "radius-md": "1.125rem",
+    "radius-lg": "1.5rem",
+    "radius-xl": "1.75rem",
+    "radius-2xl": "2rem",
+    "radius-3xl": "2rem",
+    "radius-4xl": "2.5rem",
+    "message-clip-radius": "1.5rem"
+  },
+  "partsCss": "/* Rounded: the default look with pill-like corners. Colors come from the user's palette.\n   Every corner follows the radius tokens; the active tab keeps its own radius. */\n\n/* --- rounded set --- */\n/* One rule for every control: anything one line tall is a pill, like the message composer.\n   Panels, cards and text areas follow the larger radius tokens. Rail thumbnails and menu\n   buttons are circles, like the persona avatar and the send buttons. */\n[data-skin-part=\"button\"]:not([data-skin-variant=\"link\"]),\n[data-skin-part=\"input\"]:not(:has(textarea)),\n[data-skin-part=\"tabs\"],\n[data-skin-part=\"tab\"],\n[data-skin-part=\"chip\"],\n[data-skin-part=\"switch\"],\n[data-skin-part=\"checkbox\"] { border-radius: 9999px !important; }\n[data-skin-part=\"rail-icon\"],\n[data-skin-part=\"rail-icon\"] :is(img, div, span),\n[data-skin-part=\"sidebar-rail\"] :is(button, img) { border-radius: 9999px !important; }\n"
+}

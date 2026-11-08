@@ -1,0 +1,73 @@
+{
+  "skinApi": 1,
+  "id": "hero-comic",
+  "name": "히어로 코믹",
+  "description": "만화 컷 같은 메시지 칸, 흰 테두리와 먹선, 번짐 없는 그림자, 옅은 망점, 빨간 레일, 노랑 강조.",
+  "source": "mha-ultimate-2-0",
+  "base": "dark",
+  "colors": {
+    "bgcolor": "#0d0f14",
+    "darkbg": "#151922",
+    "darkbutton": "#232834",
+    "selected": "#2b303c",
+    "borderc": "#ffd21f",
+    "darkborderc": "#3a404c",
+    "draculared": "#e3262f",
+    "textcolor": "#f4f5f7",
+    "textcolor2": "#c4c9d2",
+    "primary": "#ffd21f",
+    "accenttext": "#111111",
+    "binding": "#143d8f",
+    "binding-text": "#e6edff",
+    "binding-border": "#2f6fcf",
+    "danger": "#ff6b6b",
+    "danger-bg": "#3a1216",
+    "danger-border": "#e3262f",
+    "on-danger": "#ffffff"
+  },
+  "chatText": {
+    "standard": "#f4f5f7",
+    "bold": "#ffffff",
+    "italic": "#c4c9d2",
+    "italicBold": "#ffd21f",
+    "quote1": "#ff8a8f",
+    "quote2": "#ffd21f"
+  },
+  "tokens": {
+    "radius": "4px",
+    "radius-xs": "2px",
+    "radius-sm": "3px",
+    "radius-md": "4px",
+    "radius-lg": "6px",
+    "radius-xl": "8px",
+    "radius-2xl": "10px",
+    "radius-3xl": "12px",
+    "radius-4xl": "14px",
+    "shadow-2xs": "1px 1px 0 #000000",
+    "shadow-xs": "2px 2px 0 #000000",
+    "shadow": "3px 3px 0 #000000",
+    "shadow-sm": "3px 3px 0 #000000",
+    "shadow-md": "4px 4px 0 #000000",
+    "shadow-lg": "6px 6px 0 #000000",
+    "shadow-xl": "7px 7px 0 #000000",
+    "shadow-2xl": "9px 9px 0 #000000",
+    "shadow-popover": "6px 6px 0 #000000",
+    "shadow-raised": "2px 2px 0 #000000",
+    "shadow-floating": "5px 5px 0 #000000",
+    "shadow-overlay": "8px 8px 0 #000000"
+  },
+  "partsCss": "/* Hero Comic v2: manga pages from mha-ultimate-2-0. Ink panels, white keylines, hard offset\n   shadows, halftone, speed lines, yellow and red.\n   Layout-neutral: keylines and frames are drawn with box-shadow, slants with clip-path,\n   so no part changes size and text stays on its line. */\n[data-skin-part=\"app-shell\"] { background-color: #0a0c10; }\n[data-skin-part=\"app-shell\"] ::selection { background: #ffd21f; color: #111111; }\n\n/* Chat page: plain ink with a faint halftone screen. */\n[data-skin-part=\"chat-screen\"] {\n  background-color: #0d0f14;\n  background-image: radial-gradient(rgb(255 255 255 / .05) 1.1px, transparent 1.7px);\n  background-size: 8px 8px;\n}\n/* Settings page: halftone that fades out from the top. */\n[data-skin-part=\"settings-page\"] {\n  background-image:\n    linear-gradient(180deg, transparent 0, #0d0f14 260px),\n    radial-gradient(rgb(255 210 31 / .14) 1.1px, transparent 1.7px);\n  background-size: 100% 100%, 8px 8px;\n}\n\n/* Red rail with a heavy ink edge. */\n[data-skin-part=\"sidebar-rail\"] {\n  background-color: #b91c24 !important;\n  background-image: linear-gradient(180deg, #c9202a 0%, #a3141c 55%, #6e0b11 100%) !important;\n  box-shadow: inset -3px 0 0 #000000;\n  /* Keep yellow off the rail: its menu button, selection outline and markers use white. */\n  --color-primary: #f4f5f7;\n  --risu-theme-primary: #f4f5f7;\n  --color-borderc: #f4f5f7;\n  --risu-theme-borderc: #f4f5f7;\n}\n[data-skin-part=\"rail-icon\"] { box-shadow: 0 0 0 1px #000000; }\n[data-skin-part=\"rail-icon\"]:hover { box-shadow: 0 0 0 1px #000000, 0 0 0 2px #f4f5f7; }\n[data-skin-part=\"rail-icon\"][data-skin-state=\"active\"] {\n  box-shadow: 0 0 0 1px #000000, 0 0 0 3px #f4f5f7 !important;\n}\n\n/* Side panel: plain, with the rail's ink edge. */\n[data-skin-part=\"sidebar-panel\"] { box-shadow: inset -3px 0 0 #000000; }\n\n/* Settings navigation: the current page as a yellow panel with a red offset. */\n[data-skin-part=\"settings-nav\"] { box-shadow: inset -3px 0 0 #000000; }\n[data-skin-part=\"settings-nav\"] [aria-current=\"page\"] {\n  background: #ffd21f !important;\n  color: #111111 !important;\n  box-shadow: 0 0 0 1px #000000, 2px 2px 0 1px #e3262f;\n}\n\n/* Page title: heavy display face, ink outline, red offset, slanted underline slab. */\n[data-skin-part=\"settings-page\"] h1 {\n  font-family: var(--risu-font-display);\n  color: #ffd21f;\n  letter-spacing: .02em;\n  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 4px 4px 0 #e3262f;\n}\n[data-skin-part=\"settings-page\"] h1::after {\n  content: \"\"; display: block; width: 88px; height: 7px; margin-top: .55rem;\n  background: #f4f5f7;\n  box-shadow: 4px 4px 0 #e3262f;\n  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);\n}\n\n/* Tabs: the active tab becomes a yellow panel with an ink edge and a hard shadow.\n   No slant: a clip-path cut into the label at the corners. */\n[data-skin-part=\"tab\"][data-skin-state=\"active\"] {\n  background: #ffd21f !important;\n  color: #111111 !important;\n  border-radius: var(--risu-radius-sm);\n  box-shadow: 0 0 0 1px #000000, 2px 2px 0 1px #000000;\n}\n[data-skin-part=\"tab\"][data-skin-state=\"active\"]::after { display: none !important; }\n\n/* Buttons: ink keyline and hard shadow; pressing pushes the button into its shadow. */\n[data-skin-part=\"button\"]:is([data-skin-variant=\"default\"], [data-skin-variant=\"outline\"], [data-skin-variant=\"secondary\"], [data-skin-variant=\"binding\"], [data-skin-variant=\"destructive\"]) {\n  box-shadow: 0 0 0 1px #000000, 3px 3px 0 #000000;\n  transition: transform .08s ease, box-shadow .08s ease;\n}\n[data-skin-part=\"button\"][data-skin-variant=\"primary\"] {\n  background: #ffd21f !important;\n  color: #111111 !important;\n  border-color: #000000 !important;\n  box-shadow: 0 0 0 1px #000000, 4px 4px 0 #e3262f, 4px 4px 0 1px #000000;\n  transition: transform .08s ease, box-shadow .08s ease;\n}\n[data-skin-part=\"button\"][data-skin-variant=\"primary\"]:hover:not(:disabled) {\n  transform: translate(-1px, -1px);\n  box-shadow: 0 0 0 1px #000000, 5px 5px 0 #e3262f, 5px 5px 0 1px #000000;\n}\n[data-skin-part=\"button\"]:not([data-skin-variant=\"ghost\"]):not([data-skin-variant=\"link\"]):active:not(:disabled) {\n  transform: translate(2px, 2px);\n  box-shadow: 0 0 0 1px #000000, 1px 1px 0 #000000;\n}\n[data-skin-part=\"button\"]:is([data-skin-variant=\"default\"], [data-skin-variant=\"outline\"], [data-skin-variant=\"secondary\"]):hover:not(:disabled) {\n  border-color: #ffd21f !important;\n}\n\n/* Fields: yellow focus with a red offset. */\n[data-skin-part=\"input\"]:focus, [data-skin-part=\"input\"]:focus-within {\n  border-color: #ffd21f !important;\n  box-shadow: 0 0 0 1px #ffd21f, 3px 3px 0 1px #e3262f !important;\n}\n[data-skin-part=\"checkbox\"][data-skin-state=\"checked\"] {\n  background: #ffd21f !important; border-color: #000000 !important; color: #111111 !important;\n  box-shadow: 2px 2px 0 #000000;\n}\n[data-skin-part=\"switch\"] { box-shadow: 0 0 0 1px #000000, 2px 2px 0 #000000; }\n[data-skin-part=\"chip\"] { box-shadow: 2px 2px 0 #000000; }\n\n/* Windows: comic panel with white keyline, ink frame and a yellow offset page behind it. */\n[data-skin-part=\"modal\"] {\n  border-color: #f4f5f7 !important;\n  background-image:\n    linear-gradient(200deg, transparent 0, var(--color-darkbg) 220px),\n    radial-gradient(rgb(255 210 31 / .3) 1.1px, transparent 1.7px) !important;\n  background-size: 100% 100%, 8px 8px !important;\n  box-shadow: 0 0 0 3px #000000, 10px 10px 0 3px #ffd21f, 10px 10px 0 6px #000000 !important;\n}\n[data-skin-part=\"menu\"] {\n  border-color: #f4f5f7 !important;\n  box-shadow: 0 0 0 2px #000000, 5px 5px 0 2px #000000 !important;\n}\n\n/* Composer: speech balloon frame; yellow with a red shadow while typing. */\n[data-skin-part=\"composer-field\"] {\n  border-color: #f4f5f7 !important;\n  box-shadow: 0 0 0 2px #000000, 5px 5px 0 2px #000000;\n}\n[data-skin-part=\"composer-field\"]:focus-within {\n  border-color: #ffd21f !important;\n  box-shadow: 0 0 0 2px #000000, 5px 5px 0 2px #e3262f;\n}\n\n/* Message rows stay clear so speed lines and dots show between the panels. */\n[data-skin-part=\"message\"] { background-color: transparent !important; }\n/* Message cards as comic panels: white keyline, ink frame, offset shadow, halftone corner.\n   Bot panels throw a black shadow, the user's panels a yellow keyline and red shadow. */\n[data-skin-part=\"message\"][data-skin-role=\"bot\"] [data-skin-part=\"message-card\"] {\n  background-image:\n    linear-gradient(205deg, transparent 0, #0d0f14 190px),\n    radial-gradient(rgb(255 255 255 / .16) 1.1px, transparent 1.7px);\n  background-size: 100% 100%, 8px 8px;\n  box-shadow: inset 0 0 0 2px #f4f5f7, 0 0 0 3px #000000, 7px 7px 0 3px #000000;\n}\n[data-skin-part=\"message\"][data-skin-role=\"user\"] [data-skin-part=\"message-card\"] {\n  background-image:\n    linear-gradient(155deg, transparent 0, #0d0f14 170px),\n    radial-gradient(rgb(255 210 31 / .22) 1.1px, transparent 1.7px);\n  background-size: 100% 100%, 8px 8px;\n  box-shadow: inset 0 0 0 2px #ffd21f, 0 0 0 3px #000000, 7px 7px 0 3px #e3262f;\n}\n/* Phones: the cards run edge to edge, so the frame drops its side shadow and keeps a bottom slab. */\n@media (max-width: 639px) {\n  [data-skin-part=\"message\"][data-skin-role=\"bot\"] [data-skin-part=\"message-card\"] { box-shadow: inset 0 0 0 2px #f4f5f7, 0 5px 0 #000000; }\n  [data-skin-part=\"message\"][data-skin-role=\"user\"] [data-skin-part=\"message-card\"] { box-shadow: inset 0 0 0 2px #ffd21f, 0 5px 0 #e3262f; }\n}",
+  "fonts": [
+    {
+      "family": "Black Han Sans",
+      "role": "display",
+      "url": "https://fonts.google.com/specimen/Black+Han+Sans",
+      "note": "한글 제목용 굵은 글꼴, 무료(OFL)"
+    },
+    {
+      "family": "Impact",
+      "role": "display",
+      "note": "영문 제목용(윈도우 기본 글꼴)"
+    }
+  ]
+}

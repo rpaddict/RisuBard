@@ -101,6 +101,7 @@ jobs:
             update.sh
             LICENSE
             NOTICE.md
+            README-스킨제작.md
           retention-days: 1
 
   portable:
