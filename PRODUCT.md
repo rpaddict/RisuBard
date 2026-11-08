@@ -18,7 +18,7 @@ RisuBard is a self-hosted AI character chat frontend for stories that outlast th
 
 ## Positioning
 
-Fork lineage: PocketRisu, compatible with the RisuAI ecosystem (characters, CHARX cards, lorebooks, modules, prompt presets, providers, plugins), plus file-native storage and fixed-budget narrative memory (BardWiki) that RisuAI does not have.
+Fork lineage: a RisuAI-family fork, compatible with the RisuAI ecosystem (characters, CHARX cards, lorebooks, modules, prompt presets, providers, plugins), plus file-native storage and fixed-budget narrative memory (BardWiki) that RisuAI does not have.
 
 ## Operating Context
 
