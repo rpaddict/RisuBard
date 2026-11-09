@@ -1,3 +1,80 @@
+<script lang="ts" module>
+    // Every visible message used to attach its own document mousemove/scroll listener,
+    // so each pointer move ran the hover search once per message. One shared listener
+    // now picks the message under the pointer and runs only that one.
+    type HoverClient = {
+        root: HTMLElement;
+        ownsPoint: (x: number, y: number) => boolean;
+        hide: () => void;
+        onFrame: (x: number, y: number) => void;
+    };
+
+    // Room above a message for the edit button that floats over its first block.
+    const HOVER_BUTTON_ZONE = 44;
+    const hoverClients = new Set<HoverClient>();
+    let activeHoverClient: HoverClient | null = null;
+    let hoverX = 0;
+    let hoverY = 0;
+    let hoverFrame: number | null = null;
+
+    function setActiveHoverClient(next: HoverClient | null) {
+        if (activeHoverClient && activeHoverClient !== next) activeHoverClient.hide();
+        activeHoverClient = next;
+    }
+
+    function pickHoverClient(x: number, y: number): HoverClient | null {
+        if (activeHoverClient?.ownsPoint(x, y)) return activeHoverClient;
+        const el = document.elementFromPoint(x, y);
+        if (el) {
+            for (const c of hoverClients) if (c.root.contains(el)) return c;
+        }
+        for (const c of hoverClients) {
+            const r = c.root.getBoundingClientRect();
+            if (x >= r.left && x <= r.right && y >= r.top - HOVER_BUTTON_ZONE && y <= r.bottom) return c;
+        }
+        return null;
+    }
+
+    function onSharedMouseMove(e: MouseEvent) {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed) {
+            setActiveHoverClient(null);
+            return;
+        }
+        hoverX = e.clientX;
+        hoverY = e.clientY;
+        if (hoverFrame !== null) return;
+        hoverFrame = requestAnimationFrame(() => {
+            hoverFrame = null;
+            const target = pickHoverClient(hoverX, hoverY);
+            setActiveHoverClient(target);
+            target?.onFrame(hoverX, hoverY);
+        });
+    }
+
+    function onSharedScroll() {
+        setActiveHoverClient(null);
+    }
+
+    function registerHoverClient(client: HoverClient) {
+        if (hoverClients.size === 0) {
+            document.addEventListener('mousemove', onSharedMouseMove);
+            document.addEventListener('scroll', onSharedScroll, true);
+        }
+        hoverClients.add(client);
+        return () => {
+            hoverClients.delete(client);
+            if (activeHoverClient === client) activeHoverClient = null;
+            if (hoverClients.size === 0) {
+                document.removeEventListener('mousemove', onSharedMouseMove);
+                document.removeEventListener('scroll', onSharedScroll, true);
+                if (hoverFrame !== null) cancelAnimationFrame(hoverFrame);
+                hoverFrame = null;
+            }
+        };
+    }
+</script>
+
 <script lang="ts">
     import { CheckIcon, XIcon } from '@lucide/svelte';
     import { createEventDispatcher, onDestroy } from 'svelte';
@@ -59,6 +136,76 @@
     });
 
     let showMatchFailedModal = $state(false);
+
+    // Modals sit over the message body column (not the whole viewport) so side panels never cover them.
+    const MODAL_GUTTER = 16;
+    const MODAL_MIN_WIDTH = 400; // matches the edit modal CSS min-width
+    let modalPlacement = $state<{ left: number; width: number } | null>(null);
+    let modalResized = false;
+
+    function clampPlacement(left: number, width: number) {
+        const vw = window.innerWidth;
+        const maxWidth = Math.max(0, vw - MODAL_GUTTER * 2);
+        const w = Math.min(Math.max(width, Math.min(MODAL_MIN_WIDTH, maxWidth)), maxWidth);
+        const l = Math.min(Math.max(left, MODAL_GUTTER), vw - MODAL_GUTTER - w);
+        return { left: l, width: w };
+    }
+
+    function measureModalPlacement() {
+        modalResized = false;
+        if (!bodyRoot) {
+            modalPlacement = null;
+            return;
+        }
+        const rect = bodyRoot.getBoundingClientRect();
+        modalPlacement = rect.width > 0 ? clampPlacement(rect.left, rect.width) : null;
+    }
+
+    function startModalResize(e: PointerEvent, edge: 'left' | 'right') {
+        if (!modalPlacement || e.button !== 0) return;
+        e.preventDefault();
+        const handle = e.currentTarget as HTMLElement;
+        handle.setPointerCapture(e.pointerId);
+        const startX = e.clientX;
+        const start = { ...modalPlacement };
+        const onMove = (ev: PointerEvent) => {
+            const dx = ev.clientX - startX;
+            if (edge === 'right') {
+                modalPlacement = clampPlacement(start.left, start.width + dx);
+            } else {
+                const right = start.left + start.width;
+                const left = Math.min(Math.max(start.left + dx, MODAL_GUTTER), right - MODAL_MIN_WIDTH);
+                modalPlacement = clampPlacement(left, right - left);
+            }
+            modalResized = true;
+        };
+        const onUp = () => {
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            handle.removeEventListener('pointercancel', onUp);
+        };
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
+    }
+
+    function handleWindowResize() {
+        if (!modalPlacement) return;
+        if (modalResized) {
+            modalPlacement = clampPlacement(modalPlacement.left, modalPlacement.width);
+        } else {
+            measureModalPlacement();
+        }
+    }
+
+    function portalToBody(node: HTMLElement) {
+        document.body.appendChild(node);
+        return {
+            destroy() {
+                node.remove();
+            },
+        };
+    }
 
     const SELECTOR = EDITABLE_BLOCK_SELECTORS.join(', ');
 
@@ -208,6 +355,7 @@
     ) {
         if (!elementOrText || !messageData) return;
 
+        measureModalPlacement();
         matchingState.mode = mode;
 
         // Set matching options based on mode
@@ -442,30 +590,19 @@
         };
     });
 
-    // Block hover detection (using elementFromPoint for precise detection)
+    // Block hover detection (using elementFromPoint for precise detection).
+    // One shared document listener routes each frame to the message under the pointer.
     $effect(() => {
         if (!bodyRoot || !isBlockActive) return;
 
-        let lastMouseX = 0;
-        let lastMouseY = 0;
-        let rafId: number | null = null;
+        const root = bodyRoot;
+        const client: HoverClient = {
+            root,
+            ownsPoint: (x, y) => isMouseOnBlockButton(x, y),
+            hide: () => { if (!isEditing) hideBlockButton(); },
+            onFrame: (lastMouseX, lastMouseY) => {
+                if (isEditing) return;
 
-        const handleMove = (e: MouseEvent) => {
-            if (isEditing) return;
-            
-            const sel = window.getSelection();
-            if (sel && !sel.isCollapsed) {
-                hideBlockButton();
-                return;
-            }
-            
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
-
-            if (rafId !== null) return;
-            rafId = requestAnimationFrame(() => {
-                rafId = null;
-                
                 if (isMouseOnBlockButton(lastMouseX, lastMouseY)) {
                     return;
                 }
@@ -479,17 +616,17 @@
                 const elementAtPoint = document.elementFromPoint(lastMouseX, lastMouseY);
                 if (elementAtPoint) {
                     const block = elementAtPoint.closest(SELECTOR) as HTMLElement | null;
-                    if (block && isEditableBlockCandidate(block, bodyRoot) && hasTextContent(block)) {
+                    if (block && isEditableBlockCandidate(block, root) && hasTextContent(block)) {
                         showBlockButton(block);
                         return;
                     }
                 }
 
                 // Check if element is not hidden (verify at center top of block)
-                const blocks = bodyRoot.querySelectorAll(SELECTOR);
+                const blocks = root.querySelectorAll(SELECTOR);
                 for (const block of blocks) {
                     if (isMouseInButtonZone(lastMouseX, lastMouseY, block as HTMLElement)) {
-                        if (isEditableBlockCandidate(block, bodyRoot) && hasTextContent(block as HTMLElement)) {
+                        if (isEditableBlockCandidate(block, root) && hasTextContent(block as HTMLElement)) {
                             const rect = (block as HTMLElement).getBoundingClientRect();
                             const checkX = rect.left + rect.width / 2;
                             const checkY = rect.top + 5;
@@ -503,7 +640,7 @@
                 }
 
                 hideBlockButton();
-            });
+            },
         };
 
         // mouseleave handler
@@ -519,23 +656,13 @@
             hideBlockButton();
         };
 
-        const handleScroll = () => {
-            if (isEditing) return;
-            hideBlockButton();
-        };
-
-        // Listen at document level to include button area
-        document.addEventListener('mousemove', handleMove);
-        bodyRoot.addEventListener('mouseleave', handleLeave);
-        document.addEventListener('scroll', handleScroll, true);
+        root.addEventListener('mouseleave', handleLeave);
+        const unregister = registerHoverClient(client);
 
         return () => {
-            document.removeEventListener('mousemove', handleMove);
-            bodyRoot.removeEventListener('mouseleave', handleLeave);
-            document.removeEventListener('scroll', handleScroll, true);
-            if (rafId !== null) {
-                cancelAnimationFrame(rafId);
-            }
+            unregister();
+            root.removeEventListener('mouseleave', handleLeave);
+            hideBlockButton();
         };
     });
 
@@ -625,11 +752,13 @@
     });
 </script>
 
+<svelte:window onresize={handleWindowResize} />
+
 {#snippet MatchSelectionModal(mode: MatchingMode, matches: RangeResultWithContext[], title: string)}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) cancelMatchSelection(); }}>
-        <div data-skin-part="modal" class="risu-modal-surface partial-match-selection-modal">
+    <div class="risu-modal-overlay partial-edit-overlay" class:placed={!!modalPlacement} use:portalToBody onclick={(e) => { if (e.target === e.currentTarget) cancelMatchSelection(); }}>
+        <div data-skin-part="modal" class="risu-modal-surface partial-match-selection-modal" style:width={modalPlacement ? `${modalPlacement.width}px` : null} style:margin-left={modalPlacement ? `${modalPlacement.left}px` : null}>
             <div class="risu-modal-header match-selection-header">
                 <span class="match-selection-title">{title}</span>
                 <span class="match-count">{matches.length} {language.partialEdit.matchesFound}</span>
@@ -676,8 +805,8 @@
 {#if showMatchFailedModal}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) showMatchFailedModal = false; }}>
-        <div data-skin-part="modal" class="risu-modal-surface partial-match-failed-modal">
+    <div class="risu-modal-overlay partial-edit-overlay" class:placed={!!modalPlacement} use:portalToBody onclick={(e) => { if (e.target === e.currentTarget) showMatchFailedModal = false; }}>
+        <div data-skin-part="modal" class="risu-modal-surface partial-match-failed-modal" style:margin-left={modalPlacement ? `${modalPlacement.left + Math.max(0, (modalPlacement.width - Math.min(500, modalPlacement.width)) / 2)}px` : null} style:width={modalPlacement ? `${Math.min(500, modalPlacement.width)}px` : null}>
             <div class="risu-modal-header partial-match-failed-header">
                 <span class="partial-match-failed-title">{language.partialEdit.matchFailedTitle}</span>
             </div>
@@ -700,8 +829,8 @@
 {#if isConfirmingDelete}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) handleCancelDelete(); }}>
-        <div data-skin-part="modal" class="risu-modal-surface partial-delete-modal">
+    <div class="risu-modal-overlay partial-edit-overlay" class:placed={!!modalPlacement} use:portalToBody onclick={(e) => { if (e.target === e.currentTarget) handleCancelDelete(); }}>
+        <div data-skin-part="modal" class="risu-modal-surface partial-delete-modal" style:width={modalPlacement ? `${modalPlacement.width}px` : null} style:margin-left={modalPlacement ? `${modalPlacement.left}px` : null}>
             <div class="risu-modal-header partial-delete-header">
                 <span class="partial-delete-title">{language.partialEdit.deleteModalTitle}</span>
                 <div class="partial-match-meta">
@@ -750,8 +879,14 @@
 {#if isEditing}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="risu-modal-overlay partial-edit-overlay" onclick={(e) => { if (e.target === e.currentTarget) handleCancel(); }}>
-        <div data-skin-part="modal" class="risu-modal-surface partial-edit-modal">
+    <div class="risu-modal-overlay partial-edit-overlay" class:placed={!!modalPlacement} use:portalToBody onclick={(e) => { if (e.target === e.currentTarget) handleCancel(); }}>
+        <div data-skin-part="modal" class="risu-modal-surface partial-edit-modal" style:width={modalPlacement ? `${modalPlacement.width}px` : null} style:margin-left={modalPlacement ? `${modalPlacement.left}px` : null}>
+            {#if modalPlacement}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="partial-edit-resize-handle left" title={language.partialEdit.resizeTooltip} onpointerdown={(e) => startModalResize(e, 'left')}></div>
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="partial-edit-resize-handle right" title={language.partialEdit.resizeTooltip} onpointerdown={(e) => startModalResize(e, 'right')}></div>
+            {/if}
             <div class="risu-modal-header partial-edit-header">
                 <span class="partial-edit-title">{language.partialEdit.editModalTitle}</span>
                 <div class="partial-match-meta">
@@ -934,6 +1069,63 @@
         align-items: center;
         justify-content: center;
         z-index: 10000;
+    }
+
+    /* Placed over the message body column: left offset and width come from inline styles. */
+    .partial-edit-overlay.placed {
+        justify-content: flex-start;
+    }
+
+    .partial-edit-overlay.placed > .risu-modal-surface {
+        max-width: none;
+        box-sizing: border-box;
+        flex-shrink: 0;
+    }
+
+    .partial-edit-modal {
+        position: relative;
+    }
+
+    .partial-edit-resize-handle {
+        position: absolute;
+        top: 12px;
+        bottom: 12px;
+        width: 10px;
+        cursor: ew-resize;
+        touch-action: none;
+        z-index: 1;
+    }
+
+    .partial-edit-resize-handle.left {
+        left: -5px;
+    }
+
+    .partial-edit-resize-handle.right {
+        right: -5px;
+    }
+
+    .partial-edit-resize-handle::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 3px;
+        width: 4px;
+        height: 40px;
+        transform: translateY(-50%);
+        border-radius: 2px;
+        background: var(--color-darkborderc);
+        opacity: 0;
+        transition: opacity 0.15s ease, background 0.15s ease;
+    }
+
+    .partial-edit-modal:hover .partial-edit-resize-handle::after {
+        opacity: 1;
+    }
+
+    .partial-edit-resize-handle:hover::after,
+    .partial-edit-resize-handle:active::after {
+        background: var(--color-primary);
+        opacity: 1;
     }
 
     .partial-edit-modal {

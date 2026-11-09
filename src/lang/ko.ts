@@ -3159,6 +3159,7 @@ export const languageKorean = {
     lineNumber: (line: number) => `약 ${line}줄`,
     saveShortcut: "저장 (Ctrl+Enter)",
     cancelShortcut: "취소 (Esc)",
+    resizeTooltip: "끌어서 너비 조절",
     save: "저장",
     cancel: "취소",
   },

@@ -2999,6 +2999,7 @@ export const languageEnglish = {
         lineNumber: (line: number) => `Line ~${line}`,
         saveShortcut: "Save (Ctrl+Enter)",
         cancelShortcut: "Cancel (Esc)",
+        resizeTooltip: "Drag to resize",
         save: "Save",
         cancel: "Cancel",
     },

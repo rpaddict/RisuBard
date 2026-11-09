@@ -1418,6 +1418,7 @@ export const languageChineseTraditional = {
         "lineNumber": (line: number) => `約第 ${line} 行`,
         "saveShortcut": "儲存 (Ctrl+Enter)",
         "cancelShortcut": "取消 (Esc)",
+        "resizeTooltip": "拖曳以調整寬度",
         "save": "儲存",
         "cancel": "取消",
     },
