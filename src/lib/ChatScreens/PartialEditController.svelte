@@ -1112,7 +1112,7 @@
         width: 4px;
         height: 40px;
         transform: translateY(-50%);
-        border-radius: 2px;
+        border-radius: calc(var(--risu-radius-sm) * 0.5);
         background: var(--color-darkborderc);
         opacity: 0;
         transition: opacity 0.15s ease, background 0.15s ease;
