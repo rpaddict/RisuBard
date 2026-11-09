@@ -5,6 +5,17 @@ import {
 } from './modelOutput'
 
 describe('parseSingleJsonObject', () => {
+    it('reads raw newlines inside strings, mid-reply reasoning and odd prose quotes', () => {
+        expect(parseSingleJsonObject('{"body":"첫 줄\n\t둘째 줄"}')).toEqual({ body: '첫 줄\n\t둘째 줄' })
+        expect(parseSingleJsonObject(
+            '알겠습니다.\n<thinking>초안 {"a":0}</thinking>\n{"a":1}'
+        )).toEqual({ a: 1 })
+        expect(parseSingleJsonObject('그는 "멈춰 라고 말했다.\n{"a":"}"}')).toEqual({ a: '}' })
+        expect(parseSingleJsonObject('{"a":"<think>인용</think>"}')).toEqual({ a: '<think>인용</think>' })
+        expect(() => parseSingleJsonObject('<think>{"a":1}')).toThrow('exactly one JSON object')
+        expect(() => parseSingleJsonObject('{"a":1}\n{"b":2}')).toThrow('exactly one JSON object')
+    })
+
     it('accepts strict JSON and JSON wrapped in reasoning or a markdown fence', () => {
         const value = { schemaVersion: 1, operations: [] }
 

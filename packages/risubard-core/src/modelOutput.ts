@@ -1,3 +1,46 @@
+/**
+ * Some providers (seen with Gemini) put raw newlines or tabs inside JSON
+ * strings. Escaping them only turns invalid JSON into the value the model meant.
+ */
+function escapeControlsInStrings(value: string): string {
+    let out = ''
+    let inString = false
+    let escaped = false
+    for (const character of value) {
+        if (inString) {
+            if (escaped) escaped = false
+            else if (character === '\\') escaped = true
+            else if (character === '"') inString = false
+            else if (character === '\n') { out += '\\n'; continue }
+            else if (character === '\r') { out += '\\r'; continue }
+            else if (character === '\t') { out += '\\t'; continue }
+        }
+        else if (character === '"') inString = true
+        out += character
+    }
+    return out
+}
+
+function parseObject(source: string): unknown {
+    for (const attempt of [source, escapeControlsInStrings(source)]) {
+        try {
+            const parsed = JSON.parse(attempt)
+            if (typeof parsed === 'object'
+                && parsed !== null
+                && !Array.isArray(parsed)) {
+                return parsed
+            }
+            return undefined
+        }
+        catch {
+            // Try the repaired form, then give up on this span.
+        }
+    }
+    return undefined
+}
+
+const reasoningOpen = /^<(Thoughts|think|thinking)>/i
+
 function jsonObjectCandidates(value: string): unknown[] {
     const candidates: unknown[] = []
     let start = -1
@@ -12,28 +55,34 @@ function jsonObjectCandidates(value: string): unknown[] {
             else if (character === '"') inString = false
             continue
         }
-        if (character === '"') {
-            inString = true
+        if (depth === 0) {
+            // Outside any object: skip reasoning blocks wherever they sit, and
+            // do not treat prose quotes as strings (an odd one would hide the JSON).
+            if (character === '<') {
+                const open = reasoningOpen.exec(value.slice(index, index + 12))
+                if (open) {
+                    const close = value.toLowerCase().indexOf(
+                        `</${open[1].toLowerCase()}>`,
+                        index + open[0].length
+                    )
+                    if (close < 0) break
+                    index = close + open[1].length + 2
+                    continue
+                }
+            }
+            if (character === '{') {
+                start = index
+                depth = 1
+            }
             continue
         }
-        if (character === '{') {
-            if (depth === 0) start = index
-            depth += 1
-        }
-        else if (character === '}' && depth > 0) {
+        if (character === '"') inString = true
+        else if (character === '{') depth += 1
+        else if (character === '}') {
             depth -= 1
-            if (depth === 0 && start >= 0) {
-                try {
-                    const parsed = JSON.parse(value.slice(start, index + 1))
-                    if (typeof parsed === 'object'
-                        && parsed !== null
-                        && !Array.isArray(parsed)) {
-                        candidates.push(parsed)
-                    }
-                }
-                catch {
-                    // Ignore prose braces and continue looking for one object.
-                }
+            if (depth === 0) {
+                const parsed = parseObject(value.slice(start, index + 1))
+                if (parsed !== undefined) candidates.push(parsed)
                 start = -1
             }
         }
