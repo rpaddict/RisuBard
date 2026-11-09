@@ -9,23 +9,48 @@
     import { v4 as uuidv4 } from 'uuid';
     import { PlayIcon, UploadIcon, CheckIcon, Trash2Icon } from '@lucide/svelte';
 
+    interface Preset {
+        value: string;
+        label: string;
+        /** Selected when the stored value is empty. */
+        isDefault?: boolean;
+    }
+
     interface Props {
         open?: boolean;
-        /** Current sound: a bundled preset id or an uploaded "assets/<hash>" path. */
+        /** Current sound: a preset value or an uploaded "assets/<hash>" path. */
         value?: string;
         /** Volume (0-100) used for previews. */
         volume?: number;
+        /** Dialog title; defaults to the notification sound title. */
+        title?: string;
+        /** Bundled choices; defaults to the notification jingles. */
+        presets?: Preset[];
+        /** Which upload list this picker reads and writes, so each sound family keeps its own uploads. */
+        uploadList?: 'customSounds' | 'customUiSounds';
+        /** Custom preview (e.g. Web Audio for button sounds). Defaults to the notification preview. */
+        preview?: (value: string) => void;
     }
 
-    let { open = $bindable(false), value = $bindable(''), volume = 100 }: Props = $props();
+    let {
+        open = $bindable(false),
+        value = $bindable(''),
+        volume = 100,
+        title,
+        presets = bundledSoundIds.map((id) => ({
+            value: id,
+            label: id === 'default' ? language.soundDefault : id,
+            isDefault: id === 'default',
+        })),
+        uploadList = 'customSounds',
+        preview = (v: string) => playSoundPreview(v, volume),
+    }: Props = $props();
 
-    function presetLabel(id: string) {
-        return id === 'default' ? language.soundDefault : id;
-    }
+    let uploads = $derived(DBState.db[uploadList] ?? []);
 
     function select(v: string) {
         value = v;
-        playSoundPreview(v, volume);
+        preview(v);
     }
 
     async function uploadSound() {
@@ -35,14 +60,14 @@
         // same path. Skip adding a second entry for identical bytes — just select
         // the existing one — but new content gets its own uuid-keyed entry.
         const path = await saveAsset(f.data, '', f.name);
-        if (!(DBState.db.customSounds ?? []).some((s) => s.path === path)) {
-            DBState.db.customSounds = [...(DBState.db.customSounds ?? []), { id: uuidv4(), name: f.name, path }];
+        if (!uploads.some((s) => s.path === path)) {
+            DBState.db[uploadList] = [...uploads, { id: uuidv4(), name: f.name, path }];
         }
         select(path);
     }
 
     function removeCustom(entry: { id: string, path: string }) {
-        DBState.db.customSounds = (DBState.db.customSounds ?? []).filter((s) => s.id !== entry.id);
+        DBState.db[uploadList] = uploads.filter((s) => s.id !== entry.id);
         if (value === entry.path) {
             value = '';
         }
@@ -51,28 +76,29 @@
 
 <ShDialog bind:open size="default" tier="alert">
     {#snippet title()}
-        {language.selectNotificationSound}
+        {title ?? language.selectNotificationSound}
     {/snippet}
 
-    <div class="flex flex-col gap-1 max-h-[50vh] overflow-y-auto pr-1">
-        {#each bundledSoundIds as id}
-            {@const selected = value === id || (!value && id === 'default')}
+    <!-- data-ui-sound="off": every row previews its sound, so no click sound on top. -->
+    <div class="flex flex-col gap-1 max-h-[50vh] overflow-y-auto pr-1" data-ui-sound="off">
+        {#each presets as preset (preset.value)}
+            {@const selected = value === preset.value || (!value && preset.isDefault)}
             <div class="flex items-center gap-2 rounded-md px-3 py-2 transition-colors {selected ? 'bg-selected' : 'hover:bg-selected/50'}">
                 {#if selected}
                     <CheckIcon size={16} class="text-primary shrink-0" />
                 {:else}
                     <span class="w-4 shrink-0"></span>
                 {/if}
-                <button class="flex-1 text-left truncate" onclick={() => select(id)}>
-                    {presetLabel(id)}
+                <button class="flex-1 text-left truncate" onclick={() => select(preset.value)}>
+                    {preset.label}
                 </button>
-                <button class="shrink-0 hover:text-primary" onclick={() => playSoundPreview(id, volume)} aria-label={language.preview}>
+                <button class="shrink-0 hover:text-primary" onclick={() => preview(preset.value)} aria-label={language.preview}>
                     <PlayIcon size={18} />
                 </button>
             </div>
         {/each}
 
-        {#each DBState.db.customSounds ?? [] as s (s.id)}
+        {#each uploads as s (s.id)}
             {@const selected = value === s.path}
             <div class="flex items-center gap-2 rounded-md px-3 py-2 transition-colors {selected ? 'bg-selected' : 'hover:bg-selected/50'}">
                 {#if selected}
@@ -83,7 +109,7 @@
                 <button class="flex-1 text-left truncate" onclick={() => select(s.path)} title={s.name}>
                     {s.name}
                 </button>
-                <button class="shrink-0 hover:text-primary" onclick={() => playSoundPreview(s.path, volume)} aria-label={language.preview}>
+                <button class="shrink-0 hover:text-primary" onclick={() => preview(s.path)} aria-label={language.preview}>
                     <PlayIcon size={18} />
                 </button>
                 <button class="shrink-0 text-textcolor2 hover:text-danger/80" onclick={() => removeCustom(s)} aria-label={language.remove}>

@@ -873,6 +873,13 @@ export function setDatabase(data:Database){
     data.showPersonaInSidebar ??= true
     data.pinPersonaOnNewChat ??= true
     data.sidebarMinimalMode ??= false
+    data.uiSoundEnabled ??= true
+    data.uiSoundClick ??= true
+    data.uiSoundHover ??= true
+    data.uiSoundVolume ??= 50
+    data.uiSoundClickSound ??= ''
+    data.uiSoundHoverSound ??= ''
+    data.customUiSounds ??= []
     data.nodeOnlyModelModeLock ??= 'none'
     data.moduleModelBindingsEnabled ??= false
     data.moduleModelBindings ??= {}
@@ -2110,6 +2117,13 @@ export interface Database{
     showPersonaInSidebar:boolean
     pinPersonaOnNewChat:boolean
     sidebarMinimalMode?:boolean
+    uiSoundEnabled?:boolean
+    uiSoundClick?:boolean
+    uiSoundHover?:boolean
+    uiSoundVolume?:number
+    uiSoundClickSound?:string
+    uiSoundHoverSound?:string
+    customUiSounds?:{ id:string, name:string, path:string }[]
     disableMobileDragDrop:boolean
     disableToggleBinding:boolean
     menuSideBar:boolean

@@ -2071,6 +2071,13 @@ export function replaceDbResources(db: Database, replacer: { [key: string]: stri
             s.path = replaceData(s.path);
         }
     }
+    if (db.uiSoundClickSound) db.uiSoundClickSound = replaceData(db.uiSoundClickSound);
+    if (db.uiSoundHoverSound) db.uiSoundHoverSound = replaceData(db.uiSoundHoverSound);
+    if (db.customUiSounds) {
+        for (const s of db.customUiSounds) {
+            s.path = replaceData(s.path);
+        }
+    }
 
     for (const cha of db.characters) {
         if (cha.image) {

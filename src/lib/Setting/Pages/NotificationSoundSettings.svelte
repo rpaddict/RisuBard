@@ -5,6 +5,7 @@
     import NotificationToggle from './Display/NotificationToggle.svelte';
     import SoundGroup from './Sound/SoundGroup.svelte';
     import SoundSetting from './Sound/SoundSetting.svelte';
+    import UiSoundSetting from './Sound/UiSoundSetting.svelte';
 </script>
 
 <SettingPage title={language.soundAndNotification}>
@@ -28,5 +29,9 @@
             bind:sound={DBState.db.translateSound}
             bind:volume={DBState.db.translateSoundVolume}
         />
+    </SoundGroup>
+
+    <SoundGroup title={language.groupUiSound}>
+        <UiSoundSetting />
     </SoundGroup>
 </SettingPage>

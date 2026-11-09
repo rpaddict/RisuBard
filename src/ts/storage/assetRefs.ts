@@ -73,6 +73,11 @@ export function collectDatabaseAssetReferences(db: unknown): Set<string> {
     for (const sound of Array.isArray(data.customSounds) ? data.customSounds : []) {
         add(asRecord(sound)?.path)
     }
+    add(data.uiSoundClickSound)
+    add(data.uiSoundHoverSound)
+    for (const sound of Array.isArray(data.customUiSounds) ? data.customUiSounds : []) {
+        add(asRecord(sound)?.path)
+    }
     for (const character of Array.isArray(data.characters) ? data.characters : []) {
         const char = asRecord(character)
         if (!char) continue

@@ -12,6 +12,7 @@ import { mount, tick } from "svelte";
 import { get } from "svelte/store";
 import { accountImportBlocking } from "./ts/stores.svelte";
 import { applyEarlyLanguage } from "./lang";
+import { installUiSounds } from "./ts/uiSound";
 
 window.addEventListener('vite:preloadError', (event) => {
     console.error("Chunk load error detected:", event);
@@ -39,6 +40,7 @@ export const ready = (async () => {
     await loadData()
     // The account import screen has no database for the shortcuts to act on.
     if (!get(accountImportBlocking)) initHotkey()
+    installUiSounds()
 })()
 
 export default app;

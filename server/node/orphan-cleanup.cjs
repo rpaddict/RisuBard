@@ -78,6 +78,9 @@ function collectDatabaseAssetReferences(database, options = {}) {
     add(data.messageSound);
     add(data.translateSound);
     for (const sound of Array.isArray(data.customSounds) ? data.customSounds : []) add(asRecord(sound)?.path);
+    add(data.uiSoundClickSound);
+    add(data.uiSoundHoverSound);
+    for (const sound of Array.isArray(data.customUiSounds) ? data.customUiSounds : []) add(asRecord(sound)?.path);
 
     for (const value of Array.isArray(data.characters) ? data.characters : []) {
         const character = asRecord(value);

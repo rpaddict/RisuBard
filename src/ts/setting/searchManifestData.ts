@@ -129,7 +129,7 @@ export const searchManifestEntries: ManualSearchEntry[] = [
     {
         id: 'manual.page.soundAndNotification',
         label: () => language.soundAndNotification,
-        keywords: ['sound', 'notification', 'volume', 'alarm', '소리', '알림', '효과음', '볼륨'],
+        keywords: ['sound', 'notification', 'volume', 'alarm', 'button sound', 'click sound', 'hover sound', '소리', '알림', '효과음', '볼륨', '버튼 효과음', '클릭음', '호버음'],
         route: SettingsRoute.SoundAndNotification,
     },
     {

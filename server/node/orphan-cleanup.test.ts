@@ -18,6 +18,9 @@ describe('orphan cleanup planning', () => {
             messageSound: 'assets/message.wav',
             translateSound: 'assets/translate.wav',
             customSounds: [{ path: 'assets/custom.wav' }],
+            uiSoundClickSound: 'assets/ui-click.mp3',
+            uiSoundHoverSound: 'assets/ui-hover.mp3',
+            customUiSounds: [{ path: 'assets/ui-upload.mp3' }],
             NAIImgConfig: {
                 character_image: 'assets/nai-character.png',
                 image: 'assets/nai-image.png',
@@ -63,6 +66,7 @@ describe('orphan cleanup planning', () => {
 
         expect(referenced).toEqual(new Set([
             'background.png', 'user.png', 'message.wav', 'translate.wav', 'custom.wav',
+            'ui-click.mp3', 'ui-hover.mp3', 'ui-upload.mp3',
             'nai-character.png', 'nai-image.png', 'wavespeed.png', 'character.png',
             'emotion.png', 'additional.png', 'voice.wav', 'cc.png', 'reference.wav',
             'scoped-persona-image.png', 'scoped-persona-icon.png', 'scoped-module-icon.png',
