@@ -6,14 +6,34 @@ type HighlightIntRanged = [Range, HighlightType]
 
 let highLights = new Map<number, HighlightIntRanged[]>();
 
+// Kept out of styles.css: the build's CSS minifier does not know ::highlight() and warns on every build.
+const highlightCss = `
+::highlight(cbsnest3){color:var(--color-warning)}
+::highlight(cbsnest2){color:var(--color-success)}
+::highlight(cbsnest1){color:var(--color-info)}
+::highlight(cbsnest0){color:var(--color-secondary)}
+::highlight(cbsnest4){color:var(--color-danger)}
+::highlight(cbsdisplay){color:var(--color-primary)}
+::highlight(comment){color:var(--risu-theme-textcolor2)}
+::highlight(decorator){color:var(--risu-theme-draculared)}
+::highlight(deprecated){color:var(--risu-theme-textcolor2);text-decoration:line-through}
+`
+let highlightStyleAdded = false
+
 export const highlighter = (highlightDom:HTMLElement, id:number) => {
     try {
-    
+
         if(highlightDom){
             if(!CSS.highlights){
                 return
             }
-    
+            if(!highlightStyleAdded){
+                highlightStyleAdded = true
+                const style = document.createElement('style')
+                style.textContent = highlightCss
+                document.head.append(style)
+            }
+
             const walker = document.createTreeWalker(highlightDom, NodeFilter.SHOW_TEXT)
             const nodes:Node[] = []
             const nodePointers:number[] = []

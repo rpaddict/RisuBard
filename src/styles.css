@@ -670,36 +670,6 @@ html {
   @apply border border-darkborderc bg-darkbg text-textcolor rounded-md shadow-xs focus:outline-hidden transition-colors duration-200 px-4 py-2 min-w-0;
 }
 
-::highlight(cbsnest3) {
-  @apply text-warning;
-}
-::highlight(cbsnest2) {
-  @apply text-success;
-}
-::highlight(cbsnest1) {
-  @apply text-info;
-}
-::highlight(cbsnest0) {
-  @apply text-secondary;
-}
-::highlight(cbsnest4) {
-  @apply text-danger;
-}
-::highlight(cbsdisplay) {
-  @apply text-primary;
-}
-::highlight(comment) {
-  color: var(--risu-theme-textcolor2);
-}
-
-::highlight(decorator) {
-  color: var(--risu-theme-draculared);
-}
-::highlight(deprecated) {
-  color: var(--risu-theme-textcolor2);
-  text-decoration: line-through;
-}
-
 /* Typography defaults must follow the editable skin, including prose-invert. */
 .prose {
   --tw-prose-body: var(--color-textcolor);

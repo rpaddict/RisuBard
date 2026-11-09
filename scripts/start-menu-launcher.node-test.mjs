@@ -37,8 +37,9 @@ test('starts a missing service and waits for it before returning', async t => {
   let starts = 0;
   await ensureService(`http://127.0.0.1:${port}`, true, () => {
     starts++;
-    server.listen(port, '127.0.0.1');
-    return { exitCode: null };
+    // Like `cmd /c start`, the launcher exits before the server answers.
+    setTimeout(() => server.listen(port, '127.0.0.1'), 700);
+    return { exitCode: 0 };
   });
   assert.equal(starts, 1);
 });

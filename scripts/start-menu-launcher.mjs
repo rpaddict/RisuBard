@@ -34,13 +34,14 @@ export async function ensureService(url, development, start, timeoutMs = 90000) 
   let spawnError;
   child.once?.('error', error => { spawnError = error; });
   const deadline = Date.now() + timeoutMs;
+  // `start` hands the server to its own window and exits at once, so its exit says nothing
+  // about the server; only the server's answer counts.
   while (Date.now() < deadline) {
     if (spawnError) throw spawnError;
     if (await isReady(url, development)) return;
-    if (child.exitCode !== null) throw new Error(`서버 실행 실패. log/start-menu 폴더의 로그를 확인하세요.`);
     await delay(500);
   }
-  throw new Error(`${url} 시작 시간이 초과되었습니다. log/start-menu 폴더의 로그를 확인하세요.`);
+  throw new Error(`${url} 시작 시간이 초과되었습니다. 리스바드 서버 창의 오류 메시지를 확인하세요.`);
 }
 
 export function builtVersion(root = projectRoot) {
@@ -59,9 +60,11 @@ export function needsBuild(root = projectRoot, buildRequired = isBuildRequired) 
 function ensureCurrentBuild() {
   if (!needsBuild()) return;
   console.log('최신 개발 내역으로 화면을 컴파일합니다. 1~2분 걸릴 수 있습니다.');
-  const result = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--sourcemap'], { cwd: projectRoot, stdio: 'inherit' });
+  // Only warnings and errors are shown; the per-file size list is noise here.
+  const result = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--sourcemap', '--logLevel', 'warn'], { cwd: projectRoot, stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error('빌드 실패. 위 로그를 확인하세요.');
+  console.log('컴파일을 마쳤습니다.');
 }
 
 // Asks the hidden server to flush pending data and exit (see /api/local-shutdown).

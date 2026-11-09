@@ -25,6 +25,8 @@ export default defineConfig(({command, mode}) => {
         },
       },
       svelte({
+        // All options live here; without this the plugin reports a missing svelte.config.js.
+        configFile: false,
         preprocess: vitePreprocess(),
         onwarn: (warning, handler) => {
           // disable a11y warnings
@@ -75,7 +77,22 @@ export default defineConfig(({command, mode}) => {
       minify: process.env.TAURI_ENV_DEBUG === 'true' ? false : 'oxc',
       // produce sourcemaps for debug builds
       sourcemap: process.env.TAURI_ENV_DEBUG === 'true',
-      chunkSizeWarningLimit: 2000,
+      // Tokenizer, editor and parser bundles are large by nature and load on demand.
+      chunkSizeWarningLimit: 6000,
+      rolldownOptions: {
+        checks: {
+          // Build-time profiling notes, not problems.
+          pluginTimings: false,
+          // Modules imported both ways on purpose; the dynamic import only defers evaluation.
+          ineffectiveDynamicImport: false,
+        },
+        onLog(level, log, handler) {
+          // Dependencies with Node-only code paths (pyodide, wasmoon, tokenizers, translator);
+          // those paths never run in the browser.
+          if (log.message?.includes('has been externalized for browser compatibility')) return;
+          handler(level, log);
+        },
+      },
     },
     
     optimizeDeps:{
@@ -94,7 +111,9 @@ export default defineConfig(({command, mode}) => {
       }
     },
     worker: {
-      format: 'es'
+      format: 'es',
+      // Worker bundles are built separately and print their own profiling notes otherwise.
+      rolldownOptions: { checks: { pluginTimings: false } },
     }
 }
 });

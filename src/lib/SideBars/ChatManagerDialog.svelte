@@ -327,6 +327,8 @@
                 bind:this={listEle} onkeydown={onListKeydown}>
                 {#each visible as row (row.id)}
                     {@const folder = row.section ? folderById.get(row.section) : null}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- Keys are handled by the listbox (onListKeydown), so each row only takes clicks. -->
                     <div role="option" class="cm-row" data-manager-row={row.id} aria-selected={selectedSet.has(row.id)}
                         tabindex={focusId === row.id || (!focusId && row === visible[0]) ? 0 : -1}
                         class:cm-row-focus={focusId === row.id}
