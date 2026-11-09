@@ -16,9 +16,11 @@
     interface Props {
         bindingTarget?: Pick<Chat, 'useModelPreset' | 'subUseModelPreset' | 'modelBinding'>;
         onBindingChange?: () => void;
+        /** Sidebar minimal mode: mode pickers in one row, main and sub model in one row. */
+        minimal?: boolean;
     }
 
-    let { bindingTarget, onBindingChange = () => {} }: Props = $props();
+    let { bindingTarget, onBindingChange = () => {}, minimal = false }: Props = $props();
 
     let currentChat = $derived(
         DBState.db.characters[$selectedCharID]?.chats?.[DBState.db.characters[$selectedCharID]?.chatPage]
@@ -102,101 +104,133 @@
     });
 </script>
 
-<div class="flex flex-col gap-1 mt-4">
+{#snippet modeSelect(slot: 'main' | 'sub', isPreset: boolean, label: string)}
+    <div class="flex min-w-0 flex-col gap-0.5">
+        <span class="text-[11px] text-textcolor2 px-1">{label}</span>
+        <SelectInput
+            value={isPreset ? 'preset' : 'legacy'}
+            ariaLabel={label}
+            onchange={(e) => onModeChange(slot, e.currentTarget.value as 'legacy' | 'preset')}
+        >
+            <option value="legacy">{language.modelModeLegacy}</option>
+            <option value="preset">{language.modelModePreset}</option>
+        </SelectInput>
+    </div>
+{/snippet}
+
+{#snippet modeSettingsButton()}
+    <ShButton size="icon" className="shrink-0" onclick={openModelModeSettings} title={language.modelModeSettingsTitle}>
+        <SettingsIcon size={16} />
+    </ShButton>
+{/snippet}
+
+{#snippet mainModel()}
+    {#if mainPreset && target?.modelBinding}
+        <ModelPresetList warnIfEmpty bind:value={target.modelBinding.main} onChange={onBindingChange} />
+    {:else if !mainPreset}
+        <ModelList compact bind:value={DBState.db.aiModel} />
+    {/if}
+{/snippet}
+
+{#snippet subModel()}
+    {#if !subPreset}
+        <!-- Classic sub/aux: global model selection, untouched. -->
+        <ModelList compact bind:value={DBState.db.subModel} />
+    {:else if target?.modelBinding}
+        <!-- Binding regime: per-chat ModelPreset bundle. -->
+        <ModelPresetList warnIfEmpty bind:value={target.modelBinding.sub} onChange={onBindingChange} />
+    {/if}
+{/snippet}
+
+{#snippet auxButton()}
+    <ShButton size="icon" className="shrink-0" onclick={() => { auxExpanded = !auxExpanded }} title={language.seperateModelsForAxModels}>
+        <ChevronDownIcon size={16} class={`transition-transform${auxExpanded ? ' rotate-180' : ''}`} />
+    </ShButton>
+{/snippet}
+
+{#snippet auxPanel()}
+    {#if !subPreset}
+    {#if auxExpanded}
+        <div class="flex flex-col gap-1 mt-1 pl-2 border-l border-selected">
+            <div class="w-full flex items-center justify-between gap-2 min-h-10 rounded-md px-1">
+                <span class="min-w-0">{language.seperateModelsForAxModels}</span>
+                <ShSwitch className="shrink-0" bind:checked={DBState.db.seperateModelsForAxModels} />
+            </div>
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelMemory}</div>
+            <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.memory} />
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelTranslate}</div>
+            <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.translate} />
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelEmotion}</div>
+            <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.emotion} />
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelOther}</div>
+            <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.otherAx} />
+        </div>
+    {/if}
+    {:else if target?.modelBinding}
+    {#if auxExpanded}
+        <div class="flex flex-col gap-1 mt-1 pl-2 border-l border-selected">
+            <div class="w-full flex items-center justify-between gap-2 min-h-10 rounded-md px-1">
+                <span class="min-w-0">{language.seperateModelsForAxModels}</span>
+                <ShSwitch className="shrink-0" checked={target.modelBinding.separateAux} onCheckedChange={(checked) => { target!.modelBinding!.separateAux = checked; onBindingChange() }} />
+            </div>
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelMemory}</div>
+            <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.memory} onChange={onBindingChange} />
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelTranslate}</div>
+            <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.translate} onChange={onBindingChange} />
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelEmotion}</div>
+            <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.emotion} onChange={onBindingChange} />
+            <div class="text-[11px] text-textcolor2 px-1">{language.axModelOther}</div>
+            <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.otherAx} onChange={onBindingChange} />
+        </div>
+    {/if}
+    {/if}
+{/snippet}
+
+<div class="flex flex-col gap-1 {minimal ? 'mt-3' : 'mt-4'}" data-model-binding-minimal={minimal || undefined}>
+    {#if minimal}
+        <!-- Minimal mode: mode pickers and the settings button share one row,
+             then main and sub model share one row (main left, sub right). -->
+        {#if target && lock === 'none'}
+            <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-1" data-model-mode-slots>
+                {@render modeSelect('main', mainPreset, language.modelModeMain)}
+                {@render modeSelect('sub', subPreset, language.modelModeSub)}
+                {@render modeSettingsButton()}
+            </div>
+        {/if}
+        {#if !subPreset || target?.modelBinding}
+            <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-stretch gap-1">
+                <div class="min-w-0" title={language.model}>{@render mainModel()}</div>
+                <div class="min-w-0" title={language.submodel}>{@render subModel()}</div>
+                {@render auxButton()}
+            </div>
+        {/if}
+        {@render auxPanel()}
+    {:else}
     {#if target && lock === 'none'}
         <!-- Per-chat model-mode picker. Hidden when a global lock is set. -->
         <div class="flex items-center justify-between gap-1 px-1">
             <span class="text-[11px] text-textcolor2">{language.modelModeLabel}</span>
-            <ShButton size="icon" className="shrink-0" onclick={openModelModeSettings} title={language.modelModeSettingsTitle}>
-                <SettingsIcon size={16} />
-            </ShButton>
+            {@render modeSettingsButton()}
         </div>
         <div class="grid grid-cols-2 gap-1" data-model-mode-slots>
-            <div class="flex min-w-0 flex-col gap-0.5">
-                <span class="text-[11px] text-textcolor2 px-1">{language.modelModeMain}</span>
-                <SelectInput
-                    value={mainPreset ? 'preset' : 'legacy'}
-                    ariaLabel={language.modelModeMain}
-                    onchange={(e) => onModeChange('main', e.currentTarget.value as 'legacy' | 'preset')}
-                >
-                    <option value="legacy">{language.modelModeLegacy}</option>
-                    <option value="preset">{language.modelModePreset}</option>
-                </SelectInput>
-            </div>
-            <div class="flex min-w-0 flex-col gap-0.5">
-                <span class="text-[11px] text-textcolor2 px-1">{language.modelModeSub}</span>
-                <SelectInput
-                    value={subPreset ? 'preset' : 'legacy'}
-                    ariaLabel={language.modelModeSub}
-                    onchange={(e) => onModeChange('sub', e.currentTarget.value as 'legacy' | 'preset')}
-                >
-                    <option value="legacy">{language.modelModeLegacy}</option>
-                    <option value="preset">{language.modelModePreset}</option>
-                </SelectInput>
-            </div>
+            {@render modeSelect('main', mainPreset, language.modelModeMain)}
+            {@render modeSelect('sub', subPreset, language.modelModeSub)}
         </div>
     {/if}
     <div class="text-[11px] text-textcolor2 px-1{target && lock === 'none' ? ' mt-3' : ''}">
         {mainPreset && subPreset ? language.modelPresetBindingTitle : `${language.model}/${language.submodel}`}
     </div>
 
-    {#if mainPreset && target?.modelBinding}
-        <ModelPresetList warnIfEmpty bind:value={target.modelBinding.main} onChange={onBindingChange} />
-    {:else if !mainPreset}
-        <ModelList compact bind:value={DBState.db.aiModel} />
+    {@render mainModel()}
+    {#if !subPreset || target?.modelBinding}
+        <div class="flex gap-1 items-stretch">
+            <div class="flex-1 min-w-0">
+                {@render subModel()}
+            </div>
+            {@render auxButton()}
+        </div>
     {/if}
-    {#if !subPreset}
-        <!-- Classic sub/aux: global model selection, untouched. -->
-        <div class="flex gap-1 items-stretch">
-            <div class="flex-1 min-w-0">
-                <ModelList compact bind:value={DBState.db.subModel} />
-            </div>
-            <ShButton size="icon" className="shrink-0" onclick={() => { auxExpanded = !auxExpanded }} title={language.seperateModelsForAxModels}>
-                <ChevronDownIcon size={16} class={`transition-transform${auxExpanded ? ' rotate-180' : ''}`} />
-            </ShButton>
-        </div>
-        {#if auxExpanded}
-            <div class="flex flex-col gap-1 mt-1 pl-2 border-l border-selected">
-                <div class="w-full flex items-center justify-between gap-2 min-h-10 rounded-md px-1">
-                    <span class="min-w-0">{language.seperateModelsForAxModels}</span>
-                    <ShSwitch className="shrink-0" bind:checked={DBState.db.seperateModelsForAxModels} />
-                </div>
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelMemory}</div>
-                <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.memory} />
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelTranslate}</div>
-                <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.translate} />
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelEmotion}</div>
-                <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.emotion} />
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelOther}</div>
-                <ModelList compact blankable blankLabel={language.useDefaultSubModel} disabled={!DBState.db.seperateModelsForAxModels} bind:value={DBState.db.seperateModels.otherAx} />
-            </div>
-        {/if}
-    {:else if target?.modelBinding}
-        <!-- Binding regime: per-chat ModelPreset bundle. -->
-        <div class="flex gap-1 items-stretch">
-            <div class="flex-1 min-w-0">
-                <ModelPresetList warnIfEmpty bind:value={target.modelBinding.sub} onChange={onBindingChange} />
-            </div>
-            <ShButton size="icon" className="shrink-0" onclick={() => { auxExpanded = !auxExpanded }} title={language.seperateModelsForAxModels}>
-                <ChevronDownIcon size={16} class={`transition-transform${auxExpanded ? ' rotate-180' : ''}`} />
-            </ShButton>
-        </div>
-        {#if auxExpanded}
-            <div class="flex flex-col gap-1 mt-1 pl-2 border-l border-selected">
-                <div class="w-full flex items-center justify-between gap-2 min-h-10 rounded-md px-1">
-                    <span class="min-w-0">{language.seperateModelsForAxModels}</span>
-                    <ShSwitch className="shrink-0" checked={target.modelBinding.separateAux} onCheckedChange={(checked) => { target!.modelBinding!.separateAux = checked; onBindingChange() }} />
-                </div>
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelMemory}</div>
-                <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.memory} onChange={onBindingChange} />
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelTranslate}</div>
-                <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.translate} onChange={onBindingChange} />
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelEmotion}</div>
-                <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.emotion} onChange={onBindingChange} />
-                <div class="text-[11px] text-textcolor2 px-1">{language.axModelOther}</div>
-                <ModelPresetList blankable disabled={!target.modelBinding.separateAux} bind:value={target.modelBinding.aux.otherAx} onChange={onBindingChange} />
-            </div>
-        {/if}
+    {@render auxPanel()}
     {/if}
 
     {#if !bindingTarget && presetRegime && target?.modelBinding}

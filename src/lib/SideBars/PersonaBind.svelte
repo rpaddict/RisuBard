@@ -10,13 +10,21 @@
     import type { Chat } from "src/ts/storage/database.svelte";
     import { getCharImage } from "src/ts/characters";
     import { getEffectivePersona, resolvePersonaById, type PersonaSelection } from "src/ts/personaScopes";
+    import ShDropdownMenu from "../UI/GUI/ShDropdownMenu.svelte";
+    import ShDropdownMenuTrigger from "../UI/GUI/ShDropdownMenuTrigger.svelte";
+    import ShDropdownMenuContent from "../UI/GUI/ShDropdownMenuContent.svelte";
+    import ShDropdownMenuItem from "../UI/GUI/ShDropdownMenuItem.svelte";
+    import ShDropdownMenuSeparator from "../UI/GUI/ShDropdownMenuSeparator.svelte";
+    import ShDropdownMenuSwitchItem from "../UI/GUI/ShDropdownMenuSwitchItem.svelte";
 
     interface Props {
         bindingTarget?: Pick<Chat, 'bindedPersona'>;
         onBindingChange?: () => void;
+        /** Sidebar minimal mode: a thumbnail button whose menu holds every action. */
+        minimal?: boolean;
     }
 
-    let { bindingTarget, onBindingChange = () => {} }: Props = $props();
+    let { bindingTarget, onBindingChange = () => {}, minimal = false }: Props = $props();
 
     let currentChat = $derived(DBState.db.characters[$selectedCharID]?.chats?.[DBState.db.characters[$selectedCharID]?.chatPage])
     let target = $derived(bindingTarget ?? currentChat)
@@ -59,6 +67,16 @@
         notifySuccess(language.personaUnbindedSuccess)
     }
 
+    function choosePersonaToBind() {
+        personaSelectCallback.set(bindPersona)
+        openPersonaManager.set(true)
+    }
+
+    function bindCurrentPersona() {
+        const current = getEffectivePersona(DBState.db, DBState.db.characters[$selectedCharID])
+        if (current) bindPersona(current)
+    }
+
     async function handlePersonaBindClick() {
         if (isPersonaBound) {
             const sel = await alertConfirmMulti(
@@ -69,8 +87,7 @@
                 ]
             )
             if (sel === 0) {
-                personaSelectCallback.set(bindPersona)
-                openPersonaManager.set(true)
+                choosePersonaToBind()
             } else if (sel === 1) {
                 unbindPersona()
             }
@@ -81,16 +98,71 @@
                 language.cancel
             ]))
             if (sel === 0) {
-                const current = getEffectivePersona(DBState.db, DBState.db.characters[$selectedCharID])
-                if (current) bindPersona(current)
+                bindCurrentPersona()
             } else if (sel === 1) {
-                personaSelectCallback.set(bindPersona)
-                openPersonaManager.set(true)
+                choosePersonaToBind()
             }
         }
     }
 </script>
 
+{#if minimal}
+<ShDropdownMenu>
+    <ShDropdownMenuTrigger>
+        {#snippet child({ props })}
+            <button
+                {...props}
+                type="button"
+                data-persona-binding-minimal
+                data-bound={isPersonaBound}
+                class={`persona-thumb risu-button-lift relative size-10 shrink-0 overflow-hidden rounded-md border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-borderc/50 ${isPersonaBound
+                    ? 'border-binding-border bg-binding'
+                    : 'border-darkborderc bg-darkbutton opacity-75 hover:opacity-100'}`}
+                title={`${language.personaBindingLabel}: ${displayPersona?.name ?? 'User'}`}
+                aria-label={`${language.personaBindingLabel}: ${displayPersona?.name ?? 'User'}`}
+            >
+                {#if displayPersona?.icon}
+                    {#await getCharImage(displayPersona.icon, 'plain') then personaImage}
+                        <img src={personaImage} alt="" class="size-full object-cover object-top" />
+                    {/await}
+                {:else}
+                    <span class="flex size-full items-center justify-center text-base font-semibold text-textcolor">
+                        {(displayPersona?.name ?? 'User').trim().charAt(0) || '?'}
+                    </span>
+                {/if}
+                {#if isPersonaBound}
+                    <span class="absolute right-0 bottom-0 flex size-4 items-center justify-center rounded-tl-md bg-binding-border text-binding-text">
+                        <PinIcon size={10} />
+                    </span>
+                {/if}
+            </button>
+        {/snippet}
+    </ShDropdownMenuTrigger>
+    <ShDropdownMenuContent class="w-64 max-w-[calc(100vw-2rem)]">
+        <div class="px-2 pt-1 pb-1.5">
+            <div class="text-[11px] text-textcolor2">{language.personaBindingLabel}</div>
+            <div class="flex min-w-0 items-baseline gap-1 text-sm">
+                <span class="truncate font-semibold">{displayPersona?.name ?? 'User'}</span>
+                {#if displayPersona?.note}
+                    <span class="truncate text-xs text-textcolor2">({displayPersona.note})</span>
+                {/if}
+            </div>
+        </div>
+        <ShDropdownMenuSeparator />
+        {#if isPersonaBound}
+            <ShDropdownMenuItem onSelect={choosePersonaToBind}>{language.personaBindChange}</ShDropdownMenuItem>
+            <ShDropdownMenuItem variant="destructive" onSelect={unbindPersona}>{language.personaBindUnbind}</ShDropdownMenuItem>
+        {:else}
+            <ShDropdownMenuItem onSelect={bindCurrentPersona}>{language.personaBindCurrent}</ShDropdownMenuItem>
+            <ShDropdownMenuItem onSelect={choosePersonaToBind}>{language.personaSelectOther}</ShDropdownMenuItem>
+        {/if}
+        <ShDropdownMenuSeparator />
+        <ShDropdownMenuSwitchItem checked={pinPersonaOnNewChat} onCheckedChange={toggleNewChatPersonaPin}>
+            {language.pinPersonaOnNewChat}
+        </ShDropdownMenuSwitchItem>
+    </ShDropdownMenuContent>
+</ShDropdownMenu>
+{:else}
 <div class="text-[11px] text-textcolor2 mt-4 px-1">{language.personaBindingLabel}</div>
 <div class="flex gap-1 mt-1 items-stretch">
     <ShButton
@@ -132,3 +204,4 @@
         {/if}
     </ShButton>
 </div>
+{/if}

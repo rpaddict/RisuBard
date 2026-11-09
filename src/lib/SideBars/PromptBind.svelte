@@ -9,13 +9,21 @@
     import ShSwitch from "../UI/GUI/ShSwitch.svelte";
     import Help from "../Others/Help.svelte";
     import type { Chat } from "src/ts/storage/database.svelte";
+    import ShDropdownMenu from "../UI/GUI/ShDropdownMenu.svelte";
+    import ShDropdownMenuTrigger from "../UI/GUI/ShDropdownMenuTrigger.svelte";
+    import ShDropdownMenuContent from "../UI/GUI/ShDropdownMenuContent.svelte";
+    import ShDropdownMenuItem from "../UI/GUI/ShDropdownMenuItem.svelte";
+    import ShDropdownMenuSeparator from "../UI/GUI/ShDropdownMenuSeparator.svelte";
+    import ShDropdownMenuSwitchItem from "../UI/GUI/ShDropdownMenuSwitchItem.svelte";
 
     interface Props {
         bindingTarget?: Pick<Chat, 'bindedBotPreset' | 'usePromptPresetParams'>;
         onBindingChange?: () => void;
+        /** Sidebar minimal mode: one button whose menu holds every action. */
+        minimal?: boolean;
     }
 
-    let { bindingTarget, onBindingChange = () => {} }: Props = $props();
+    let { bindingTarget, onBindingChange = () => {}, minimal = false }: Props = $props();
 
     let currentChat = $derived(DBState.db.characters[$selectedCharID]?.chats?.[DBState.db.characters[$selectedCharID]?.chatPage])
     let target = $derived(bindingTarget ?? currentChat)
@@ -64,6 +72,17 @@
         notifySuccess(language.promptUnbindedSuccess)
     }
 
+    function choosePresetToBind() {
+        presetSelectCallback.set(bindPreset)
+        openPresetList.set(true)
+    }
+
+    function setPromptParams(value: boolean) {
+        if (!target) return
+        target.usePromptPresetParams = value
+        onBindingChange()
+    }
+
     async function handlePresetBindClick() {
         if (isPresetBound) {
             const sel = await alertConfirmMulti(
@@ -74,8 +93,7 @@
                 ]
             )
             if (sel === 0) {
-                presetSelectCallback.set(bindPreset)
-                openPresetList.set(true)
+                choosePresetToBind()
             } else if (sel === 1) {
                 unbindPreset()
             }
@@ -88,13 +106,57 @@
             if (sel === 0) {
                 bindPreset(DBState.db.botPresetsId)
             } else if (sel === 1) {
-                presetSelectCallback.set(bindPreset)
-                openPresetList.set(true)
+                choosePresetToBind()
             }
         }
     }
 </script>
 
+{#if minimal}
+<ShDropdownMenu>
+    <ShDropdownMenuTrigger>
+        {#snippet child({ props })}
+            <ShButton
+                {...props}
+                data-prompt-binding-minimal
+                variant={isPresetBound ? 'binding' : 'default'}
+                className={`min-w-0 flex-1 justify-start ${isPresetBound ? '' : 'text-textcolor2 opacity-75 hover:opacity-100'}`}
+                title={`${language.promptBindingLabel}: ${displayPreset?.name ?? language.none}`}
+            >
+                {#if isPresetBound}
+                    <PinIcon size={16} class="shrink-0" />
+                {:else}
+                    <PinOffIcon size={16} class="shrink-0" />
+                {/if}
+                <span class="truncate">{displayPreset?.name ?? language.none}</span>
+                {#if promptParamsOn}
+                    <SlidersHorizontalIcon size={14} class="ml-auto shrink-0 opacity-80" />
+                {/if}
+            </ShButton>
+        {/snippet}
+    </ShDropdownMenuTrigger>
+    <ShDropdownMenuContent class="w-64 max-w-[calc(100vw-2rem)]">
+        <div class="px-2 pt-1 pb-1.5">
+            <div class="text-[11px] text-textcolor2">{language.promptBindingLabel}</div>
+            <div class="truncate text-sm font-semibold">{displayPreset?.name ?? language.none}</div>
+        </div>
+        <ShDropdownMenuSeparator />
+        {#if isPresetBound}
+            <ShDropdownMenuItem onSelect={choosePresetToBind}>{language.promptBindChange}</ShDropdownMenuItem>
+            <ShDropdownMenuItem variant="destructive" onSelect={unbindPreset}>{language.promptBindUnbind}</ShDropdownMenuItem>
+        {:else}
+            <ShDropdownMenuItem onSelect={() => bindPreset(DBState.db.botPresetsId)}>{language.promptBindCurrent}</ShDropdownMenuItem>
+            <ShDropdownMenuItem onSelect={choosePresetToBind}>{language.presetSelectOther}</ShDropdownMenuItem>
+        {/if}
+        {#if target}
+            <ShDropdownMenuSeparator />
+            <ShDropdownMenuSwitchItem checked={promptParamsOn} onCheckedChange={setPromptParams}>
+                {language.promptPresetParamsUse}
+            </ShDropdownMenuSwitchItem>
+        {/if}
+    </ShDropdownMenuContent>
+</ShDropdownMenu>
+{:else}
 <div class="text-[11px] text-textcolor2 mt-4 px-1">{language.promptBindingLabel}</div>
 <div class="flex gap-1 mt-1 items-stretch">
     <ShButton
@@ -136,4 +198,5 @@
             />
         </div>
     </div>
+{/if}
 {/if}

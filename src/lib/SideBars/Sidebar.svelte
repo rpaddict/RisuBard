@@ -70,6 +70,8 @@
   import SolarBoldIcon from '../UI/Icons/SolarBoldIcon.svelte';
   import SolarAssetIcon from '../UI/Icons/SolarAssetIcon.svelte';
   import shareIcon from 'src/assets/solar-bold/share-bold.svg';
+  import minimizeSquareIcon from 'src/assets/solar-bold/minimize-square-minimalistic-bold.svg';
+  import maximizeSquareIcon from 'src/assets/solar-bold/maximize-square-minimalistic-bold.svg';
   import magnifierBugIcon from 'src/assets/solar-bold/magnifier-bug-bold.svg';
   import characterVaultIdle from 'src/assets/character-vault/books1-idle.png';
   import characterVaultHover from 'src/assets/character-vault/books1-hover.gif';
@@ -1462,6 +1464,23 @@
         <strong data-character-title class="min-w-0 grow truncate text-base text-textcolor">
           {currentCharacter.name || language.character}
         </strong>
+        <ShButton
+          data-sidebar-minimal-toggle
+          variant={DBState.db.sidebarMinimalMode ? 'binding' : 'outline'}
+          size="icon-sm"
+          aria-label={DBState.db.sidebarMinimalMode ? language.sidebarMinimalModeOff : language.sidebarMinimalModeOn}
+          aria-pressed={!!DBState.db.sidebarMinimalMode}
+          title={DBState.db.sidebarMinimalMode ? language.sidebarMinimalModeOff : language.sidebarMinimalModeOn}
+          onclick={() => {
+            DBState.db.sidebarMinimalMode = !DBState.db.sidebarMinimalMode
+          }}
+        >
+          {#if DBState.db.sidebarMinimalMode}
+            <SolarAssetIcon src={maximizeSquareIcon} name="maximize-square-minimalistic-bold" size={18} />
+          {:else}
+            <SolarAssetIcon src={minimizeSquareIcon} name="minimize-square-minimalistic-bold" size={18} />
+          {/if}
+        </ShButton>
         {#if currentCharacter.type === 'character'}
           <ShButton
             data-character-manage

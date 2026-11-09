@@ -3197,6 +3197,8 @@ export const languageKorean = {
     `"${name}"을(를) 현재 토글 값으로 덮어쓸까요?`,
   togglePresetOverwritten: (name: string) => `"${name}" 프리셋을 덮어썼습니다.`,
   togglePresetList: "토글 프리셋",
+  sidebarMinimalModeOn: "미니멀 모드 켜기",
+  sidebarMinimalModeOff: "미니멀 모드 끄기",
   togglePresetAutoApply: "새 채팅에 자동 적용",
   togglePresetAutoApplyActive: "새 채팅에 자동 적용 중입니다. 누르면 해제합니다.",
   togglePresetAutoApplyOn: (name: string) => `새 채팅과 새 봇이 "${name}" 프리셋으로 시작합니다.`,

@@ -897,15 +897,28 @@
     <div class="border-t border-selected mt-2">
         {#if DBState.db.characters[$selectedCharID]?.chaId !== '§playground' && !$chatDeselected}
             {#if DBState.db.showModelInSidebar}
-                <ModelBind />
+                <ModelBind minimal={DBState.db.sidebarMinimalMode} />
             {/if}
-            {#if DBState.db.showPersonaInSidebar}
-                <PersonaBind />
+            {#if DBState.db.sidebarMinimalMode}
+                <Toggles bind:chara={chara} noContainer minimal>
+                    {#snippet leading()}
+                        {#if DBState.db.showPersonaInSidebar}
+                            <PersonaBind minimal />
+                        {/if}
+                        {#if DBState.db.showPresetInSidebar}
+                            <PromptBind minimal />
+                        {/if}
+                    {/snippet}
+                </Toggles>
+            {:else}
+                {#if DBState.db.showPersonaInSidebar}
+                    <PersonaBind />
+                {/if}
+                {#if DBState.db.showPresetInSidebar}
+                    <PromptBind />
+                {/if}
+                <Toggles bind:chara={chara} noContainer />
             {/if}
-            {#if DBState.db.showPresetInSidebar}
-                <PromptBind />
-            {/if}
-            <Toggles bind:chara={chara} noContainer />
             <ShButton className="w-full mt-2" onclick={() => {
                 const char = DBState.db.characters[$selectedCharID]
                 if (!char) return

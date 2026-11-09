@@ -17,6 +17,7 @@ describe('HypaMemory modal entry visibility', () => {
     test('the sidebar HypaMemory toggle honors the same visibility preference', () => {
         const toggles = source('src/lib/SideBars/Toggles.svelte')
 
-        expect(toggles.match(/DBState\.db\.showMenuHypaMemoryModal && DBState\.db\.hypaV3/g)).toHaveLength(2)
+        // Boxed list, full list and the minimal-mode grid.
+        expect(toggles.match(/DBState\.db\.showMenuHypaMemoryModal && DBState\.db\.hypaV3/g)).toHaveLength(3)
     })
 })

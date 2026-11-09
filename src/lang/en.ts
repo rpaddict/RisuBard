@@ -3044,6 +3044,8 @@ export const languageEnglish = {
     togglePresetOverwriteConfirm: (name: string) => `Overwrite "${name}" with current toggle values?`,
     togglePresetOverwritten: (name: string) => `Preset "${name}" overwritten.`,
     togglePresetList: "Toggle Presets",
+    sidebarMinimalModeOn: "Turn on minimal sidebar",
+    sidebarMinimalModeOff: "Turn off minimal sidebar",
     togglePresetAutoApply: "Apply to new chats",
     togglePresetAutoApplyActive: "Applied to new chats. Click to stop.",
     togglePresetAutoApplyOn: (name: string) => `New chats and bots will start with "${name}".`,

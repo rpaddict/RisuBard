@@ -872,6 +872,7 @@ export function setDatabase(data:Database){
     data.showPresetInSidebar ??= true
     data.showPersonaInSidebar ??= true
     data.pinPersonaOnNewChat ??= true
+    data.sidebarMinimalMode ??= false
     data.nodeOnlyModelModeLock ??= 'none'
     data.moduleModelBindingsEnabled ??= false
     data.moduleModelBindings ??= {}
@@ -2108,6 +2109,7 @@ export interface Database{
     showPresetInSidebar:boolean
     showPersonaInSidebar:boolean
     pinPersonaOnNewChat:boolean
+    sidebarMinimalMode?:boolean
     disableMobileDragDrop:boolean
     disableToggleBinding:boolean
     menuSideBar:boolean
