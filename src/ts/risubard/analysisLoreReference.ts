@@ -13,6 +13,13 @@ export interface AnalysisLoreCandidate {
     tokens: number
     priority: number
     alwaysActive: boolean
+    sourceIdentity?: { scopeId: string; entryId?: string; contentHash: string }
+}
+
+export interface AnalysisLoreReference {
+    title: string
+    content: string
+    source?: { scopeId: string; entryId?: string; contentHash: string }
 }
 
 export interface AnalysisLoreReferenceSettings {
@@ -25,11 +32,11 @@ export interface AnalysisLoreReferenceSettings {
 export function selectAnalysisLoreReference(
     candidates: readonly AnalysisLoreCandidate[],
     settings: AnalysisLoreReferenceSettings,
-): { title: string; content: string }[] {
+): AnalysisLoreReference[] {
     if (settings.tokenLimit <= 0) return []
     const words = parseRisuBardLoreExcludeWords(settings.excludeWords).map((word) => word.toLowerCase())
     const seen = new Set<string>()
-    const selected: { title: string; content: string }[] = []
+    const selected: AnalysisLoreReference[] = []
     let used = 0
     const ordered = candidates
         .map((candidate, index) => ({ candidate, index }))
@@ -44,7 +51,9 @@ export function selectAnalysisLoreReference(
         if (used + candidate.tokens > settings.tokenLimit) continue
         used += candidate.tokens
         seen.add(content)
-        selected.push({ title: candidate.title.slice(0, 200), content: content.slice(0, 64_000) })
+        selected.push({ title: candidate.title.slice(0, 200), content: content.slice(0, 64_000),
+            ...(candidate.sourceIdentity ? { source: candidate.sourceIdentity } : {}),
+        })
     }
     return selected
 }

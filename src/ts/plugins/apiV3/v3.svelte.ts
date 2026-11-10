@@ -24,12 +24,12 @@ import { LLMFlags, LLMFormat, LLMProvider, LLMTokenizer, type LLMModel } from "s
 import { readPersistentJson, removePersistentKey, writePersistentJson } from "src/ts/storage/persistentKv";
 import { createPluginPermissionGate, createPluginScriptHashGetter, type PluginPermission, type PluginPermissionState } from "./pluginPermissionCache";
 import { endAllGenerations } from "src/ts/process/generationState";
-import { sendChat as processSendChat, doingChat } from "src/ts/process/index.svelte";
+import { sendChat as processSendChat, doingChat, collectPluginAnalysisLoreReference } from "src/ts/process/index.svelte";
 import { getModelInfo } from "src/ts/model/modellist";
 import type { ModelModeExtended } from "src/ts/process/request/shared";
 import { requestChatDataMain } from "src/ts/process/request/request";
 import type { OpenAIChat } from "src/ts/process/index.svelte";
-import { getModuleLorebooks } from "src/ts/process/modules";
+import { getModuleLorebooks, getModuleLorebooksWithSources } from "src/ts/process/modules";
 import { addOwnedChatOutputListener, readInlayWithPermission, removeOwnedChatOutputListener } from "../pluginChatOutput";
 import {
     buildBardWikiPluginContext,
@@ -779,13 +779,18 @@ const makeRisuaiAPIV3 = (iframe:HTMLIFrameElement,plugin:RisuPlugin) => {
         },
         addRisuScriptHandler: oldApis.addRisuScriptHandler,
         removeRisuScriptHandler: oldApis.removeRisuScriptHandler,
+        getContextFitCapabilities: oldApis.getContextFitCapabilities,
+        getContextFitRequestState: oldApis.getContextFitRequestState,
         addRisuReplacer: async (name:string,func:Function) => {
             //permission check for replacer
             const conf = await getPermission('replacer', 'periodically');
             if(!conf){
                 return;
             }
-            oldApis.addRisuReplacer(name, func as any);
+            const cleanup = oldApis.addRisuReplacer(name, func as any);
+            if (name === 'beforeContextFit' && typeof cleanup === 'function') {
+                addPluginUnloadCallback(plugin.name, cleanup);
+            }
         },
         removeRisuReplacer: oldApis.removeRisuReplacer,
         addRisuChatListener: async (mode: 'output', func: Function) => {
@@ -1031,6 +1036,18 @@ const makeRisuaiAPIV3 = (iframe:HTMLIFrameElement,plugin:RisuPlugin) => {
             const db = DBState.db
             const charId = get(selectedCharID)
             return db.characters[charId].chatPage
+        },
+        getAnalysisLoreReferenceCapabilities: () => ({ version: 1, tokenLimit: 1000, entryLimit: 64, includeAlwaysActive: false, sourceIdentity: true }),
+        getAnalysisLoreReference: collectPluginAnalysisLoreReference,
+        getCurrentLorebookEntriesWithSources: () => {
+            const character = DBState.db.characters[get(selectedCharID)]
+            const chat = character?.chats?.[character.chatPage]
+            if (!character || !chat) return []
+            return $state.snapshot([
+                ...(character.globalLore ?? []).map(entry => ({ scopeId: `character:${character.chaId}`, entry })),
+                ...(chat.localLore ?? []).map(entry => ({ scopeId: `chat:${chat.id}`, entry })),
+                ...getModuleLorebooksWithSources(),
+            ])
         },
         getCurrentLorebookEntries: () => {
             const charId = get(selectedCharID)

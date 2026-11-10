@@ -484,8 +484,10 @@ export type PluginV2ProviderOptions = {
     structuredOutput?: boolean | (() => boolean)
 }
 
+import { CONTEXT_FIT_CAPABILITIES, getContextFitRequestState, registerContextFitReplacer } from './pluginContextFit'
+
 export type EditFunction = (content: string) => string | null | undefined | Promise<string | null | undefined>
-type ReplacerFunction = (content: OpenAIChat[], type: string) => OpenAIChat[] | Promise<OpenAIChat[]>
+type ReplacerFunction = (content: OpenAIChat[], type: string, request?: { requestId: string }) => OpenAIChat[] | Promise<OpenAIChat[]>
 
 export const pluginV2 = {
     providers: new Map<string, (arg: PluginV2ProviderArgument, abortSignal?: AbortSignal) => Promise<PluginProviderResponse>>(),
@@ -495,6 +497,7 @@ export const pluginV2 = {
     editprocess: new Set<EditFunction>(),
     editinput: new Set<EditFunction>(),
     replacerbeforeRequest: new Set<ReplacerFunction>(),
+    replacerbeforeContextFit: new Set<ReplacerFunction>(),
     replacerafterRequest: new Set<(content: string, type: string) => string | Promise<string>>(),
     chatOutput: new PluginChatOutputListeners(),
     unload: new Set<() => void | Promise<void>>(),
@@ -572,7 +575,12 @@ export const getV2PluginAPIs = (pluginName = '') => {
                 throw (`script handler named ${name} not found`)
             }
         },
+        getContextFitCapabilities: () => ({ ...CONTEXT_FIT_CAPABILITIES }),
+        getContextFitRequestState,
         addRisuReplacer: (name: string, func: ReplacerFunction) => {
+            if (name === 'beforeContextFit') {
+                return registerContextFitReplacer(pluginV2.replacerbeforeContextFit, func)
+            }
             if (pluginV2['replacer' + name]) {
                 pluginV2['replacer' + name].add(func)
             }
@@ -851,6 +859,7 @@ export async function loadV2Plugin(plugins: RisuPlugin[]) {
         pluginV2.editoutput.clear()
         pluginV2.editprocess.clear()
         pluginV2.editinput.clear()
+        pluginV2.replacerbeforeContextFit.clear()
         pluginV2.chatOutput.clear(V2_CHAT_OUTPUT_OWNER)
     }
 

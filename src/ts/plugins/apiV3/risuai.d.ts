@@ -231,6 +231,9 @@ interface AfterTTSResult {
  * OpenAI-format chat message
  */
 interface OpenAIChat {
+    /** Required context survives the native fitting pass and reserves the configured response budget. */
+    requiredContext?: boolean;
+    removable?: boolean;
     role: 'system' | 'user' | 'assistant' | 'function';
     content: string;
     name?: string;
@@ -266,7 +269,7 @@ type ScriptMode = 'display' | 'output' | 'input' | 'process';
 /**
  * Replacer type
  */
-type ReplacerType = 'beforeRequest' | 'afterRequest';
+type ReplacerType = 'beforeRequest' | 'beforeContextFit' | 'afterRequest';
 
 /**
  * Risuai Plugin definition
@@ -1335,6 +1338,16 @@ interface BardWikiAPI {
  * Always use `await` or `.then()` when calling API methods.
  */
 interface RisuaiPluginAPI {
+    /** Snapshot the original active/CBS-rendered lore selection for an exact current chat. */
+    getAnalysisLoreReferenceCapabilities(): Promise<{ version: 1; tokenLimit: 1000; entryLimit: 64; includeAlwaysActive: false; sourceIdentity?: true }>;
+    getAnalysisLoreReference(input: {
+        characterId: string;
+        chatId: string;
+        targetMessageId: string;
+        messages: { messageId?: string; role: string; content: string }[];
+    }): Promise<{ title: string; content: string; source?: { scopeId: string; entryId?: string; contentHash: string } }[]>;
+    getCurrentLorebookEntriesWithSources(): Promise<{ scopeId: string; entry: any }[]>;
+
     // ========== Version Information ==========
 
     /** API version string */
@@ -1954,6 +1967,27 @@ interface RisuaiPluginAPI {
     ): Promise<void>;
 
     // ========== Replacers ==========
+
+    /** Call this method to negotiate support; sandbox proxies also expose missing method names. */
+    getContextFitCapabilities(): Promise<{
+        version: 1;
+        hook: 'beforeContextFit';
+        requiredContext: true;
+        requestState: true;
+    }>;
+
+    /** Returns null once that context-fitting invocation has ended. */
+    getContextFitRequestState(requestId: string): Promise<{ requestId: string; status: 'active' | 'aborted' } | null>;
+
+    /** Runs once after prompt assembly, before native token fitting; never re-runs on provider retries.
+     * Set requiredContext on a required system message. The host keeps it and removes eligible chat
+     * messages to preserve maxContext - maxResponse. If it cannot fit, generation fails explicitly.
+     * Requires replacer permission. The callback is removed when the plugin unloads.
+     */
+    addRisuReplacer(
+        type: 'beforeContextFit',
+        func: (messages: OpenAIChat[], type: 'model', request?: { requestId: string }) => OpenAIChat[] | Promise<OpenAIChat[]>
+    ): Promise<void>;
 
     /**
      * Adds a replacer for modifying messages
