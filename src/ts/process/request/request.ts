@@ -500,7 +500,14 @@ export async function requestChatDataMain(arg:requestDataArgument, model:ModelMo
         : resolveApiSamplingParameter('temperature', arg.temperature)
     targ.bias = arg.bias
     targ.currentChar = arg.currentChar
-    targ.useStreaming = arg.forceStreaming ? true : db.useStreaming && arg.useStreaming
+    // Plugin providers decide streaming themselves (their own toggle), and the
+    // legacy streaming checkbox is hidden for plugin models, so only the
+    // caller's opt-out (aux requests, escape output) collects their stream.
+    targ.useStreaming = arg.forceStreaming
+        ? true
+        : targ.modelInfo.format === LLMFormat.Plugin
+            ? arg.useStreaming === true
+            : db.useStreaming && arg.useStreaming
     targ.continue = arg.continue ?? false
     targ.biasString = arg.biasString ?? []
     targ.multiGen = ((db.genTime > 1 && targ.aiModel.startsWith('gpt') && (!arg.continue)) && (!arg.noMultiGen))

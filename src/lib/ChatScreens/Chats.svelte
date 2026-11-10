@@ -152,6 +152,10 @@
                 b.classList.add('chat-message-container');
                 const swipes = message.swipes;
                 const swipeId = message.swipeId ?? 0;
+                // Read the text here, not only inside the microtask: when the hash
+                // leaves the text out (streaming, preserved reading position), this
+                // read is what makes the effect re-run as a new reply streams in.
+                const messageData = message.data;
                 // Mounting inside this $effect would make the message a child of it. When the effect
                 // re-runs, Svelte detaches it while an update may still be pending, and the message
                 // stops reacting (the edit button did nothing until the bot was reopened).
@@ -160,7 +164,7 @@
                 const inst = mount(Chat, {
                     target: b,
                     props: {
-                        message: message.data,
+                        message: messageData,
                         isLastMemory: false,
                         idx: i,
                         totalLength: messages.length,
@@ -185,7 +189,7 @@
                         disabled: message.disabled ?? false,
                         isOptimizedStreamingMessage: activeStreamingMessage,
                         streamingOptimizationMode: performanceMode,
-                        rawStreamingText: message.data,
+                        rawStreamingText: messageData,
                         ...(i === lastRealCharIdx ? {
                             currentPage: (swipeId ?? 0) + 1,
                             totalPages: swipes?.length ?? 1,
