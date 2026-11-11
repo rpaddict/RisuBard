@@ -54,6 +54,18 @@ describe('wiki analysis gap', () => {
             .toEqual({ messageIds: ['assistant-3', 'assistant-5'], startResponseNumber: 3 })
     })
 
+    test('ignores the reply written after the turn automatic analysis targets', () => {
+        const messages = [
+            ask(1), reply(1, { risubardMemoryConfirmed: true }),
+            ask(2), reply(2, { risubardWikiPending: {} }),
+            ask(3), reply(3),
+            ask(4),
+        ]
+        expect(summarizeWikiAnalysisGap(messages, { beforeMessageId: 'assistant-2' }).messageIds).toEqual([])
+        expect(summarizeWikiAnalysisGap([...messages, reply(4)], { beforeMessageId: 'assistant-3' }).messageIds)
+            .toEqual([])
+    })
+
     test('leaves chats that never confirmed a turn, and fully analyzed chats, alone', () => {
         expect(summarizeWikiAnalysisGap([ask(1), reply(1), ask(2), reply(2)]).messageIds).toEqual([])
         expect(summarizeWikiAnalysisGap([ask(1), reply(1, { risubardMemoryConfirmed: true })]).messageIds).toEqual([])

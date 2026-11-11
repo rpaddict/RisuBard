@@ -49,17 +49,22 @@ export function wikiBacklogMessages<T extends WikiBacklogMessage>(
  */
 export function summarizeWikiAnalysisGap(
     messages: readonly WikiBacklogMessage[],
-    options: { excludeMessageIds?: ReadonlySet<string>; ignoreOocTurns?: boolean } = {},
+    options: { beforeMessageId?: string; excludeMessageIds?: ReadonlySet<string>; ignoreOocTurns?: boolean } = {},
 ): { messageIds: string[]; startResponseNumber: number } {
     const isTurn = (message: WikiBacklogMessage) => message.role === 'char'
         && !message.isComment && !message.disabled
-    const lastConfirmed = messages.findLastIndex((message) =>
+    // Automatic analysis confirms the previous reply, so the reply just written lies after the target and is not a gap.
+    const targetIndex = options.beforeMessageId === undefined ? -1
+        : messages.findIndex((message) => isTurn(message) && message.chatId === options.beforeMessageId)
+    if (options.beforeMessageId !== undefined && targetIndex < 0) return { messageIds: [], startResponseNumber: 0 }
+    const end = targetIndex < 0 ? messages.length : targetIndex
+    const lastConfirmed = messages.slice(0, end).findLastIndex((message) =>
         isTurn(message) && message.risubardMemoryConfirmed === true)
     if (lastConfirmed < 0) return { messageIds: [], startResponseNumber: 0 }
     const excluded = oocTurnIndices(messages, options.ignoreOocTurns !== false)
     const messageIds: string[] = []
     let startIndex = -1
-    for (let index = lastConfirmed + 1; index < messages.length; index++) {
+    for (let index = lastConfirmed + 1; index < end; index++) {
         const message = messages[index]
         if (!isTurn(message) || excluded.has(index)
             || typeof message.chatId !== 'string' || message.chatId.trim().length === 0

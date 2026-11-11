@@ -594,6 +594,7 @@ async function askWikiGapCatchUp(
     respectDeclined: boolean,
 ): Promise<'none' | 'catch-up' | 'latest' | 'cancel'> {
     const gap = summarizeWikiAnalysisGap(chat.message, {
+        beforeMessageId: targetMessageId,
         excludeMessageIds: new Set(respectDeclined
             ? [targetMessageId, ...declinedWikiGapTurns]
             : [targetMessageId]),
@@ -632,6 +633,7 @@ function queueNarrativeTurn(input: {
     const chat = DBState.db.characters.find((item) => item.chaId === input.characterId)
         ?.chats.find((item) => item.id === input.chatId)
     if (chat && summarizeWikiAnalysisGap(chat.message, {
+        beforeMessageId: input.targetMessageId,
         excludeMessageIds: new Set([input.targetMessageId, ...declinedWikiGapTurns]),
         ignoreOocTurns: true,
     }).messageIds.length > 0) {
