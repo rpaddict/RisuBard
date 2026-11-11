@@ -27,6 +27,15 @@ export function groupNarrativeBacklog<T extends { messages: readonly { content: 
     return batches
 }
 
+/**
+ * With an analysis interval above one, a new turn waits until that many turns
+ * are queued, so they share one analysis call instead of repeating the
+ * instructions and evidence for each turn.
+ */
+export function narrativeAnalysisDue(waitingTurns: number, interval: number): boolean {
+    return waitingTurns >= Math.max(1, Math.min(NARRATIVE_BACKLOG_TURNS_PER_RUN, interval))
+}
+
 /** Turns without a user reply in between share one user message; keep it once. */
 export function withoutRepeatedMessages<T extends { messages: readonly { messageId: string }[] }>(
     turns: readonly T[],

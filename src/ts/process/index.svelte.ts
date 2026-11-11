@@ -48,7 +48,8 @@ import {
     type MemoryAnalysisMessage,
 } from "../risubard/memoryAnalysisClient";
 import { enqueueNarrativeConfirmation, narrativeConfirmationsSettled } from '../risubard/narrativeConfirmationQueue';
-import { groupNarrativeBacklog, NARRATIVE_BACKLOG_TURNS_PER_RUN, withoutRepeatedMessages } from '../risubard/narrativeBacklogBatch';
+import { groupNarrativeBacklog, NARRATIVE_BACKLOG_TURNS_PER_RUN, narrativeAnalysisDue, withoutRepeatedMessages } from '../risubard/narrativeBacklogBatch';
+import { wikiBacklogMessages } from '../risubard/wikiBacklog';
 import { projectActiveNarrativeSources } from "../risubard/sourceProjection";
 import {
     createNarrativeSourcesPrompt,
@@ -563,6 +564,26 @@ function processNarrativeBacklog(input: {
         if (narrativeBacklogRuns.get(key) === settled) narrativeBacklogRuns.delete(key)
     })
     return run
+}
+
+/** Queues a new turn and analyzes the backlog once the chat's turn interval is reached. */
+function queueNarrativeTurn(input: {
+    characterId: string
+    chatId: string
+    targetMessageId: string
+}): void {
+    const chat = DBState.db.characters.find((item) => item.chaId === input.characterId)
+        ?.chats.find((item) => item.id === input.chatId)
+    const target = findNarrativeMessage(input.characterId, input.chatId, input.targetMessageId)
+    if (chat && target && target.risubardMemoryConfirmed !== true) {
+        const interval = resolvedRisuBardSettings(chat).risuBardAnalysisTurnInterval
+        if (interval > 1) {
+            target.risubardWikiPending ??= {}
+            const waiting = wikiBacklogMessages(chat.message, input.targetMessageId, true).length
+            if (!narrativeAnalysisDue(waiting, interval)) return
+        }
+    }
+    void processNarrativeBacklog(input)
 }
 
 async function runNarrativeBacklog(input: {
@@ -4275,7 +4296,7 @@ export async function sendChat(chatProcessIndex = -1,arg:{
             requestSettings.risuBardAutoWikiEnabled
         )) {
         // Turns that failed before stay queued and go first, in story order.
-        void processNarrativeBacklog({
+        queueNarrativeTurn({
             characterId: currentChar.chaId,
             chatId: narrativeSessionChatId,
             targetMessageId: narrativeTurnToConfirm.targetMessageId,

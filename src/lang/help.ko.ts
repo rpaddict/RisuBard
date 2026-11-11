@@ -270,6 +270,7 @@ export const helpKo = {
         "risuBardArcaChatParagraphSpacingPercent": "추출된 문단과 이미지 블록 사이의 세로 간격입니다. 글꼴 높이를 기준으로 하며 100%는 1em입니다. 모든 캐릭터와 챗에 공통 적용됩니다.",
         "risuBardArcaChatShowTitleImage": "아카라이브 챗 맨 위에 해당 봇의 타이틀 이미지를 넣을지 정합니다. 모든 캐릭터와 챗에 공통 적용됩니다.",
         "risuBardArcaChatTitleImageStyle": "큰 타원형, 정사각형 크롭, 또는 작은 썸네일을 타이틀 옆에 배치하는 형식 중 하나를 고릅니다.",
+        "risuBardAnalysisTurnInterval": "AI 응답이 이 수만큼 쌓이면 한 요청으로 묶어 위키를 분석합니다. 지시문과 원문이 턴마다 반복되지 않아 분석 요청 수와 토큰이 줄어듭니다. 대신 위키 반영이 그만큼 늦어지며, 아직 분석하지 않은 최근 턴은 채팅 기록으로 답변에 들어갑니다. 1이면 매 턴 분석하고 최대 4입니다.",
         "risuBardRecentMessages": "BardWiki 분석에 문맥으로 추가할 최근 어시스턴트 턴 수입니다. 사용자 메시지는 ‘위키 분석에서 사용자 메시지 빼기’ 설정을 따릅니다.",
         "risuBardResponseRecentMessages": "새 답변을 만들 때 참조할 최근 어시스턴트 턴 수입니다. 현재 사용자 요청은 별도로 항상 포함합니다.",
         "risuBardCanonicalWritingStyle": "사건 이야기 요약 및 정본 Markdown에 적용할 문체입니다. 위키 작성 언어와 독립적입니다. 기본 문체는 꾸밈과 줄거리 서술을 줄이고 숫자, 이름, 물건, 핵심 대사처럼 나중에 물어볼 만한 사실을 남깁니다. 이전의 표준과 초압축은 기본으로 합쳐졌습니다.",

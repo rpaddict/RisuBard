@@ -50,3 +50,79 @@ export function presetFailureRetryPolicy(error: unknown, aborted = false): { noR
         ? { noRetry: !error.retryable, fallbackEligible: error.fallbackEligible }
         : {}
 }
+
+const THOUGHTS_BLOCK = /<Thoughts>[\s\S]*?<\/Thoughts>/g
+
+// A reply that holds only the model's native reasoning (the <Thoughts> block
+// the request layer adds) and no answer text after it. Gemini Flash sometimes
+// ends a turn right after thinking; the raw text is non-empty, so without this
+// check it counts as a success and the chat shows an empty message.
+export function isReasoningOnlyResponse(text: unknown): boolean {
+    if (typeof text !== 'string' || !text.includes('<Thoughts>')) return false
+    return text.replace(THOUGHTS_BLOCK, '').trim() === ''
+}
+
+type ChunkStream = ReadableStream<Record<string, string>>
+
+function singleChunkStream(text: string): ChunkStream {
+    return new ReadableStream({
+        start(controller) {
+            controller.enqueue({ '0': text })
+            controller.close()
+        },
+    })
+}
+
+// Passes a streamed reply through; when it ends with reasoning only, requests
+// again (up to maxRetries) and keeps streaming the new reply in its place.
+// Stream chunks are full snapshots, so the next reply simply overwrites the
+// previous text. If every attempt is reasoning only, the last one is kept.
+export function retryReasoningOnlyStream(
+    first: ChunkStream,
+    retry: () => Promise<{ type: string; result: unknown }>,
+    maxRetries: number,
+    abortSignal?: AbortSignal | null,
+): ChunkStream {
+    let reader = first.getReader()
+    let lastText = ''
+    let retries = 0
+    return new ReadableStream({
+        async pull(controller) {
+            while (true) {
+                const { done, value } = await reader.read()
+                if (!done) {
+                    if (!value) continue
+                    const key = Object.keys(value)[0]
+                    lastText = key === undefined ? '' : (value[key] ?? '')
+                    controller.enqueue(value)
+                    return
+                }
+                if (abortSignal?.aborted || retries >= maxRetries || !isReasoningOnlyResponse(lastText)) {
+                    controller.close()
+                    return
+                }
+                retries += 1
+                console.warn(`[request] reply had reasoning but no answer; retrying (${retries}/${maxRetries})`)
+                let next: { type: string; result: unknown }
+                try {
+                    next = await retry()
+                } catch (error) {
+                    console.error('[request] retry after reasoning-only reply failed', error)
+                    controller.close()
+                    return
+                }
+                if (next.type === 'streaming' && next.result instanceof ReadableStream) {
+                    reader = (next.result as ChunkStream).getReader()
+                } else if (next.type === 'success' && typeof next.result === 'string') {
+                    reader = singleChunkStream(next.result).getReader()
+                } else {
+                    controller.close()
+                    return
+                }
+            }
+        },
+        cancel(reason) {
+            return reader.cancel(reason)
+        },
+    })
+}

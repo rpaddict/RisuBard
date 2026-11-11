@@ -441,6 +441,8 @@ export const helpEn = {
             "Show the current bot's title image at the top of exported Arca chats. This global value applies to every character and chat.",
         risuBardArcaChatTitleImageStyle:
             "Choose a large oval, a square crop, or a compact thumbnail placed beside the title.",
+        risuBardAnalysisTurnInterval:
+            "Waits until this many AI responses are queued and analyzes them for the wiki in one request, so instructions and evidence are not repeated per turn. Fewer analysis requests and tokens, but the wiki updates that many turns later; unanalyzed recent turns still reach replies through chat history. 1 analyzes every turn; at most 4.",
         risuBardRecentMessages:
             "Number of recent assistant turns added as context for BardWiki analysis. User messages follow the Analysis user messages setting.",
         risuBardResponseRecentMessages:

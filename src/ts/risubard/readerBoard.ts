@@ -31,7 +31,11 @@ export interface ReaderBoardSettings {
     splitSize: number
     /** Gives the readers BardWiki notes on what was published. */
     useWiki: boolean
+    /** Generate runs that can be undone in a row. */
+    undoDepth: number
 }
+
+export const UNDO_DEPTH_MAX = 5
 
 export type ReaderBoardWorkKind = 'new' | 'reboot'
 
@@ -333,6 +337,7 @@ export function defaultReaderBoardSettings(): ReaderBoardSettings {
         authorName: AUTHOR_HANDLE_DEFAULT,
         splitSize: 0,
         useWiki: true,
+        undoDepth: 3,
     }
 }
 
@@ -349,6 +354,7 @@ export function normalizeReaderBoardSettings(value: unknown): ReaderBoardSetting
         authorName: text(value.authorName, 40).trim() || AUTHOR_HANDLE_DEFAULT,
         splitSize: clampInt(value.splitSize, 0, 500, base.splitSize),
         useWiki: typeof value.useWiki === 'boolean' ? value.useWiki : base.useWiki,
+        undoDepth: clampInt(value.undoDepth, 1, UNDO_DEPTH_MAX, base.undoDepth),
     }
 }
 

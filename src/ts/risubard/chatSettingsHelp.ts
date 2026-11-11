@@ -37,6 +37,7 @@ export const risuBardCurrentChatSettingKeys = [
     'risuBardAnalysisTokenLimit',
     'risuBardAdditionalSearchLimit',
     'risuBardCanonicalTargetLimit',
+    'risuBardAnalysisTurnInterval',
     'risuBardRecentMessageCount',
     'risuBardResponseMessageCount',
     'risuBardResponseExcludeUserMessages',
@@ -138,6 +139,10 @@ function recommendation(
             return `현재 규모에는 ${longChat || longMessage ? '1' : '0~1'}회를 권장합니다. 2회 이상은 누락이 반복될 때만 사용하세요.`
         case 'risuBardCanonicalTargetLimit':
             return `현재 규모에는 ${longChat ? '8~12' : '6~8'}개를 권장합니다. 한 메시지가 1,000자 이상이면 한 번에 너무 많이 고치지 않도록 6~8개가 안전합니다.`
+        case 'risuBardAnalysisTurnInterval':
+            return veryLongMessage
+                ? '2턴을 권장합니다. 평균 2,000자 이상이면 여러 턴이 한 요청에 다 들어가지 않아 3턴 이상은 효과가 작습니다.'
+                : '2~3턴을 권장합니다. 위키가 바로 갱신되어야 하는 짧은 챗만 1턴으로 두세요.'
         case 'risuBardRecentMessageCount':
             return veryLongMessage
                 ? '분석 입력은 3~4개를 권장합니다. 평균 2,000자 이상에서는 더 늘리기보다 위키 검색에 맡기세요.'
@@ -189,6 +194,7 @@ const roles: Record<RisuBardChatSettingHelpKey, string> = {
     risuBardAnalysisTokenLimit: '위키를 갱신하는 분석 단계가 사용할 수 있는 최대 출력 토큰입니다. 정본 절에는 4,000자 고정 상한이 없습니다. 공급자가 출력 한도 종료를 보고하거나 응답 구조가 불완전하면 기존 문서에 저장하지 않고 재시도합니다.',
     risuBardAdditionalSearchLimit: '첫 분석에서 근거가 부족할 때 위키를 다시 찾을 수 있는 최대 횟수입니다.',
     risuBardCanonicalTargetLimit: '한 번의 분석에서 새로 만들거나 고칠 위키 문서(정본)의 최대 개수입니다.',
+    risuBardAnalysisTurnInterval: 'AI 응답이 이 수만큼 쌓이면 한 번에 묶어 위키를 분석합니다. 지시문과 원문이 요청마다 반복되지 않아 위키 분석 요청 수와 토큰이 줄어듭니다. 대신 위키 반영이 그만큼 늦어지며, 아직 분석하지 않은 최근 턴은 채팅 기록으로 답변에 들어갑니다. 한 요청에 들어가지 않는 긴 턴은 나눠서 분석합니다.',
     risuBardRecentMessageCount: '위키 분석에 원문 그대로 넣는 최근 AI 응답 수입니다. 분석에 사용자 메시지 넣기가 켜져 있으면 그 응답들 사이의 사용자 메시지도 함께 읽습니다.',
     risuBardResponseMessageCount: '최종 답변 모델에 원문 그대로 넣는 최근 AI 응답 수입니다. 답변에 사용자 메시지 넣기가 켜져 있으면 그 응답들 사이의 사용자 메시지도 함께 들어갑니다.',
     risuBardResponseExcludeUserMessages: '켜면 최종 답변에 넣는 최근 원문에 사용자 메시지도 넣습니다. 끄면 AI 응답만 넣으며, 지금 보내는 요청은 항상 들어갑니다.',

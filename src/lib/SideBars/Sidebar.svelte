@@ -1370,7 +1370,7 @@
   bind:this={sidebarElement}
   data-skin-part="sidebar-panel"
   data-character-sidebar
-  class="setting-area relative isolate h-full min-w-0 shrink-0 flex-col bg-darkbg text-textcolor max-h-full"
+  class="setting-area relative h-full min-w-0 shrink-0 flex-col bg-darkbg text-textcolor max-h-full"
   style:width={sidebarWidth}
   style:--sidebar-size={sidebarWidth}
   class:risu-sidebar={!$sideBarClosing}
@@ -1544,7 +1544,8 @@
   {/if}
   </div>
   {#if $selectedCharID >= 0}
-    <SidebarResizeHandle axis="width" target={sidebarElement} maxWidth={sidebarMaxWidth} />
+    <!-- In flow: an isolated panel would trap the dialogs opened from it (model pickers) behind the chat screen. -->
+    <SidebarResizeHandle axis="width" target={sidebarElement} maxWidth={sidebarMaxWidth} inFlow />
   {/if}
 </div>
 

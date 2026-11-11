@@ -87,12 +87,14 @@
         type ReaderBoardSummary,
         type ReaderBoardWorkKind,
         totalSubscribers,
+        UNDO_DEPTH_MAX,
     } from 'src/ts/risubard/readerBoard'
     import {
         adoptImportedBoard,
         chatMessageViews,
-        clearRunUndo,
         loadRunUndo,
+        popRunUndo,
+        trimRunUndo,
         copyBoard,
         deleteReaderBoard,
         forkBoardForChat,
@@ -157,6 +159,8 @@
     let page = $state(1)
     // The last run, while the board is still as that run left it.
     let undoRecord = $state<ReaderBoardRunRecord | null>(null)
+    // Runs that can be undone in a row while the latest is still current.
+    let undoCount = $state(0)
     let systemPromptDraft = $state('')
 
     // Author composer.
@@ -466,7 +470,9 @@
 
     async function loadUndo() {
         loadFolded()
-        undoRecord = board ? (await loadRunUndo(board.id))?.run ?? null : null
+        const saved = board ? await loadRunUndo(board.id) : null
+        undoRecord = saved?.run ?? null
+        undoCount = saved?.depth ?? 0
     }
 
     function resetRange() {
@@ -765,10 +771,10 @@
         if (done > 0 && board) {
             const record: ReaderBoardRunRecord = { chatKey, ranges, onlyPostNo, after: board.updatedAt, savedAt: Date.now() }
             try {
-                await saveRunUndo(start, record)
+                undoCount = await saveRunUndo(start, record, board.settings.undoDepth)
                 undoRecord = record
             }
-            catch { undoRecord = null }
+            catch { undoRecord = null; undoCount = 0 }
         }
         resetRange()
         if (done === 0 || notice) return
@@ -790,10 +796,18 @@
         if (!saved) return
         board = saved.board
         await persist(saved.board)
-        await clearRunUndo(saved.board.id)
-        undoRecord = null
+        await popRunUndo(saved.board.id)
+        await loadUndo()
         resetRange()
-        notice = '마지막 생성을 되돌렸습니다.'
+        notice = canUndo ? `마지막 생성을 되돌렸습니다. ${undoCount}번 더 되돌릴 수 있습니다.` : '마지막 생성을 되돌렸습니다.'
+    }
+
+    async function setUndoDepth(depth: number) {
+        if (!board) return
+        board.settings.undoDepth = depth
+        await persist()
+        const count = await trimRunUndo(board.id, depth)
+        if (undoRecord) undoCount = count
     }
 
     /** Undoes the last run and runs it again with the same range. */
@@ -1156,7 +1170,7 @@
                             <ShButton variant="outline" size="sm" onclick={() => controller?.abort()}><SquareIcon size={13} /> 멈추기</ShButton>
                         {:else}
                             {#if canUndo}
-                                <ShButton variant="ghost" size="sm" onclick={() => void undoLastRun()} data-reader-board-undo><Undo2Icon size={14} /> 되돌리기</ShButton>
+                                <ShButton variant="ghost" size="sm" onclick={() => void undoLastRun()} data-reader-board-undo><Undo2Icon size={14} /> 되돌리기{undoCount > 1 ? ` (${undoCount})` : ''}</ShButton>
                                 <ShButton variant="outline" size="sm" onclick={() => void rerollLastRun()} data-reader-board-reroll><RefreshCwIcon size={14} /> 다시 생성</ShButton>
                             {/if}
                             <ShButton variant="primary" size="sm" disabled={!canRun} onclick={() => generate()} data-reader-board-generate>
@@ -1673,6 +1687,14 @@
                     <input type="checkbox" bind:checked={board.settings.useWiki} onchange={() => void persist()} data-reader-board-use-wiki />
                     <span>바드위키 참고: 이미 연재한 턴까지의 사건 기록과 아크 플롯을 독자의 기억 보조로 넣기</span>
                 </label>
+                <div class="setting">
+                    <span>되돌리기 단계: 최근 생성을 몇 번까지 거슬러 되돌릴지</span>
+                    <div class="segmented" role="radiogroup" aria-label="되돌리기 단계" data-reader-board-undo-depth>
+                        {#each Array.from({ length: UNDO_DEPTH_MAX }, (_, i) => i + 1) as depth (depth)}
+                            <button type="button" role="radio" aria-checked={board.settings.undoDepth === depth} class:active={board.settings.undoDepth === depth} disabled={running} onclick={() => void setUndoDepth(depth)}>{depth}</button>
+                        {/each}
+                    </div>
+                </div>
                 <div class="setting">
                     <span>보기 (모든 게시판 공통)</span>
                     <div class="setting-row">

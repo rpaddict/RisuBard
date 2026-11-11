@@ -44,14 +44,14 @@ describe('plugin provider structured output contract', () => {
         expect(createPluginStructuredOutput(schema, false, {
             provider, purpose: 'bardwiki-analysis',
         })).toBeUndefined()
+        expect(createPluginStructuredOutput(schema, false, {
+            provider, purpose: 'bardwiki-canonical-update',
+        })).toBeUndefined()
     })
 
     test.each([
         ['pagefold-gemini-3.7-flash', 'chat-response'],
-        ['pagefold-gemini-3.7-flash', 'bardwiki-canonical-update'],
-        ['pagefold-google-gemini-3.7-flash', 'bardwiki-canonical-update'],
         ['pagefold-gemini-3.8-flash-vertex-1', 'chat-response'],
-        ['pagefold-gemini-3.8-flash-openrouter-1', 'bardwiki-canonical-update'],
         ['pagefold-gemini-3.8-flash-vertex-1', undefined],
         ['pagefold-claude-sonnet-openrouter-1', 'bardwiki-analysis'],
         ['another-gemini-vertex-1', 'bardwiki-analysis'],

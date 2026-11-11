@@ -48,7 +48,7 @@ import { TOOL_CAPABLE_ADAPTER_KINDS, VISION_CAPABLE_ADAPTER_KINDS, type AdapterK
 import { pumpPresetStream } from "./presetStreamPump";
 import { preparePresetResponse, presetGenerationOverrides } from './presetResponse';
 import { normalizePluginJsonStream, preparePluginResponse } from './pluginResponse';
-import { filterResponseCharacters, isRetryableTransportError, normalizeRequestRetryLimit, presetFailureRetryPolicy } from './responseRetryPolicy';
+import { filterResponseCharacters, isReasoningOnlyResponse, isRetryableTransportError, normalizeRequestRetryLimit, presetFailureRetryPolicy, retryReasoningOnlyStream } from './responseRetryPolicy';
 import { makeJobFetch, resolveModelJobRoute } from "./jobFetch";
 import { resolveChatModelBinding, resolveRequestModelBindingTarget, buildModelPresetCredential, applyPromptPresetParams, type ModelBindingTarget } from "./modelPresetBinding";
 import { createModelAttemptOrder, hasNextModelAttempt } from "./fallbackOrder";
@@ -306,8 +306,30 @@ export async function requestChatData(arg:RequestDataArgumentExtended, model:Mod
                 da = filterResponseCharacters(da, db.banCharacterset)
             }
     
+            // Reasoning with no answer after it: request again within the
+            // normal retry budget. Skipped when tools are available so a
+            // retry can never replay tool calls.
+            if(!internalOutput && da.type === 'success' && !da.noRetry && tools.length === 0
+                && trys < retryLimit && isReasoningOnlyResponse(da.result)){
+                trys += 1
+                console.warn(`[request] reply had reasoning but no answer; retrying (${trys}/${retryLimit})`)
+                continue
+            }
+            if(!internalOutput && da.type === 'streaming' && tools.length === 0 && trys < retryLimit){
+                const staticModel = fallBackModels[fallbackIndex]
+                da = {
+                    ...da,
+                    result: retryReasoningOnlyStream(
+                        da.result,
+                        () => requestChatDataMain({ ...arg, staticModel, tools }, model, abortSignal),
+                        retryLimit - trys,
+                        abortSignal,
+                    ),
+                }
+            }
+
             if(!internalOutput && da.type === 'success' && !da.noRetry && fallbackIndex !== fallBackModels.length-1 && db.fallbackWhenBlankResponse){
-                if(da.result.trim() === ''){
+                if(da.result.trim() === '' || isReasoningOnlyResponse(da.result)){
                     break
                 }
             }

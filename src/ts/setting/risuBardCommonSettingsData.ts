@@ -134,7 +134,16 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         type: 'custom',
         componentId: 'RisuBardWikiSettingsView',
         fallbackLabel: '설정 보기',
-        keywords: ['simple', 'advanced', 'work scale', 'analysis limit', '간단', '고급', '작업 규모', '분석 상한', '분석 입력'],
+        keywords: ['simple', 'advanced', 'work scale', 'analysis limit', 'recommended', 'preset', 'cost', '간단', '고급', '작업 규모', '분석 상한', '분석 입력', '공식 추천', '추천 설정', '추천값', '프리셋', '비용 절약'],
+    },
+    {
+        id: 'risubard.chat.analysisTurnInterval',
+        type: 'number',
+        labelKey: 'risuBardAnalysisTurnInterval',
+        helpKey: 'risuBardAnalysisTurnInterval',
+        bindKey: 'risuBardAnalysisTurnInterval',
+        options: { min: 1, max: 4, step: 1 },
+        keywords: ['analysis interval', 'batch turns', 'cost', 'wiki', '묶어 분석', '몇 턴마다', '분석 주기', '비용', '위키'],
     },
     {
         id: 'risubard.chat.analysisRecentMessages',

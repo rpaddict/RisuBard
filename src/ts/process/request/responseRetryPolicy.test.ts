@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { ModelPresetAdapterError } from '../../preset/adapter/error'
 import { ModelOutputError } from '../../../../packages/risubard-core/src/modelResponse'
-import { filterResponseCharacters, isRetryableTransportError, normalizeRequestRetryLimit, presetFailureRetryPolicy } from './responseRetryPolicy'
+import { filterResponseCharacters, isReasoningOnlyResponse, isRetryableTransportError, normalizeRequestRetryLimit, presetFailureRetryPolicy, retryReasoningOnlyStream } from './responseRetryPolicy'
 
 describe('bounded request retries', () => {
     it.each([NaN, Infinity, -1])('normalizes invalid retry count %s', (value) => {
@@ -63,5 +63,60 @@ describe('bounded request retries', () => {
         const source = readFileSync('src/ts/process/request/request.ts', 'utf8')
         expect(source.includes('noRetry: true, finishReason: streamFinishReason')).toBe(true)
         expect(source.includes('...(streamedOutputStarted ? { noRetry: true, fallbackEligible: false } : {})')).toBe(true)
+    })
+})
+
+describe('reasoning-only replies', () => {
+    const thoughts = '<Thoughts>\n\n생각만 하고 끝남\n\n</Thoughts>\n\n'
+    const streamOf = (...texts: string[]) => new ReadableStream<Record<string, string>>({
+        start(controller) {
+            for (const text of texts) controller.enqueue({ '0': text })
+            controller.close()
+        },
+    })
+    const drain = async (stream: ReadableStream<Record<string, string>>) => {
+        const seen: string[] = []
+        const reader = stream.getReader()
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) return seen
+            seen.push(value['0'])
+        }
+    }
+
+    it('detects reasoning with no answer after it', () => {
+        expect(isReasoningOnlyResponse(thoughts)).toBe(true)
+        expect(isReasoningOnlyResponse(thoughts + '본문')).toBe(false)
+        expect(isReasoningOnlyResponse('')).toBe(false)
+        expect(isReasoningOnlyResponse('본문만')).toBe(false)
+        expect(isReasoningOnlyResponse('<Thoughts>닫히지 않음')).toBe(false)
+    })
+
+    it('re-requests a reasoning-only stream and keeps the answered retry', async () => {
+        let calls = 0
+        const stream = retryReasoningOnlyStream(streamOf('<Thoughts>', thoughts), async () => {
+            calls += 1
+            return { type: 'streaming', result: streamOf(thoughts + '답') }
+        }, 3)
+        expect(await drain(stream)).toEqual(['<Thoughts>', thoughts, thoughts + '답'])
+        expect(calls).toBe(1)
+    })
+
+    it('stops at the retry limit and leaves answered streams alone', async () => {
+        let calls = 0
+        const retry = async () => {
+            calls += 1
+            return { type: 'success', result: thoughts }
+        }
+        expect(await drain(retryReasoningOnlyStream(streamOf(thoughts), retry, 2))).toEqual([thoughts, thoughts, thoughts])
+        expect(calls).toBe(2)
+        calls = 0
+        expect(await drain(retryReasoningOnlyStream(streamOf(thoughts + '답'), retry, 2))).toEqual([thoughts + '답'])
+        expect(calls).toBe(0)
+    })
+
+    it('keeps the last reply when a retry fails', async () => {
+        const stream = retryReasoningOnlyStream(streamOf(thoughts), async () => ({ type: 'fail', result: 'error' }), 3)
+        expect(await drain(stream)).toEqual([thoughts])
     })
 })

@@ -599,6 +599,27 @@ describe('RisuBardCurrentChatSettings', () => {
         expect(document.querySelector('#bardwiki-analysis-tokens')).toBeNull()
     })
 
+    test('applies the official recommended settings to this chat only', async () => {
+        const chat = chatWithLongMessages()
+        const global: RisuBardChatSettings = { risuBardSourceRerank: true }
+        mounted = mount(RisuBardCurrentChatSettings, { target: document.body, props: { chat, global } })
+        await tick()
+
+        const apply = document.querySelector<HTMLButtonElement>('[data-apply-recommended-wiki-preset]')!
+        expect(apply.disabled).toBe(false)
+        apply.click()
+        await tick()
+
+        expect(chat.risuBardSettings).toMatchObject({
+            risuBardAnalysisTurnInterval: 2,
+        })
+        expect(chat.risuBardSettings?.risuBardSourceRerank).toBeUndefined()
+        expect(global.risuBardAnalysisTurnInterval).toBeUndefined()
+        expect(apply.disabled).toBe(true)
+        expect(document.querySelector('[data-recommended-wiki-preset]')?.getAttribute('data-matched')).toBe('true')
+        expect(document.querySelector('[data-recommended-wiki-preset] [role="status"]')).not.toBeNull()
+    })
+
     test('gives every visible option contextual help without step validation hints', () => {
         const chat = chatWithLongMessages()
         mounted = mount(RisuBardCurrentChatSettings, {
@@ -608,7 +629,7 @@ describe('RisuBardCurrentChatSettings', () => {
 
         const fields = [...document.querySelectorAll('[data-chat-setting-field]')]
         const helpButtons = [...document.querySelectorAll('[data-chat-setting-help]')]
-        expect(fields).toHaveLength(18)
+        expect(fields).toHaveLength(19)
         expect(document.querySelector('[data-chat-setting-field^="risuBardBardChan"]')).toBeNull()
         expect(document.querySelector('#bardwiki-ignore-ooc')).toBeNull()
         expect(helpButtons).toHaveLength(fields.length)

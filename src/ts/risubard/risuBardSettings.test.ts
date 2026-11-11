@@ -63,6 +63,13 @@ describe('RisuBard analysis settings', () => {
             .toBe(RISUBARD_CANONICAL_TARGET_LIMIT_DEFAULT)
     })
 
+    test('analyzes every turn by default and caps the turn interval at one call', () => {
+        expect(resolveRisuBardChatSettings({}).risuBardAnalysisTurnInterval).toBe(1)
+        expect(resolveRisuBardChatSettings({ risuBardAnalysisTurnInterval: 2 }).risuBardAnalysisTurnInterval).toBe(2)
+        expect(resolveRisuBardChatSettings({}, { risuBardAnalysisTurnInterval: 9 }).risuBardAnalysisTurnInterval).toBe(4)
+        expect(resolveRisuBardChatSettings({ risuBardAnalysisTurnInterval: 0 }).risuBardAnalysisTurnInterval).toBe(1)
+    })
+
     test('defaults the memory budget to the standard tier with economy dynamic growth', () => {
         expect(RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT).toBe(4_000)
         expect(RISUBARD_INQUIRY_EVENT_TOKEN_BUDGET_DEFAULT).toBe(3_000)

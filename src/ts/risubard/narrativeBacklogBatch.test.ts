@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { groupNarrativeBacklog, withoutRepeatedMessages } from './narrativeBacklogBatch'
+import { groupNarrativeBacklog, narrativeAnalysisDue, withoutRepeatedMessages } from './narrativeBacklogBatch'
 
 const turn = (id: string, length: number) => ({
     targetMessageId: id,
@@ -34,5 +34,20 @@ describe('narrative backlog batches', () => {
         ]
         expect(withoutRepeatedMessages(turns).map((item) => item.messages.map((message) => message.messageId)))
             .toEqual([['u1', 'a1'], ['a2']])
+    })
+})
+
+describe('narrative analysis interval', () => {
+    test('waits until the interval worth of turns is queued', () => {
+        expect(narrativeAnalysisDue(1, 1)).toBe(true)
+        expect(narrativeAnalysisDue(1, 2)).toBe(false)
+        expect(narrativeAnalysisDue(2, 2)).toBe(true)
+        expect(narrativeAnalysisDue(2, 3)).toBe(false)
+        expect(narrativeAnalysisDue(5, 3)).toBe(true)
+    })
+
+    test('never waits for more turns than one call can take', () => {
+        expect(narrativeAnalysisDue(4, 10)).toBe(true)
+        expect(narrativeAnalysisDue(1, 0)).toBe(true)
     })
 })

@@ -57,7 +57,10 @@ export function createPluginStructuredOutput(
     // model version, route suffix, or profile number.
     // requestPlugin still supplies the schema prompt and structured_output flag;
     // BardWiki keeps validating the returned JSON before saving it.
-    if (context?.purpose === 'bardwiki-analysis'
+    // Canonical updates share the same rejection: sending the native schema
+    // first cost one failed request before every fallback.
+    if ((context?.purpose === 'bardwiki-analysis'
+        || context?.purpose === 'bardwiki-canonical-update')
         && /^pagefold-(?:google-)?gemini-.+/.test(context.provider)) {
         return undefined
     }

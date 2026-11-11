@@ -9,6 +9,8 @@ import {
 export const RISUBARD_ANALYSIS_TOKEN_LIMIT_DEFAULT = 32_768
 export const RISUBARD_ADDITIONAL_SEARCH_LIMIT_DEFAULT = 1
 export const RISUBARD_CANONICAL_TARGET_LIMIT_DEFAULT = 8
+// One analysis call takes at most four turns (NARRATIVE_BACKLOG_TURNS_PER_RUN).
+export const RISUBARD_ANALYSIS_TURN_INTERVAL_MAX = 4
 export const RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT = 4_000
 export const RISUBARD_INQUIRY_EVENT_TOKEN_BUDGET_DEFAULT = 3_000
 export const RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT = 2_000
@@ -46,6 +48,7 @@ export interface RisuBardChatSettings {
     risuBardAnalysisTokenLimit?: number
     risuBardAdditionalSearchLimit?: number
     risuBardCanonicalTargetLimit?: number
+    risuBardAnalysisTurnInterval?: number
     risuBardRecentMessageCount?: number
     risuBardResponseMessageCount?: number
     risuBardResponseExcludeUserMessages?: boolean
@@ -80,6 +83,7 @@ export interface ResolvedRisuBardChatSettings {
     risuBardAnalysisTokenLimit: number
     risuBardAdditionalSearchLimit: number
     risuBardCanonicalTargetLimit: number
+    risuBardAnalysisTurnInterval: number
     risuBardRecentMessageCount: number
     risuBardResponseMessageCount: number
     risuBardResponseExcludeUserMessages: boolean
@@ -122,6 +126,7 @@ export type RisuBardNumberSettingKey =
     | 'risuBardAnalysisTokenLimit'
     | 'risuBardAdditionalSearchLimit'
     | 'risuBardCanonicalTargetLimit'
+    | 'risuBardAnalysisTurnInterval'
     | 'risuBardRecentMessageCount'
     | 'risuBardResponseMessageCount'
     | 'risuBardAnalysisLoreTokenLimit'
@@ -148,6 +153,8 @@ export function risuBardNumberSettingBounds(
         case 'risuBardAdditionalSearchLimit':
         case 'risuBardAnalysisLoreTokenLimit':
             return { min: 0, max: Number.MAX_SAFE_INTEGER }
+        case 'risuBardAnalysisTurnInterval':
+            return { min: 1, max: RISUBARD_ANALYSIS_TURN_INTERVAL_MAX }
         case 'risuBardCanonicalTargetLimit':
         case 'risuBardRecentMessageCount':
         case 'risuBardResponseMessageCount':
@@ -208,6 +215,9 @@ export function resolveRisuBardChatSettings(
         ),
         risuBardCanonicalTargetLimit: normalizeRisuBardCanonicalTargetLimit(
             value('risuBardCanonicalTargetLimit')
+        ),
+        risuBardAnalysisTurnInterval: bounded(
+            'risuBardAnalysisTurnInterval', value('risuBardAnalysisTurnInterval'), 1
         ),
         risuBardRecentMessageCount: bounded(
             'risuBardRecentMessageCount', value('risuBardRecentMessageCount'), 12

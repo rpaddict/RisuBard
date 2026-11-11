@@ -2,6 +2,7 @@
     import { language } from 'src/lang'
     import { tooltip } from 'src/ts/gui/tooltip'
     import tippy from 'tippy.js'
+    import RisuBardRecommendedPreset from './RisuBardRecommendedPreset.svelte'
     import type { Chat, character as Character } from 'src/ts/storage/database.svelte'
     import { alertConfirm } from 'src/ts/alert'
     import type { RisuBardChatSettings, RisuBardNumberSettingKey } from 'src/ts/risubard/risuBardSettings'
@@ -428,6 +429,12 @@
     {/if}
 
     <fieldset class="settings-form" data-chat-settings-form disabled={formDisabled}>
+    {#if !globalDynamicOnly}
+    <section class="settings-section recommended-section" aria-label="공식 추천 설정">
+        <RisuBardRecommendedPreset {settings} disabled={formDisabled}
+            onApply={(changes) => { for (const [key, value] of Object.entries(changes)) setValue(key as keyof RisuBardChatSettings, value) }} />
+    </section>
+    {/if}
     {#if simple}
     <section class="settings-section" aria-label="위키 분석">
         {@render wikiScaleControl()}
@@ -572,6 +579,10 @@
             <div class="setting-field" data-chat-setting-field="risuBardAnalysisTokenLimit">
                 {@render settingTitle('risuBardAnalysisTokenLimit', '위키 분석 최대 길이(토큰)', 'bardwiki-analysis-tokens')}
                 {@render dynamicNumber('risuBardAnalysisTokenLimit', 'bardwiki-analysis-tokens')}
+            </div>
+            <div class="setting-field" data-chat-setting-field="risuBardAnalysisTurnInterval">
+                {@render settingTitle('risuBardAnalysisTurnInterval', '몇 턴마다 묶어 분석', 'bardwiki-analysis-interval')}
+                {@render numberInput('risuBardAnalysisTurnInterval', 'bardwiki-analysis-interval')}
             </div>
             <div class="setting-field" data-chat-setting-field="risuBardAdditionalSearchLimit">
                 {@render settingTitle('risuBardAdditionalSearchLimit', '근거 부족 시 다시 찾기 횟수', 'bardwiki-search-count')}

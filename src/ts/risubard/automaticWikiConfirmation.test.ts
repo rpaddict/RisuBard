@@ -53,8 +53,13 @@ describe('automatic BardWiki confirmation', () => {
         const trigger = processSource.search(/shouldAutomaticallyConfirmNarrativeTurn\(\s*requestSettings\.risuBardAutoWikiEnabled/)
         expect(trigger).toBeGreaterThan(0)
         const block = processSource.slice(trigger, trigger + 800)
-        expect(block).toContain('processNarrativeBacklog({')
+        expect(block).toContain('queueNarrativeTurn({')
         expect(block).toContain('targetMessageId: narrativeTurnToConfirm.targetMessageId')
+        // The turn interval only defers; once due, the queued backlog runs.
+        const queue = processSource.slice(processSource.indexOf('function queueNarrativeTurn('))
+        const queueBody = queue.slice(0, queue.search(/\r?\n\}\r?\n/))
+        expect(queueBody).toContain('narrativeAnalysisDue(')
+        expect(queueBody).toContain('void processNarrativeBacklog(input)')
         // A turn that does not confirm stops the pass so that no later turn overtakes it.
         const runner = processSource.slice(processSource.indexOf('async function runNarrativeBacklog('))
         expect(runner.slice(0, runner.search(/\r?\n\}\r?\n/))).toMatch(/risubardMemoryConfirmed !== true\)+ break/)

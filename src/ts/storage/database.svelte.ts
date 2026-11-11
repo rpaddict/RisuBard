@@ -1025,6 +1025,9 @@ export function setDatabase(data:Database){
     data.risuBardCanonicalTargetLimit = normalizeRisuBardCanonicalTargetLimit(
         data.risuBardCanonicalTargetLimit
     )
+    data.risuBardAnalysisTurnInterval = normalizeRisuBardNumberSetting(
+        'risuBardAnalysisTurnInterval', data.risuBardAnalysisTurnInterval, 1
+    )
     migrateLegacyMemoryBudgetDefaults(data)
     data.risuBardDynamicMemoryMode = normalizeRisuBardDynamicMemoryMode(data.risuBardDynamicMemoryMode)
     data.risuBardDynamicMemoryMaximumTokens = normalizeRisuBardDynamicMemoryMaximum(data.risuBardDynamicMemoryMaximumTokens)
@@ -2009,6 +2012,7 @@ export interface Database{
     risuBardAnalysisTokenLimit?: number
     risuBardAdditionalSearchLimit?: number
     risuBardCanonicalTargetLimit?: number
+    risuBardAnalysisTurnInterval?: number
     risuBardInquiryTargetTokenBudget?: number
     risuBardInquiryEventTokenBudget?: number
     risuBardInquirySourceTokenBudget?: number

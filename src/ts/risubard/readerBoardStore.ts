@@ -49,16 +49,64 @@ export interface ReaderBoardRunRecord {
     savedAt: number
 }
 
-/** Keeps the board as it was before a run, one level deep. */
-export async function saveRunUndo(before: ReaderBoard, run: ReaderBoardRunRecord): Promise<void> {
-    await writePersistentJson(undoKey(before.id), { board: before, run })
+export interface ReaderBoardUndoEntry {
+    board: ReaderBoard
+    run: ReaderBoardRunRecord
 }
 
-export async function loadRunUndo(id: string): Promise<{ board: ReaderBoard; run: ReaderBoardRunRecord } | null> {
-    const value = await readPersistentJson(undoKey(id)) as { board?: unknown; run?: ReaderBoardRunRecord } | null
-    const board = normalizeReaderBoard(value?.board)
-    if (!board || !value?.run || !Array.isArray(value.run.ranges)) return null
-    return { board, run: value.run }
+function normalizeUndoEntry(value: unknown): ReaderBoardUndoEntry | null {
+    const entry = value as { board?: unknown; run?: ReaderBoardRunRecord } | null
+    const board = normalizeReaderBoard(entry?.board)
+    if (!board || !entry?.run || !Array.isArray(entry.run.ranges) || typeof entry.run.after !== 'number') return null
+    return { board, run: entry.run }
+}
+
+/** Oldest first. Reads the old one-level file as a stack of one. */
+async function readUndoStack(id: string): Promise<ReaderBoardUndoEntry[]> {
+    const value = await readPersistentJson(undoKey(id)) as { entries?: unknown[] } | null
+    const raw = Array.isArray(value?.entries) ? value.entries : value ? [value] : []
+    return raw.map(normalizeUndoEntry).filter((entry): entry is ReaderBoardUndoEntry => entry !== null)
+}
+
+async function writeUndoStack(id: string, entries: ReaderBoardUndoEntry[]): Promise<void> {
+    if (entries.length === 0) await removePersistentKey(undoKey(id))
+    else await writePersistentJson(undoKey(id), { entries })
+}
+
+/**
+ * Keeps the board as it was before a run, up to `depth` runs back. Runs that
+ * no longer lead to `before` (rolled again, or the board changed in between)
+ * are dropped first, so every kept entry undoes into the next one down.
+ */
+export async function saveRunUndo(before: ReaderBoard, run: ReaderBoardRunRecord, depth: number): Promise<number> {
+    const entries = await readUndoStack(before.id)
+    while (entries.length > 0 && entries[entries.length - 1].run.after !== before.updatedAt) entries.pop()
+    entries.push({ board: before, run })
+    const kept = entries.slice(-Math.max(1, depth))
+    await writeUndoStack(before.id, kept)
+    return kept.length
+}
+
+/** The latest run with how many runs can be undone in a row. */
+export async function loadRunUndo(id: string): Promise<{ board: ReaderBoard; run: ReaderBoardRunRecord; depth: number } | null> {
+    const entries = await readUndoStack(id)
+    const top = entries[entries.length - 1]
+    return top ? { ...top, depth: entries.length } : null
+}
+
+/** Takes the latest run off the stack after it was undone. */
+export async function popRunUndo(id: string): Promise<void> {
+    const entries = await readUndoStack(id)
+    entries.pop()
+    await writeUndoStack(id, entries)
+}
+
+/** Drops the oldest runs beyond a lowered depth. */
+export async function trimRunUndo(id: string, depth: number): Promise<number> {
+    const entries = await readUndoStack(id)
+    const kept = entries.slice(-Math.max(1, depth))
+    if (kept.length !== entries.length) await writeUndoStack(id, kept)
+    return kept.length
 }
 
 export async function clearRunUndo(id: string): Promise<void> {

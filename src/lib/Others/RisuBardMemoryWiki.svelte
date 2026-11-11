@@ -249,6 +249,33 @@
         else settingsButtonElement?.focus()
     }
 
+    // The chat area clips overflow, so a wide popover anchored to the dock's right edge lost its left part
+    // behind the character sidebar. Cap its width to the room left of that edge inside the chat area.
+    $effect(() => {
+        const popover = settingsPopoverElement
+        if (!settingsOpen || !popover) return
+        const host = popover.closest<HTMLElement>('[data-lorebook-dock-host]')
+        let frame = 0
+        const measure = () => {
+            cancelAnimationFrame(frame)
+            frame = requestAnimationFrame(() => {
+                const left = host?.getBoundingClientRect().left ?? 0
+                const available = Math.floor(popover.getBoundingClientRect().right - left - 8)
+                popover.style.setProperty('--settings-popover-room', `${Math.max(240, available)}px`)
+            })
+        }
+        const observer = new ResizeObserver(measure)
+        if (host) observer.observe(host)
+        observer.observe(popover)
+        window.addEventListener('resize', measure)
+        measure()
+        return () => {
+            cancelAnimationFrame(frame)
+            observer.disconnect()
+            window.removeEventListener('resize', measure)
+        }
+    })
+
     // Close the settings popover when the pointer goes down outside it.
     $effect(() => {
         if (!settingsOpen) return
@@ -1995,7 +2022,7 @@
         display: grid;
         width: var(--manager-width, 58rem);
         height: var(--manager-height, auto);
-        max-width: calc(100vw - 1rem);
+        max-width: min(calc(100vw - 1rem), var(--settings-popover-room, 100vw));
         max-height: calc(100dvh - 7rem);
         overflow-y: auto;
         padding: .55rem;

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getCurrentLocale, language } from 'src/lang'
     import Help from 'src/lib/Others/Help.svelte'
+    import RisuBardRecommendedPreset from 'src/lib/Others/RisuBardRecommendedPreset.svelte'
     import { resolveRisuBardChatSettings } from 'src/ts/risubard/risuBardSettings'
     import {
         WIKI_SCALE_PRESET_IDS,
@@ -38,6 +39,11 @@
         Object.assign(DBState.db, wikiScalePresetValues(id))
     }
 </script>
+
+<div data-setting-row data-setting-id="risubard.common.recommendedPreset"
+    class="settings-standard-row border-t border-darkborderc">
+    <RisuBardRecommendedPreset {settings} onApply={(changes) => Object.assign(DBState.db, changes)} />
+</div>
 
 <div data-setting-row data-setting-id="risubard.common.wikiSettingsView"
     class="settings-standard-row flex items-center justify-between gap-4 border-t border-darkborderc">
