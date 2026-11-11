@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { summarizeWikiBacklog, wikiBacklogMessages } from './wikiBacklog'
+import { summarizeWikiAnalysisGap, summarizeWikiBacklog, wikiBacklogMessages } from './wikiBacklog'
 
 const reply = (index: number, extra: Record<string, unknown> = {}) => ({
     role: 'char', data: `reply ${index}`, chatId: `assistant-${index}`, ...extra,
@@ -37,5 +37,25 @@ describe('wiki analysis backlog', () => {
         ]
 
         expect(wikiBacklogMessages(messages).map((message) => message.chatId)).toEqual(['assistant-4'])
+    })
+})
+
+describe('wiki analysis gap', () => {
+    test('finds turns after the last confirmed one that were never queued', () => {
+        const messages = [
+            ask(1), reply(1),
+            ask(2), reply(2, { risubardMemoryConfirmed: true }),
+            ask(3), reply(3),
+            ask(4), reply(4, { risubardWikiPending: {} }),
+            ask(5), reply(5),
+            ask(6), reply(6),
+        ]
+        expect(summarizeWikiAnalysisGap(messages, { excludeMessageIds: new Set(['assistant-6']) }))
+            .toEqual({ messageIds: ['assistant-3', 'assistant-5'], startResponseNumber: 3 })
+    })
+
+    test('leaves chats that never confirmed a turn, and fully analyzed chats, alone', () => {
+        expect(summarizeWikiAnalysisGap([ask(1), reply(1), ask(2), reply(2)]).messageIds).toEqual([])
+        expect(summarizeWikiAnalysisGap([ask(1), reply(1, { risubardMemoryConfirmed: true })]).messageIds).toEqual([])
     })
 })

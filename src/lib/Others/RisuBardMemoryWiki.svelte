@@ -96,7 +96,7 @@
         open?: boolean
         characterId: string
         chatId: string
-        onForceWikiUpdate?: () => Promise<boolean>
+        onForceWikiUpdate?: () => Promise<boolean | null>
         onRetryWikiBacklog?: () => Promise<void>
         onSkipWikiBacklogTurn?: (messageId: string) => boolean
         rebootJob?: WikiRebootJob
@@ -847,6 +847,7 @@
         forceUpdateMeta = null
         try {
             const updated = await onForceWikiUpdate?.()
+            if (updated === null) return
             forceUpdateStatus = updated ? 'success' : 'empty'
             if (updated && targetTurn > 0) {
                 forceUpdateMeta = {

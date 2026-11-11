@@ -10,7 +10,7 @@ import { DBState } from '../stores.svelte';
 import { CharEmotion, selectedCharID } from "../stores.svelte";
 import { ChatTokenizer, tokenize, tokenizeNum } from "../tokenizer";
 import { language } from "../../lang";
-import { alertError, notifyError } from "../alert";
+import { alertConfirmMulti, alertError, notifyError } from "../alert";
 import { parseChatML } from "../parser/chatML";
 import { loadLoreBookV3Prompt } from "./lorebook.svelte";
 import { findCharacterbyId, getPersonaPrompt, getUserName, isLastCharPunctuation, trimUntilPunctuation, parseToggleSyntax, prebuiltAssetCommand, sleep } from "../util";
@@ -49,7 +49,7 @@ import {
 } from "../risubard/memoryAnalysisClient";
 import { enqueueNarrativeConfirmation, narrativeConfirmationsSettled } from '../risubard/narrativeConfirmationQueue';
 import { groupNarrativeBacklog, NARRATIVE_BACKLOG_TURNS_PER_RUN, narrativeAnalysisDue, withoutRepeatedMessages } from '../risubard/narrativeBacklogBatch';
-import { wikiBacklogMessages } from '../risubard/wikiBacklog';
+import { summarizeWikiAnalysisGap, wikiBacklogMessages } from '../risubard/wikiBacklog';
 import { projectActiveNarrativeSources } from "../risubard/sourceProjection";
 import {
     createNarrativeSourcesPrompt,
@@ -566,8 +566,90 @@ function processNarrativeBacklog(input: {
     return run
 }
 
+/** Runs the queued turns until none are left or a pass confirms nothing more. */
+async function drainNarrativeBacklog(characterId: string, chatId: string): Promise<void> {
+    let before = Number.POSITIVE_INFINITY
+    for (;;) {
+        const chat = DBState.db.characters.find((item) => item.chaId === characterId)
+            ?.chats.find((item) => item.id === chatId)
+        const waiting = chat ? wikiBacklogMessages(chat.message, undefined, true).length : 0
+        if (waiting === 0 || waiting >= before) return
+        before = waiting
+        await processNarrativeBacklog({ characterId, chatId })
+    }
+}
+
+// Gap turns the user chose not to analyze this session, so the question is not repeated each turn.
+const declinedWikiGapTurns = new Set<string>()
+
+/**
+ * Asks whether to analyze the turns left unanalyzed since the last confirmed
+ * one, such as replies written while automatic analysis was off. Returns
+ * 'catch-up' after queueing them, 'latest' to analyze only the newest turn, or
+ * 'cancel'.
+ */
+async function askWikiGapCatchUp(
+    chat: Chat,
+    targetMessageId: string,
+    respectDeclined: boolean,
+): Promise<'none' | 'catch-up' | 'latest' | 'cancel'> {
+    const gap = summarizeWikiAnalysisGap(chat.message, {
+        excludeMessageIds: new Set(respectDeclined
+            ? [targetMessageId, ...declinedWikiGapTurns]
+            : [targetMessageId]),
+        ignoreOocTurns: true,
+    })
+    if (gap.messageIds.length === 0) return 'none'
+    const target = chat.message.find((message) => message.role === 'char' && message.chatId === targetMessageId)
+    const total = gap.messageIds.length + (target && target.risubardMemoryConfirmed !== true ? 1 : 0)
+    const choice = await alertConfirmMulti(
+        `분석되지 않은 턴 ${total.toLocaleString()}개가 있습니다`,
+        [
+            { label: `${gap.startResponseNumber.toLocaleString()}턴부터 이어서 분석`, variant: 'primary' },
+            '최신 턴만 분석',
+        ],
+        '마지막으로 분석된 턴 뒤에 위키에 반영되지 않은 턴이 있습니다. 자동 분석이 꺼져 있던 동안의 턴일 수 있습니다.\n이어서 분석하면 오래된 턴부터 순서대로 반영하며, 턴 수에 따라 분석 요청이 여러 번 나갑니다. 기존 위키는 그대로 유지됩니다.',
+    )
+    if (choice === 0) {
+        const ids = new Set(gap.messageIds)
+        for (const message of chat.message) {
+            if (message.role === 'char' && message.chatId && ids.has(message.chatId)) {
+                message.risubardWikiPending ??= {}
+            }
+        }
+        return 'catch-up'
+    }
+    for (const id of gap.messageIds) declinedWikiGapTurns.add(id)
+    return choice === 1 ? 'latest' : 'cancel'
+}
+
 /** Queues a new turn and analyzes the backlog once the chat's turn interval is reached. */
 function queueNarrativeTurn(input: {
+    characterId: string
+    chatId: string
+    targetMessageId: string
+}): void {
+    const chat = DBState.db.characters.find((item) => item.chaId === input.characterId)
+        ?.chats.find((item) => item.id === input.chatId)
+    if (chat && summarizeWikiAnalysisGap(chat.message, {
+        excludeMessageIds: new Set([input.targetMessageId, ...declinedWikiGapTurns]),
+        ignoreOocTurns: true,
+    }).messageIds.length > 0) {
+        void askWikiGapCatchUp(chat, input.targetMessageId, true).then((choice) => {
+            if (choice !== 'catch-up') {
+                queueNarrativeTurnNow(input)
+                return
+            }
+            const target = findNarrativeMessage(input.characterId, input.chatId, input.targetMessageId)
+            if (target && target.risubardMemoryConfirmed !== true) target.risubardWikiPending ??= {}
+            void drainNarrativeBacklog(input.characterId, input.chatId)
+        })
+        return
+    }
+    queueNarrativeTurnNow(input)
+}
+
+function queueNarrativeTurnNow(input: {
     characterId: string
     chatId: string
     targetMessageId: string
@@ -732,7 +814,7 @@ export async function reanalyzeNarrativeMessage(
     })
 }
 
-export async function forceCurrentNarrativeWikiUpdate(): Promise<boolean> {
+export async function forceCurrentNarrativeWikiUpdate(): Promise<boolean | null> {
     const character = DBState.db.characters[get(selectedCharID)]
     const chat = character?.chats[character.chatPage]
     if (!character || !chat) return false
@@ -744,6 +826,18 @@ export async function forceCurrentNarrativeWikiUpdate(): Promise<boolean> {
         && message.chatId.trim().length > 0
     )
     if (!target?.chatId) return false
+    const gapChoice = await askWikiGapCatchUp(chat, target.chatId, false)
+    if (gapChoice === 'cancel') return null
+    if (gapChoice === 'catch-up') {
+        const chatId = ensureNarrativeSessionChatId(chat, v4)
+        if (target.risubardMemoryConfirmed !== true) target.risubardWikiPending ??= {}
+        await restartChatWikiAnalysis(character.chaId, chatId)
+        await drainNarrativeBacklog(character.chaId, chatId)
+        if (wikiBacklogMessages(chat.message, undefined, true).length > 0) {
+            throw new Error('일부 턴을 분석하지 못했습니다. 위키 대기 배너에서 남은 턴을 다시 시도할 수 있습니다.')
+        }
+        return true
+    }
     const projected = projectConfirmedMemoryTurn(
         chat.message,
         target.chatId,

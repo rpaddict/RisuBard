@@ -56,7 +56,7 @@ describe('automatic BardWiki confirmation', () => {
         expect(block).toContain('queueNarrativeTurn({')
         expect(block).toContain('targetMessageId: narrativeTurnToConfirm.targetMessageId')
         // The turn interval only defers; once due, the queued backlog runs.
-        const queue = processSource.slice(processSource.indexOf('function queueNarrativeTurn('))
+        const queue = processSource.slice(processSource.indexOf('function queueNarrativeTurnNow('))
         const queueBody = queue.slice(0, queue.search(/\r?\n\}\r?\n/))
         expect(queueBody).toContain('narrativeAnalysisDue(')
         expect(queueBody).toContain('void processNarrativeBacklog(input)')

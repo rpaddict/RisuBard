@@ -19,7 +19,7 @@ const english = readFileSync(resolve(process.cwd(), 'src/lang/en.ts'), 'utf8')
 
 describe('BardWiki additional analysis control', () => {
     test('analyzes the latest accepted response while excluding applied canon', () => {
-        expect(dock).toContain('onForceWikiUpdate?: () => Promise<boolean>')
+        expect(dock).toContain('onForceWikiUpdate?: () => Promise<boolean | null>')
         expect(dock).toContain('data-risubard-force-wiki-update')
         expect(dock).toContain('await onForceWikiUpdate?.()')
         expect(chatScreen).toContain(
