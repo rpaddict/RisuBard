@@ -632,11 +632,22 @@ function queueNarrativeTurn(input: {
 }): void {
     const chat = DBState.db.characters.find((item) => item.chaId === input.characterId)
         ?.chats.find((item) => item.id === input.chatId)
-    if (chat && summarizeWikiAnalysisGap(chat.message, {
+    const gap = chat ? summarizeWikiAnalysisGap(chat.message, {
         beforeMessageId: input.targetMessageId,
         excludeMessageIds: new Set([input.targetMessageId, ...declinedWikiGapTurns]),
         ignoreOocTurns: true,
-    }).messageIds.length > 0) {
+    }).messageIds : []
+    // A gap that fits in one batch with the target is what the turn interval would analyze anyway.
+    if (chat && gap.length > 0
+        && gap.length + 1 <= resolvedRisuBardSettings(chat).risuBardAnalysisTurnInterval) {
+        const ids = new Set(gap)
+        for (const message of chat.message) {
+            if (message.role === 'char' && message.chatId && ids.has(message.chatId)) {
+                message.risubardWikiPending ??= {}
+            }
+        }
+    }
+    else if (chat && gap.length > 0) {
         void askWikiGapCatchUp(chat, input.targetMessageId, true).then((choice) => {
             if (choice !== 'catch-up') {
                 queueNarrativeTurnNow(input)
