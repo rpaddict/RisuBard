@@ -7755,7 +7755,7 @@ app.post('/api/self-update', async (req, res) => {
                     `    }).unref();`,
                     `    setTimeout(() => process.exit(0), 500);`,
                     `  });`,
-                    `  s.listen(${Number(port)});`,
+                    `  s.listen(${Number(port)}, ${JSON.stringify(String(process.env.RISUBARD_HOST || '').trim() || '127.0.0.1')});`,
                     `}, 3000);`,
                 ].join('\n'));
                 spawn(process.execPath, [restartScript], { detached: true, stdio: 'ignore' }).unref();
@@ -7976,6 +7976,10 @@ async function startServer() {
         await migrateInlaysToFilesystem();
         await migrateRemoteBlocksIfNeeded();
         const port = process.env.PORT || DEFAULT_PORT;
+        // Listen on this computer only by default. Without a host Node binds every
+        // network card, which lets other devices reach the server and its API keys.
+        // Set RISUBARD_HOST=0.0.0.0 (or a LAN address) to open it on purpose.
+        const host = String(process.env.RISUBARD_HOST || '').trim() || '127.0.0.1';
         const httpsOptions = await getHttpsOptions();
         let server;
 
@@ -7983,7 +7987,7 @@ async function startServer() {
             // HTTPS
             server = https.createServer(httpsOptions, app);
             setupProxyStreamWebSocket(server);
-            server.listen(port, () => {
+            server.listen(port, host, () => {
                 console.log("[Server] HTTPS server is running.");
                 const url = `https://localhost:${port}/`;
                 console.log(`[Server] ${url}`);
@@ -7995,7 +7999,7 @@ async function startServer() {
             // HTTP
             server = http.createServer(app);
             setupProxyStreamWebSocket(server);
-            server.listen(port, () => {
+            server.listen(port, host, () => {
                 console.log("[Server] HTTP server is running.");
                 const url = `http://localhost:${port}/`;
                 console.log(`[Server] ${url}`);
@@ -8007,6 +8011,11 @@ async function startServer() {
         // No time limit for receiving a request: large bot saves on a busy disk can
         // take longer than Node's 5-minute default, and waiting is not a failure.
         server.requestTimeout = 0;
+        server.once('listening', () => {
+            if (!['127.0.0.1', 'localhost', '::1'].includes(host)) {
+                console.warn(`[Server] Listening on ${host}: other devices on the network can open RisuBard and use its saved API keys.`);
+            }
+        });
         // Written only once bound, so a server that lost the port race keeps the owner's token intact.
         server.once('listening', () => writeFileSync(localShutdownTokenPath, localShutdownToken, { mode: 0o600 }));
         // Move BardWiki vectors out of the KV in the background once serving.

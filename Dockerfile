@@ -52,6 +52,8 @@ COPY --from=builder /app/src/ts/risubard ./src/ts/risubard
 COPY --from=builder /app/dist ./dist
 
 ENV NODE_ENV=production
+# The container's own loopback is unreachable from the published port.
+ENV RISUBARD_HOST=0.0.0.0
 EXPOSE 7777
 
 CMD ["node", "server/node/server.cjs"]
