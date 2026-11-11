@@ -2122,7 +2122,10 @@ describe('stored response memory analysis', () => {
         expect(savedTitles).toEqual(['사만다', '아만다'])
     })
 
-    test('retries a canonical native-schema HTTP 400 with a prompt schema', async () => {
+    test.each([
+        'HTTP 400',
+        '요청 에러:Provider returned error (Google): {"error":{"code":400}}',
+    ])('retries a canonical native-schema failure "%s" with a prompt schema', async (failure) => {
         const modelCalls: MemoryAnalysisModelCall[] = []
         const requestModel = vi.fn(async (request: MemoryAnalysisModelCall) => {
             modelCalls.push(request)
@@ -2151,7 +2154,7 @@ describe('stored response memory analysis', () => {
                 }
             }
             if (request.schema) {
-                return { type: 'fail' as const, result: 'HTTP 400' }
+                return { type: 'fail' as const, result: failure }
             }
             return {
                 type: 'success' as const,

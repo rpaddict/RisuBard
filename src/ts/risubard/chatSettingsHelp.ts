@@ -185,7 +185,7 @@ const roles: Record<RisuBardChatSettingHelpKey, string> = {
     risuBardInquiryMaximumTokenBudget: '모든 위키 검색 결과를 합친 절대 토큰 상한입니다.',
     risuBardInquiryTimeoutMs: '위키 조회를 기다리는 최대 시간입니다. 시간이 지나면 가능한 결과로 계속 진행합니다.',
     risuBardHistoricalSourceMatchLimit: '분석 때 다시 확인할 과거 원문 후보의 최대 개수입니다.',
-    risuBardSourceRerank: '켜면 답변 전에 작업 모델이 과거 원문 후보를 질문에 비추어 읽고, 묻는 사실을 담은 원문을 골라 위키 문서보다 먼저 넣습니다. 고를 원문이 없거나 요청이 실패하면 기존 검색 결과를 그대로 씁니다.',
+    risuBardSourceRerank: '켜면 답변 전에 작업 모델(또는 공통 설정에서 고른 리랭커 API)이 과거 원문 후보를 질문에 비추어 읽고, 묻는 사실을 담은 원문을 골라 위키 문서보다 먼저 넣습니다. 고를 원문이 없거나 요청이 실패하면 기존 검색 결과를 그대로 씁니다.',
     risuBardAnalysisTokenLimit: '위키를 갱신하는 분석 단계가 사용할 수 있는 최대 출력 토큰입니다. 정본 절에는 4,000자 고정 상한이 없습니다. 공급자가 출력 한도 종료를 보고하거나 응답 구조가 불완전하면 기존 문서에 저장하지 않고 재시도합니다.',
     risuBardAdditionalSearchLimit: '첫 분석에서 근거가 부족할 때 위키를 다시 찾을 수 있는 최대 횟수입니다.',
     risuBardCanonicalTargetLimit: '한 번의 분석에서 새로 만들거나 고칠 위키 문서(정본)의 최대 개수입니다.',

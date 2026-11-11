@@ -140,6 +140,9 @@ let analysisTokenizer: Tiktoken | undefined
 const NATIVE_SCHEMA_REJECTION = /(?:json[ _-]?schema|response[_ ]?format|response[_ ]?schema|responseformat|structured[ -]?output|response[_ ]?mime)/i
 const AMBIGUOUS_INVALID_ARGUMENT = /^(?:\[[^\]\r\n]{1,80}\]\s*)?(?:request contains an )?invalid[_ ]argument\.?$/i
 const BARE_HTTP_400 = /^HTTP\s+400\.?$/i
+// OpenRouter's generic upstream failure; often a provider that refuses the
+// schema without saying so, so the prompt-schema path gets one try.
+const OPENROUTER_PROVIDER_ERROR = /provider returned error/i
 
 function rejectsNativeSchema(response: MemoryAnalysisModelResponse): boolean {
     if (response.type === 'success' || response.noRetry
@@ -150,6 +153,7 @@ function rejectsNativeSchema(response: MemoryAnalysisModelResponse): boolean {
     return NATIVE_SCHEMA_REJECTION.test(reason)
         || AMBIGUOUS_INVALID_ARGUMENT.test(reason)
         || BARE_HTTP_400.test(reason)
+        || OPENROUTER_PROVIDER_ERROR.test(reason)
 }
 
 function countAnalysisTokens(value: string): number {

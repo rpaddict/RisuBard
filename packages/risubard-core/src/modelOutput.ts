@@ -103,6 +103,18 @@ export function stripModelReasoning(value: string): string {
     }
 }
 
+// Chat-only emptiness check: keep an unclosed leading tag's text. Proxies mix
+// thoughts into content with mismatched or missing closing tags, and a normally
+// finished reply must not be discarded as empty because of that.
+export function stripClosedModelReasoning(value: string): string {
+    let remaining = value
+    while (true) {
+        const reasoning = remaining.match(/^\s*<(Thoughts|think)>[\s\S]*?<\/\1>/i)
+        if (!reasoning) return remaining
+        remaining = remaining.slice(reasoning[0].length)
+    }
+}
+
 export function parseSingleJsonObject(value: string): unknown {
     if (typeof value !== 'string') {
         throw new Error('Model output must be a string')

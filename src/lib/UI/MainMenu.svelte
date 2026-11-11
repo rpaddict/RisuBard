@@ -1,6 +1,6 @@
 <script lang="ts">
     import { nodeOnlyVer } from '../../ts/storage/database.svelte';
-    import Hub from './Realm/RealmMain.svelte';
+    import Hub from './Realm/RealmHome.svelte';
     import AssetStoreTransition from './AssetStoreTransition.svelte';
 </script>
 

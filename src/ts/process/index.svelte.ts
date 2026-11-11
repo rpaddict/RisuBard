@@ -61,6 +61,7 @@ import {
     selectPromptedNarrativeSources,
     selectNarrativeWorkingMessages,
     shouldIncludeNarrativeFirstMessage,
+    cacheStableWorkingMessageStep,
     countNarrativeTurns,
 } from "../risubard/narrativeContext";
 import {
@@ -121,6 +122,9 @@ import {
     buildSourceRerankInput, buildSourceRerankPool, parseSourceRerank,
     SOURCE_RERANK_POOL_LIMIT, SOURCE_RERANK_SCHEMA, SOURCE_RERANK_SYSTEM_PROMPT,
 } from '../risubard/historicalSourceRerank';
+import { normalizeRisuBardSourceRerankerSettings, rerankSourcesWithApi } from '../risubard/sourceRerankerApi';
+import { globalFetch } from '../globalApi.svelte';
+import { isLocalNetworkUrl } from '../network/localNetwork';
 import {
     buildInquiryTimeline,
     findHistoricalSourceMatches,
@@ -2284,7 +2288,16 @@ export async function sendChat(chatProcessIndex = -1,arg:{
                                 findHistoricalSourceMatches({ ...historicalOptions, maximumMatches: SOURCE_RERANK_POOL_LIMIT,
                                     currentInput, messages: currentChat.message }),
                             )
-                            const rankedSourceIds = pool.length === 0 ? [] : parseSourceRerank(readModelResponseText(
+                            const reranker = normalizeRisuBardSourceRerankerSettings(DBState.db.risuBardSourceReranker)
+                            const rankedSourceIds = pool.length === 0 ? [] : reranker.method === 'reranker'
+                                ? await rerankSourcesWithApi(currentInput, pool, reranker, (url, init) => globalFetch(url, {
+                                    ...init,
+                                    ...(isLocalNetworkUrl(url) ? { networkRoute: 'local_network' as const } : {}),
+                                    logCategory: 'other',
+                                    logSource: 'memory',
+                                    logPurpose: 'bardwiki-source-rerank',
+                                }), arg.signal)
+                                : parseSourceRerank(readModelResponseText(
                                 await requestWithProviderOutputLimit({
                                     formated: [
                                         { role: 'system' as const, content: SOURCE_RERANK_SYSTEM_PROMPT },
@@ -2293,7 +2306,8 @@ export async function sendChat(chatProcessIndex = -1,arg:{
                                     useStreaming: false,
                                     noMultiGen: true,
                                     tools: [],
-                                    maxTokens: 512,
+                                    // Thinking models spend reasoning tokens from this limit; a fixed 512 cut them off before the JSON.
+                                    maxTokens: inquirySettings.risuBardAnalysisTokenLimit,
                                     temperature: 0,
                                     bias: {},
                                     extractJson: '',
@@ -2859,6 +2873,9 @@ export async function sendChat(chatProcessIndex = -1,arg:{
         normalizeNarrativeWorkingMessageLimit(
             resolvedRisuBardSettings(currentChat).risuBardResponseMessageCount
         )
+    const narrativeWorkingMessageStep = cacheFriendlyContext
+        ? cacheStableWorkingMessageStep(narrativeWorkingMessageLimit)
+        : 1
     ms = selectNarrativeWorkingMessages(
         ms,
         narrativeWorkingMessageLimit,
@@ -2868,12 +2885,14 @@ export async function sendChat(chatProcessIndex = -1,arg:{
             ...Object.keys(currentChat.GLGlobalVariables ?? {}),
             ...Object.keys(DBState.db.globalChatVariables ?? {}),
         ], (key) => getGlobalChatVar(key, currentChat)) !== false,
+        narrativeWorkingMessageStep,
     )
     narrativeContextObservation.selectedHistoryMessages = ms.length
 
     if(shouldIncludeNarrativeFirstMessage(
             narrativeContextObservation.availableHistoryMessages,
-            narrativeWorkingMessageLimit
+            narrativeWorkingMessageLimit,
+            narrativeWorkingMessageStep
         )){
         await addFirstMessage()
     }

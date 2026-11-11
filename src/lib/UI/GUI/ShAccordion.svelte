@@ -3,7 +3,9 @@
     // multi-item accordion grouping, so this is a Disclosure / Collapsible
     // pattern wearing the Accordion name (kept for continuity with the legacy
     // <Accordion> wrapper). See .agent/guide/ui.md for the variant rationale.
-    export type ShAccordionVariant = 'card' | 'plain' | 'indent';
+    // 'group': card whose header and body are tinted with the button surface so
+    // a nested group of options reads apart from plain buttons and accordions.
+    export type ShAccordionVariant = 'card' | 'plain' | 'indent' | 'group';
 
     let _shAccordionId = 0;
 </script>
@@ -42,7 +44,7 @@
     const contentId = `sh-acc-content-${uid}`;
 
     const wrapperClass = $derived(
-        variant === 'card'
+        variant === 'card' || variant === 'group'
             ? 'border border-darkborderc rounded-md overflow-hidden'
             : 'flex flex-col'
     );
@@ -50,6 +52,8 @@
     const bodyInnerClass = $derived(
         variant === 'card'
             ? 'border-t border-darkborderc p-2'
+            : variant === 'group'
+                ? 'sh-accordion-group-body border-t border-darkborderc p-2 bg-darkbutton/35'
             : variant === 'indent'
                 ? 'ml-3 pl-3 border-l border-darkborderc py-1'
                 : ''
@@ -70,7 +74,7 @@
             {disabled}
             aria-expanded={open}
             aria-controls={contentId}
-            class={cn(triggerBase, 'flex-1 min-w-0')}
+            class={cn(triggerBase, 'flex-1 min-w-0', variant === 'group' && 'bg-darkbutton hover:bg-selected')}
             onclick={() => (open = !open)}
         >
             <span class="flex-1 inline-flex items-center gap-2 min-w-0">
@@ -110,3 +114,12 @@
         </div>
     </div>
 </div>
+
+<style>
+    /* Inputs are transparent by default; inside a tinted group body they sink
+       to the inset surface so fields stay distinct from the group's own tint.
+       :where keeps specificity low so skin CSS on the input part still wins. */
+    :where(.sh-accordion-group-body) :global(:where([data-skin-part="input"])) {
+        background-color: var(--color-surface-inset);
+    }
+</style>

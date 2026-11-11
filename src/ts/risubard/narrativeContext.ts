@@ -621,10 +621,15 @@ export function selectNarrativeWorkingMessages<T>(
     includeHistoricalUserMessages = true,
     ignoreOocTurns = false,
     includeTrailingOocTurns = false,
+    // Drop old responses in blocks of this size instead of one per turn, so
+    // the start of the history stays fixed for several turns and prompt
+    // caches keep hitting. 1 keeps the plain sliding window.
+    stepSize = 1,
 ): T[] {
     if (!Number.isSafeInteger(limit) || limit < 1) {
         throw new Error('Narrative working-message limit must be positive')
     }
+    if (!Number.isSafeInteger(stepSize) || stepSize < 1) stepSize = 1
     const roleOf = (message: T): unknown =>
         typeof message === 'object'
         && message !== null
@@ -687,9 +692,10 @@ export function selectNarrativeWorkingMessages<T>(
     let selected: number[]
     if (assistantIndices.length === 0) selected = eligible.slice(-limit)
     else {
-        const firstAssistantIndex = assistantIndices[
-            Math.max(0, assistantIndices.length - limit)
-        ]
+        const dropped = Math.floor(
+            Math.max(0, assistantIndices.length - limit) / stepSize
+        ) * stepSize
+        const firstAssistantIndex = assistantIndices[dropped]
         let startIndex = firstAssistantIndex
         for (let index = firstAssistantIndex - 1; index >= 0; index -= 1) {
             if (isAssistant(messages[eligible[index]])) break
@@ -735,7 +741,15 @@ export function normalizeNarrativeWorkingMessageLimit(
 
 export function shouldIncludeNarrativeFirstMessage(
     availableHistoryMessages: number,
-    limit = 12
+    limit = 12,
+    stepSize = 1
 ): boolean {
-    return availableHistoryMessages < limit
+    // With a stepped window the greeting leaves together with the first
+    // dropped block, so it does not cost a separate cache miss.
+    return availableHistoryMessages < (stepSize > 1 ? limit + stepSize : limit)
+}
+
+// Cache-friendly mode keeps between `limit` and `limit + step - 1` responses.
+export function cacheStableWorkingMessageStep(limit: number): number {
+    return Math.max(1, Math.ceil(limit / 2))
 }

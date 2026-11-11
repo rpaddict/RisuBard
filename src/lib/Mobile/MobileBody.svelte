@@ -1,7 +1,7 @@
 <script lang="ts">
     import { MobileGUIStack, MobileSearch, MobileSideBar, selectedCharID } from "src/ts/stores.svelte";
     import Settings from "../Setting/Settings.svelte";
-    import RealmMain from "../UI/Realm/RealmMain.svelte";
+    import RealmHome from "../UI/Realm/RealmHome.svelte";
     import MobileCharacters from "./MobileCharacters.svelte";
     import ChatScreen from "../ChatScreens/ChatScreen.svelte";
     import CharConfig from "../SideBars/CharConfig.svelte";
@@ -46,7 +46,7 @@
     {:else if $selectedCharID !== -1}
         <ChatScreen />
     {:else if $MobileGUIStack === 0}
-        <RealmMain />
+        <RealmHome showRemovedHint />
     {:else if $MobileGUIStack === 1}
         <MobileCharacters search={$MobileSearch} />
     {:else if $MobileGUIStack === 2}

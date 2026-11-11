@@ -22,6 +22,12 @@ describe('preset generation response boundary', () => {
         expect(preparePresetResponse({ text: '<think>reasoning only</think>', raw: {}, finishReason: 'length' }, options).type)
             .toBe('fail')
     })
+    it('keeps a finished chat whose leading thinking tag never closes', () => {
+        expect(preparePresetResponse({ text: '<think>plan\n\nThe answer body.', raw: {}, finishReason: 'stop' }, options))
+            .toMatchObject({ type: 'success', result: '<Thoughts>thinking</Thoughts><think>plan\n\nThe answer body.' })
+        expect(preparePresetResponse({ text: '<think>reasoning only</think>', raw: {}, finishReason: 'stop' }, options).type)
+            .toBe('fail')
+    })
     it('forwards wiki controls even for Markdown, but leaves ordinary chat preset defaults alone', () => {
         expect(presetGenerationOverrides({ logSource: 'memory', temperature: 0, maxTokens: 4096 }))
             .toEqual({ temperature: 0, maxOutputTokens: 4096 })

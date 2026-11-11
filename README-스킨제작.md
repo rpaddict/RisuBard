@@ -150,6 +150,7 @@ RisuBard 앱 화면 전체(사이드바, 채팅, 설정, 창)의 색, 모서리,
 | `chip` | 작은 배지, 태그 | `data-skin-variant`: `default`, `secondary`, `destructive`, `outline`, `ghost`, `link`, `warning`, `info`, `success` |
 | `tabs` | 탭 줄 | |
 | `tab` | 탭 하나 | `data-skin-state="active"` |
+| `toggle-group` | 사이드바의 프리셋 토글 그룹(접기 칸). 제목줄과 본문은 버튼 색을 씀 | |
 | `modal` | 창 | |
 | `menu` | 드롭다운 메뉴 | |
 | `settings-nav` | 설정 왼쪽 목록 (현재 항목은 `[aria-current="page"]`) | |

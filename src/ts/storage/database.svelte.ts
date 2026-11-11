@@ -69,6 +69,7 @@ import {
 import { migrateLegacyMemoryBudgetDefaults } from '../risubard/memoryBudgetPreset';
 import { normalizeWikiRebootJob } from '../risubard/wikiReboot';
 import { normalizeWikiWritingLanguage } from '../risubard/wikiWritingLanguage';
+import { normalizeRisuBardSourceRerankerSettings } from '../risubard/sourceRerankerApi';
 import {
     normalizeRisuBardEmbeddingSettings,
     type RisuBardEmbeddingSettings,
@@ -118,6 +119,7 @@ export let webAppSubVer = ''
 export const nodeOnlyVer: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 
 export type StreamingDisplayOptimizationMode = 'off'|'balanced'|'strong'
+export type RealmHomeMode = 'show'|'collapsed'|'removed'
 
 // 'custom' was a deprecated experimental theme (kwaroran's "not for real use now",
 // 2024-10) whose select option had been hidden but still reachable through legacy
@@ -812,6 +814,9 @@ export function setDatabase(data:Database){
     data.returnCSSError ??= true
     data.realmDirectOpen ??= false
     data.blockedRealmCreators ??= []
+    if (data.realmHomeMode !== 'show' && data.realmHomeMode !== 'collapsed' && data.realmHomeMode !== 'removed') {
+        data.realmHomeMode = data.hideRealm ? 'collapsed' : 'show'
+    }
     data.checkCorruption ??= false
     data.toggleConfirmRecommendedPreset ??= false
     data.useExperimentalGoogleTranslator ??= false
@@ -1005,6 +1010,7 @@ export function setDatabase(data:Database){
     data.risuBardAnalysisLoreIncludeAlwaysActive =
         data.risuBardAnalysisLoreIncludeAlwaysActive === true
     data.risuBardSourceRerank = data.risuBardSourceRerank === true
+    data.risuBardSourceReranker = normalizeRisuBardSourceRerankerSettings(data.risuBardSourceReranker)
     data.risuBardAnalysisLoreExcludeWords = normalizeRisuBardAnalysisLoreExcludeWords(
         data.risuBardAnalysisLoreExcludeWords
     )
@@ -1862,6 +1868,7 @@ export interface Database{
     botSettingAtStart:false
     NAIsettings:NAISettings
     hideRealm:boolean
+    realmHomeMode:RealmHomeMode
     blockedRealmCreators:BlockedRealmCreator[]
     colorScheme:ColorScheme
     colorSchemeName:string
@@ -1997,6 +2004,8 @@ export interface Database{
     risuBardAnalysisLoreIncludeAlwaysActive?: boolean
     risuBardAnalysisLoreExcludeWords?: string
     risuBardSourceRerank?: boolean
+    /** App-wide: how source rerank runs and the reranker API connection. */
+    risuBardSourceReranker?: import('../risubard/sourceRerankerApi').RisuBardSourceRerankerSettings
     risuBardAnalysisTokenLimit?: number
     risuBardAdditionalSearchLimit?: number
     risuBardCanonicalTargetLimit?: number
@@ -2780,6 +2789,7 @@ export interface themePreset{
     showMemoryLimit: boolean
     showFirstMessagePages: boolean
     hideRealm: boolean
+    realmHomeMode?: RealmHomeMode
     hideAllImages?: boolean
     hideMessagePageCount?: boolean
     showFolderName: boolean
@@ -3285,6 +3295,7 @@ export const themePresetTemplate: themePreset = {
     showMemoryLimit: false,
     showFirstMessagePages: false,
     hideRealm: false,
+    realmHomeMode: 'show',
     hideAllImages: false,
     hideMessagePageCount: false,
     showFolderName: false,
@@ -3708,6 +3719,7 @@ function currentThemePresetFromMirror(db: Database, current?: themePreset): them
         showMemoryLimit: db.showMemoryLimit,
         showFirstMessagePages: db.showFirstMessagePages,
         hideRealm: db.hideRealm,
+        realmHomeMode: db.realmHomeMode,
         hideAllImages: db.hideAllImages,
         hideMessagePageCount: db.hideMessagePageCount,
         showFolderName: db.showFolderName,
@@ -3788,6 +3800,7 @@ export function changeToThemePreset(id = 0, savecurrent = true){
     db.showFirstMessagePages = p.showFirstMessagePages ?? db.showFirstMessagePages
     db.hideMessagePageCount = p.hideMessagePageCount ?? db.hideMessagePageCount
     db.hideRealm = p.hideRealm ?? db.hideRealm
+    db.realmHomeMode = p.realmHomeMode ?? (p.hideRealm === undefined ? db.realmHomeMode : p.hideRealm ? 'collapsed' : 'show')
     db.hideAllImages = p.hideAllImages ?? db.hideAllImages
     db.showFolderName = p.showFolderName ?? db.showFolderName
     db.customBackground = p.customBackground ?? db.customBackground

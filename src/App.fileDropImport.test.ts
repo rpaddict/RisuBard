@@ -22,6 +22,9 @@ describe('global file drop imports', () => {
         expect(source).toContain('await importPreset(')
         expect(source).toContain("await import('./ts/plugins/plugins.svelte')")
         expect(source).toContain('await importPlugin(')
+        expect(source).toContain("name.endsWith('.risuskin')")
+        expect(source).toContain('await installAppSkinFromText(')
+        expect(source).toContain('selectAppSkin(skin.id)')
     })
 
     test('shows localized loading, completion, and failure feedback', () => {

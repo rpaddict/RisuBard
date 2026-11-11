@@ -34,6 +34,7 @@ export const uiSkinParts: readonly UiSkinPartDefinition[] = [
     { part: 'chip', description: 'Small badge or tag.', attributes: { 'data-skin-variant': ['default', 'secondary', 'destructive', 'outline', 'ghost', 'link', 'warning', 'info', 'success'] } },
     { part: 'tabs', description: 'Row of section tabs.' },
     { part: 'tab', description: 'One section tab.', attributes: { 'data-skin-state': ['active'] } },
+    { part: 'toggle-group', description: 'Collapsible group of prompt preset toggle options in the side panel. Its header and body use the button surface color.' },
     { part: 'modal', description: 'Dialog or modal surface.' },
     { part: 'menu', description: 'Dropdown menu surface.' },
     { part: 'settings-nav', description: 'Settings navigation column.' },

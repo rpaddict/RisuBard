@@ -330,7 +330,7 @@
 {#snippet minimalToggles(segments: MinimalSegment[])}
     {#each segments as segment}
         {#if segment.kind === 'grid'}
-            <div class="mt-2 grid w-full grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] items-end gap-1" data-toggle-grid>
+            <div class="mt-2 grid w-full grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] items-end gap-1" data-toggle-grid>
                 {#each segment.cells as cell}
                     {@render minimalCell(cell)}
                 {/each}
@@ -338,9 +338,11 @@
         {:else}
             {@const toggle = segment.toggle}
             {#if toggle.type === 'group'}
-                <ShAccordion class="w-full mt-2" name={toggle.value}>
-                    {@render minimalToggles(segmentToggles((toggle as sidebarToggleGroup).children))}
-                </ShAccordion>
+                <div data-skin-part="toggle-group" class="w-full mt-2">
+                    <ShAccordion variant="group" class="w-full" name={toggle.value}>
+                        {@render minimalToggles(segmentToggles((toggle as sidebarToggleGroup).children))}
+                    </ShAccordion>
+                </div>
             {:else if toggle.type === 'textarea'}
                 <div class="relative mt-2 flex w-full flex-col gap-0.5" data-toggle-cell="textarea">
                     <span class="truncate px-1 text-[11px] text-textcolor2" title={toggle.value}>{toggle.value}</span>
@@ -376,9 +378,11 @@
             {@render sep()}
         {/if}
         {#if toggle.type === 'group' && toggle.children.length > 0}
-            <ShAccordion class="w-full mt-1" name={toggle.value}>
-                {@render toggles((toggle as sidebarToggleGroup).children, reverse)}
-            </ShAccordion>
+            <div data-skin-part="toggle-group" class="w-full mt-1">
+                <ShAccordion variant="group" class="w-full" name={toggle.value}>
+                    {@render toggles((toggle as sidebarToggleGroup).children, reverse)}
+                </ShAccordion>
+            </div>
         {:else if toggle.type === 'select'}
             <div class="w-full flex gap-2 mt-2 items-center justify-between min-h-10 rounded-md px-1 transition-colors" class:toggle-row--dirty={isToggleDirty(toggle)}>
                 <span class="min-w-0 break-words">{toggle.value}</span>

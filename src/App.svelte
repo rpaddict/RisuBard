@@ -127,6 +127,11 @@
                 return
             }
             notifySuccess(language.fileDropImport.pluginSuccess, { description: file.name })
+        } else if (name.endsWith('.risuskin')) {
+            // The installer reports success and errors itself; a dropped skin is applied right away.
+            const { installAppSkinFromText, selectAppSkin } = await import('./ts/gui/appSkinRuntime')
+            const skin = await installAppSkinFromText(await file.text())
+            if (skin) selectAppSkin(skin.id)
         } else {
             await importCharacterProcess({ name: file.name, data: file })
             checkCharOrder()

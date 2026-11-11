@@ -700,7 +700,7 @@
 {#if DBState.db.menuSideBar}
 <div
   data-skin-part="sidebar-rail"
-  class="h-full w-20 min-w-20 flex-col items-center bg-bgcolor text-textcolor shadow-lg relative rs-sidebar"
+  class="h-full w-20 min-w-20 flex-col items-center bg-bgcolor text-textcolor shadow-lg relative isolate rs-sidebar"
   class:editMode
   class:risu-sub-sidebar={$sideBarClosing}
   class:risu-sub-sidebar-close={$sideBarClosing}
@@ -778,7 +778,7 @@
   bind:this={characterListSidebarElement}
   data-character-list-sidebar
   data-skin-part="sidebar-rail"
-  class="character-list-sidebar h-full min-w-20 shrink-0 flex-col items-center bg-bgcolor text-textcolor shadow-lg relative rs-sidebar"
+  class="character-list-sidebar h-full min-w-20 shrink-0 flex-col items-center bg-bgcolor text-textcolor shadow-lg relative isolate rs-sidebar"
   style:width={characterListSidebarWidth}
   class:max-xs:hidden={$leftBarCollapsed}
   class:editMode
@@ -1370,7 +1370,7 @@
   bind:this={sidebarElement}
   data-skin-part="sidebar-panel"
   data-character-sidebar
-  class="setting-area relative h-full min-w-0 shrink-0 flex-col bg-darkbg text-textcolor max-h-full"
+  class="setting-area relative isolate h-full min-w-0 shrink-0 flex-col bg-darkbg text-textcolor max-h-full"
   style:width={sidebarWidth}
   style:--sidebar-size={sidebarWidth}
   class:risu-sidebar={!$sideBarClosing}

@@ -12,6 +12,7 @@ import {
     normalizeNarrativeWorkingMessageLimit,
     selectNarrativeWorkingMessages,
     shouldIncludeNarrativeFirstMessage,
+    cacheStableWorkingMessageStep,
 } from './narrativeContext'
 
 describe('cache-friendly narrative placement', () => {
@@ -870,5 +871,32 @@ describe('selectNarrativeWorkingMessages', () => {
         expect(shouldIncludeNarrativeFirstMessage(11, 12)).toBe(true)
         expect(shouldIncludeNarrativeFirstMessage(12, 12)).toBe(false)
         expect(shouldIncludeNarrativeFirstMessage(20, 12)).toBe(false)
+        expect(shouldIncludeNarrativeFirstMessage(17, 12, 6)).toBe(true)
+        expect(shouldIncludeNarrativeFirstMessage(18, 12, 6)).toBe(false)
+    })
+
+    it('drops old responses in blocks so the history start stays fixed', () => {
+        const turns = (count: number) => Array.from({ length: count }, (_, index) => [
+            { id: `u${index}`, role: 'user' },
+            { id: `a${index}`, role: 'char' },
+        ]).flat().concat({ id: 'now', role: 'user' })
+        const firstId = (count: number) =>
+            selectNarrativeWorkingMessages(turns(count), 12, true, false, false, 6)[0].id
+        const responses = (count: number) =>
+            selectNarrativeWorkingMessages(turns(count), 12, true, false, false, 6)
+                .filter((message) => message.role === 'char').length
+
+        for (let count = 12; count <= 17; count += 1) {
+            expect(firstId(count)).toBe('u0')
+            expect(responses(count)).toBe(count)
+        }
+        expect(firstId(18)).toBe('u6')
+        expect(responses(18)).toBe(12)
+        expect(firstId(23)).toBe('u6')
+        expect(firstId(24)).toBe('u12')
+        expect(cacheStableWorkingMessageStep(12)).toBe(6)
+        expect(cacheStableWorkingMessageStep(1)).toBe(1)
+        expect(selectNarrativeWorkingMessages(turns(20), 12, true, false, false, 1))
+            .toEqual(selectNarrativeWorkingMessages(turns(20), 12))
     })
 })

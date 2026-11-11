@@ -31,6 +31,7 @@ import type { RequestDataArgumentExtended, requestDataResponse, StreamResponseCh
 import { applyAdditionalParameters, applyParameters, getAdditionalParameters, isReasoningCapabilityParameter, resolveApiSamplingParameter, resolveStoredSamplingParameter } from '../shared'
 
 import type { Contents, OpenAIChatExtra, OpenAIChatFull, ResponseInputItem, ResponseItem, ResponseOutputItem, ToolCall } from './types'
+import { formatOpenAIErrorMessage } from './errorMessage'
 
 export async function requestOpenAI(arg:RequestDataArgumentExtended):Promise<requestDataResponse>{
     let formatedChat:OpenAIChatExtra[] = []
@@ -329,7 +330,7 @@ export async function requestOpenAI(arg:RequestDataArgumentExtended):Promise<req
             if(dat.error && dat.error.message){                    
                 return {
                     type: 'fail',
-                    result: (language.errors.httpError + `${dat.error.message}`)
+                    result: (language.errors.httpError + formatOpenAIErrorMessage(dat.error))
                 }
             }
             else{                    
@@ -843,7 +844,7 @@ async function requestHTTPOpenAI(replacerURL:string,body:any, headers:Record<str
     if(dat.error && dat.error.message){                    
         return {
             type: 'fail',
-            result: (language.errors.httpError + `${dat.error.message}`)
+            result: (language.errors.httpError + formatOpenAIErrorMessage(dat.error))
         }
     }
 

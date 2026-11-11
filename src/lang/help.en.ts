@@ -412,8 +412,8 @@ export const helpEn = {
             "Switch the browser into fullscreen mode. On mobile, this can hide browser UI such as the address bar and give the chat more space.",
         showMemoryLimit:
             "Show the current max-context limit as a visual line in the chat area. Messages above the line may not be sent to the model, so this helps show what the model can still remember.",
-        hideRealm:
-            "Start the Recently Uploaded section on the home screen collapsed. While collapsed it skips the RisuRealm fetch, speeding up initial load. You can expand it any time from the home screen.",
+        realmHomeMode:
+            "Choose how RisuRealm appears on the home screen. Show always loads it expanded. Start collapsed skips loading RisuRealm until you expand it. Remove for now takes RisuRealm off the home screen entirely without loading it, until you change this back.",
         showFolderNameInIcon:
             "Show folder names on folder icons in the character grid. Makes large folder collections easier to scan.",
         showRequestStatus:
@@ -490,9 +490,9 @@ export const helpEn = {
         risuBardResponseExcludeUsers:
             "Exclude earlier user messages from response context. The current user request is always retained.",
         risuBardSourceRerank:
-            "Off by default. Before each answer, the work model (sub or main) reads up to 16 past chat excerpts against the question and keeps up to 4 that actually state the asked quantity, name, line or order; they go in before wiki pages. If none qualifies or the request fails, the usual search result is used. Adds one model request per answer with 10k to 20k input tokens (about $0.002 with Claude Haiku 5.5). Turn it on when answers often get past details wrong.",
+            "Off by default. Before each answer, the work model (sub or main) reads up to 16 past chat excerpts against the question and keeps up to 4 that actually state the asked quantity, name, line or order; they go in before wiki pages. If none qualifies or the request fails, the usual search result is used. Adds one model request per answer with 10k to 20k input tokens (about $0.002 with Claude Haiku 5.5). Turn it on when answers often get past details wrong. Choose Reranker API under the rerank method setting to have a Cohere-style /rerank endpoint score the excerpts instead of the model.",
         risuBardHideOocTurns: "Hide OOC replies and their user inputs from the main chat list. Off by default. Read the live transcript in BardWiki's OOC notepad. Applies to all chats without changing saved messages, AI context or wiki analysis settings.",
-        risuBardCacheFriendlyContext: "Off by default. Moves BardWiki memory, including always-included documents, out of the top of the prompt and the character description, and sends it right before the latest user message. The preset, character description, lorebook and earlier chat stay identical between turns, so prompt caching holds longer. The current narrative baseline stays in the description position. Turn it off to restore the previous order.",
+        risuBardCacheFriendlyContext: "Off by default. Moves BardWiki memory, including always-included documents, out of the top of the prompt and the character description, and sends it right before the latest user message. Earlier chat is also dropped in blocks of half the response count instead of one response per turn (12 keeps 12 to 17 responses). The preset, character description, lorebook and the start of earlier chat stay identical for several turns, so prompt caching holds longer, at the cost of slightly more history on average. The current narrative baseline stays in the description position. Turn it off to restore the previous order.",
         risuBardAnalysisExcludeUsers:
             "Exclude user messages from the confirmed turn and recent raw context used for BardWiki analysis, leaving assistant responses only.",
         customBackground: "A custom image used as the chat background.",

@@ -108,6 +108,13 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         keywords: ['rerank', 'historical', 'source', 'recall', '재순위', '과거', '원문', '회수', '기억'],
     },
     {
+        id: 'risubard.chat.sourceReranker',
+        type: 'custom',
+        componentId: 'RisuBardSourceRerankerSettings',
+        fallbackLabel: '과거 원문 재순위 방식',
+        keywords: ['rerank', 'reranker', 'Cohere', 'Jina', 'API', '재순위', '리랭커', '과거', '원문'],
+    },
+    {
         id: 'risubard.chat.cacheFriendlyContext',
         type: 'check',
         labelKey: 'risuBardCacheFriendlyContext',

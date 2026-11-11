@@ -41,6 +41,7 @@ import WikiEmbeddingSettings from 'src/lib/Setting/Pages/WikiEmbeddingSettings.s
 import RisuBardDynamicMemorySettings from 'src/lib/Setting/Pages/RisuBardDynamicMemorySettings.svelte';
 import RisuBardWikiSettingsView from 'src/lib/Setting/Pages/RisuBardWikiSettingsView.svelte';
 import RisuBardMemoryBudgetPreset from 'src/lib/Setting/Pages/RisuBardMemoryBudgetPreset.svelte';
+import RisuBardSourceRerankerSettings from 'src/lib/Setting/Pages/RisuBardSourceRerankerSettings.svelte';
 
 /**
  * Registry of custom components.
@@ -73,6 +74,7 @@ export const customComponents: Record<string, Component<any>> = {
     'RisuBardDynamicMemorySettings': RisuBardDynamicMemorySettings,
     'RisuBardMemoryBudgetPreset': RisuBardMemoryBudgetPreset,
     'RisuBardWikiSettingsView': RisuBardWikiSettingsView,
+    'RisuBardSourceRerankerSettings': RisuBardSourceRerankerSettings,
     // Add more as we migrate complex settings
 } as const;
 

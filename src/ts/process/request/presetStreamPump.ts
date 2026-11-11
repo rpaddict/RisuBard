@@ -1,5 +1,5 @@
 import type { AdapterChatStreamDelta } from "src/ts/preset/adapter"
-import { stripModelReasoning } from '../../../../packages/risubard-core/src/modelOutput'
+import { stripClosedModelReasoning, stripModelReasoning } from '../../../../packages/risubard-core/src/modelOutput'
 import { ModelOutputError, readModelResponseText } from '../../../../packages/risubard-core/src/modelResponse'
 
 // Stream errors discard queued chunks. Keep the last display snapshot out of
@@ -222,8 +222,11 @@ export async function pumpPresetStream(
         } catch (error) {
             // Ordinary chat can display useful partial text at the token limit;
             // empty/reasoning-only output is never a successful final answer.
-            if (!(error instanceof ModelOutputError && error.reason === 'truncated'
-                && stripModelReasoning(fullText).trim())) throw error
+            // An unclosed leading <think> on a finished reply still carries text.
+            if (!(error instanceof ModelOutputError && (
+                (error.reason === 'truncated' && stripModelReasoning(fullText).trim())
+                || (error.reason === 'empty' && stripClosedModelReasoning(fullText).trim())
+            ))) throw error
         }
         controller.close()
         observe(() => onFinish?.('done', lastUsage, finishReason))

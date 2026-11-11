@@ -6,6 +6,18 @@ function source(file: string): string {
 }
 
 describe('RisuRealm browser experience', () => {
+    test('home realm mode shows, collapses without loading, or removes RisuRealm', () => {
+        const home = source('RealmHome.svelte')
+        const mobile = readFileSync('src/lib/Mobile/MobileBody.svelte', 'utf8')
+
+        expect(readFileSync('src/lib/UI/MainMenu.svelte', 'utf8')).toContain("import Hub from './Realm/RealmHome.svelte'")
+        expect(mobile).toContain('<RealmHome showRemovedHint />')
+        expect(home).toContain("{#if mode === 'show'}")
+        expect(home).toContain("{:else if mode === 'collapsed' && expanded}")
+        expect(home.match(/<RealmMain \/>/g)).toHaveLength(2)
+        expect(home).toContain('{:else if showRemovedHint}')
+    })
+
     test('opens the full Realm browser as the main screen without related links', () => {
         const mainMenu = readFileSync('src/lib/UI/MainMenu.svelte', 'utf8')
 

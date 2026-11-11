@@ -20,6 +20,7 @@
     import OptionInput from "../UI/GUI/OptionInput.svelte";
   import { loadLoreBookV3Prompt } from "src/ts/process/lorebook.svelte";
   import { getModules } from "src/ts/process/modules";
+  import LuaVariableList from "./LuaVariableList.svelte";
 
     let previewMode = $state('chat')
     let previewJoin = $state('yes')
@@ -107,6 +108,23 @@
     }
     
     let autopilot = $state([])
+
+    let newVarName = $state('')
+    let newVarValue = $state('')
+    const newVarKey = $derived('$' + newVarName.trim().replace(/^\$/, ''))
+    const newVarExists = $derived.by(() => {
+        const char = DBState.db.characters[$selectedCharID]
+        return Object.hasOwn(char?.chats[char.chatPage]?.scriptstate ?? {}, newVarKey)
+    })
+    const addVariable = () => {
+        if(newVarKey === '$' || newVarExists) return
+        const char = DBState.db.characters[$selectedCharID]
+        const chat = char.chats[char.chatPage]
+        chat.scriptstate ??= {}
+        chat.scriptstate[newVarKey] = newVarValue
+        newVarName = ''
+        newVarValue = ''
+    }
 </script>
 
 <Accordion styled name={"Variables"}>
@@ -126,6 +144,19 @@
             <div class="p-2 text-center">No variables</div>
         {/if}
     </div>
+    <form class="mt-2 flex items-center gap-2" onsubmit={(e) => { e.preventDefault(); addVariable() }}>
+        <TextInput className="flex-1 min-w-0" placeholder="$name" bind:value={newVarName} />
+        <TextInput className="flex-1 min-w-0" placeholder="value" bind:value={newVarValue} />
+        <button type="submit" class="shrink-0 text-textcolor2 hover:text-textcolor disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Add variable" title={newVarExists ? 'Variable already exists' : 'Add variable'}
+            disabled={newVarKey === '$' || newVarExists}>
+            <PlusIcon />
+        </button>
+    </form>
+</Accordion>
+
+<Accordion styled name={"Lua Variables"}>
+    <LuaVariableList />
 </Accordion>
 
 <Accordion styled name={"Tokens"}>
