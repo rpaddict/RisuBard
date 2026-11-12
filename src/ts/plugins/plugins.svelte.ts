@@ -733,11 +733,13 @@ export const getV2PluginAPIs = (pluginName = '') => {
         },
         pluginStorage: {
             getItem: (key: string) => {
-                const db = getDatabase({ snapshot: true });
-                db.pluginCustomStorage ??= {}
+                // Snapshot only the requested value. Snapshotting the whole
+                // database cost ~2s per read on a 120MB save, and plugins poll
+                // this, which froze typing on phones.
                 // `??`, not `||`: a stored 0, false or '' is a value; only a
                 // missing key reads as null.
-                return db.pluginCustomStorage[key] ?? null;
+                const value = getDatabase().pluginCustomStorage?.[key];
+                return value === undefined || value === null ? null : $state.snapshot(value);
             },
             setItem: (key: string, value: string) => {
                 const db = getDatabase();
