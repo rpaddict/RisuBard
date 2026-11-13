@@ -66,4 +66,36 @@ https://내PC이름.tail어쩌구.ts.net
 
 ---
 
+## 리눅스 서버에 셀프호스팅할 때 (리버스 프록시, systemd)
+
+v0.9.98부터 서버는 기본으로 `127.0.0.1`에서만 접속을 받습니다. 서버에서 `git pull`로 업데이트해 쓰다가 이 버전을 넘기면, 서버를 직접 IP로 열거나 다른 기기나 컨테이너의 프록시가 연결하던 구성에서는 접속이 끊기고 프록시가 `502 Bad Gateway`를 냅니다.
+
+**프록시가 같은 서버에 있을 때 (권장)**: `RISUBARD_HOST`는 설정하지 말고 프록시가 `127.0.0.1`을 바라보게 합니다. 이렇게 하면 프록시를 거치지 않는 직접 접속이 막힙니다.
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:7777;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+**프록시가 다른 기기나 컨테이너에 있을 때**: 서비스 파일의 `[Service]`에 환경변수를 추가하고 서비스를 다시 시작합니다. 리스바드 포트는 방화벽으로 프록시 주소에서만 열어 두세요. 그렇지 않으면 누구나 프록시를 우회해 리스바드를 열고 저장된 API 키를 쓸 수 있습니다.
+
+```ini
+[Service]
+Environment=RISUBARD_HOST=0.0.0.0
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart risubard
+```
+
+`0.0.0.0` 대신 서버의 내부 IP처럼 특정 주소를 적으면 그 네트워크에서만 접속을 받습니다.
+
+
+---
+
 ← [README로 돌아가기](../../i18n/README.ko.md)
