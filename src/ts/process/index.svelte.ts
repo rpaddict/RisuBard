@@ -1,3 +1,5 @@
+import { capturePluginAnalysisLoreReference, type PluginAnalysisLoreRequest } from '../risubard/pluginAnalysisLoreReference';
+import { pluginLoreSource } from '../risubard/pluginLoreSource';
 import { captureGenerationTarget, createGenerationScope, type GenerationTarget } from "./generationTarget";
 import { isOocAssistantTurn, isOocToggleActive } from '../risubard/oocTurns'
 import { captureChatContext } from '../risubard/chatContextCapture'
@@ -32,6 +34,7 @@ import { runInlayScreen } from "./inlayScreen";
 import { runImageEmbedding } from "./transformers";
 import { runLuaEditTrigger } from "./scriptings";
 import { pluginV2 } from "../plugins/plugins.svelte";
+import { hasRequiredPluginContext, runPluginContextFit, stripPluginContextFitMarkers } from "../plugins/pluginContextFit";
 import { dispatchCommittedChatOutput } from "../plugins/pluginChatOutput";
 import { getModelInfo, LLMFlags } from "../model/modellist";
 import { resolveChatModelBinding, resolvePresetMaxOutputTokens } from "./request/modelPresetBinding";
@@ -310,6 +313,7 @@ async function collectAnalysisLoreReference(
     chat: Chat,
     targetMessageId: string | undefined,
     settings: ReturnType<typeof resolvedRisuBardSettings>,
+    includeSourceIdentity = false,
 ) {
     if (settings.risuBardAnalysisLoreTokenLimit <= 0) return undefined
     try {
@@ -322,14 +326,18 @@ async function collectAnalysisLoreReference(
             scriptstate: { ...chat.scriptstate },
         }
         const { actives } = await loadLoreBookV3Prompt({ character, chat: preview })
-        const reference = selectAnalysisLoreReference(actives.map((active) => ({
+        const candidates = await Promise.all(actives.map(async (active) => ({
             title: active.sourceIdentity.entry.comment?.trim() || active.source,
             source: active.sourceIdentity.entry.content ?? '',
             rendered: risuChatParser(active.prompt, { chara: character, chat: preview }),
             tokens: active.tokens,
             priority: active.priority,
             alwaysActive: active.sourceIdentity.entry.alwaysActive === true,
-        })), {
+            ...(includeSourceIdentity ? {
+                sourceIdentity: await pluginLoreSource(active.sourceIdentity.scopeId, active.sourceIdentity.entry),
+            } : {}),
+        })))
+        const reference = selectAnalysisLoreReference(candidates, {
             tokenLimit: settings.risuBardAnalysisLoreTokenLimit,
             includeAlwaysActive: settings.risuBardAnalysisLoreIncludeAlwaysActive,
             excludeWords: settings.risuBardAnalysisLoreExcludeWords,
@@ -340,6 +348,30 @@ async function collectAnalysisLoreReference(
         console.warn('[RisuBard memory analysis] lorebook reference skipped', error)
         return undefined
     }
+}
+
+export async function collectPluginAnalysisLoreReference(input: PluginAnalysisLoreRequest) {
+    const current = () => {
+        const character = DBState.db.characters[get(selectedCharID)]
+        const chat = character?.chats[character.chatPage]
+        if (!character || !chat) throw new Error('Lore reference chat changed')
+        return { character, chat }
+    }
+    const { character, chat } = current()
+    return capturePluginAnalysisLoreReference(input, () => {
+        const scope = current()
+        return {
+            characterId: scope.character.chaId,
+            chatId: scope.chat.id,
+            messages: scope.chat.message.map(message => ({
+                messageId: message.chatId, role: message.role, content: message.data,
+            })),
+        }
+    }, () => collectAnalysisLoreReference(character, chat, input.targetMessageId, {
+        ...resolvedRisuBardSettings(chat, true),
+        risuBardAnalysisLoreTokenLimit: 1000,
+        risuBardAnalysisLoreIncludeAlwaysActive: false,
+    }, true))
 }
 
 type NarrativeTurn = { targetMessageId: string; messages: readonly MemoryAnalysisMessage[] }
@@ -1713,6 +1745,8 @@ export interface OpenAIChat{
     memo?:string
     name?:string
     removable?:boolean
+    /** Required plugin context participates in the native fitting pass. */
+    requiredContext?:boolean
     attr?:string[]
     multimodals?: MultiModal[]
     thoughts?: string[]
@@ -3623,6 +3657,23 @@ export async function sendChat(chatProcessIndex = -1,arg:{
         promptInfo.promptText = promptBodyformatedForChatStore
     }
 
+    // Plugins add context once, after assembly and before the native token-fitting pass.
+    // Provider retries reuse this prepared request; they never repeat this callback.
+    if (pluginV2.replacerbeforeContextFit.size > 0) {
+        try {
+            formated = await runPluginContextFit(formated, pluginV2.replacerbeforeContextFit, abortSignal)
+        } catch (error) {
+            if (!abortSignal.aborted) throw error
+            endGeneration(genKey)
+            return false
+        }
+        for (const message of formated) syncRequestStatusSource(message)
+        if (requestSettings.promptInfoInsideChat && requestSettings.promptTextInfoInsideChat) {
+            // Show the actual prepared request without invoking side-effecting hooks twice.
+            promptInfo.promptText = formated
+        }
+    }
+
     //token rechecking
     let inputTokens = 0
     const messageTokenCountsByMessage = new Map<OpenAIChat, number>()
@@ -3633,7 +3684,8 @@ export async function sendChat(chatProcessIndex = -1,arg:{
         inputTokens += messageTokens
     }
 
-    const inputTokenLimit = requiredWikiMessage ? maxContextTokens - maxResponseTokens : maxContextTokens
+    const inputTokenLimit = requiredWikiMessage || hasRequiredPluginContext(formated)
+        ? maxContextTokens - maxResponseTokens : maxContextTokens
     if(inputTokens > inputTokenLimit){
         let pointer = 0
         while(inputTokens > inputTokenLimit){
@@ -3666,6 +3718,7 @@ export async function sendChat(chatProcessIndex = -1,arg:{
             return v.content !== ''  || (v.multimodals && v.multimodals.length > 0)
         })
     }
+    formated = stripPluginContextFitMarkers(formated)
     //estimate tokens
     let outputTokens = maxResponseTokens
     if(inputTokens + outputTokens > maxContextTokens){

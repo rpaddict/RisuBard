@@ -26,6 +26,20 @@ export async function initializeMCPs(additionalMCPs?:string[]) {
         }
     }
     for(const mcp of mcpUrls) {
+        if(mcp.startsWith('plugin:')) {
+            const customMCP = registeredCustomPluginMCPs.get(mcp);
+            // Plugin reloads replace callback owners while retaining the same URL.
+            if(MCPs[mcp] !== customMCP) {
+                MCPs[mcp]?.destroy();
+                delete MCPs[mcp];
+                if(customMCP) {
+                    MCPs[mcp] = customMCP;
+                    await customMCP.checkHandshake();
+                }
+            }
+            continue;
+        }
+
         if(!MCPs[mcp]) {
 
             let mcpUrl = mcp;
@@ -68,14 +82,6 @@ export async function initializeMCPs(additionalMCPs?:string[]) {
                 continue;
             }
 
-            if(mcp.startsWith('plugin:')){
-                const customMCP = registeredCustomPluginMCPs.get(mcp);
-                if(customMCP){
-                    MCPs[mcp] = customMCP;
-                    await MCPs[mcp].checkHandshake();
-                    continue;
-                }
-            }
             if(mcp.startsWith('stdio:')){
                 const MCPJSON = mcp.slice('stdio:'.length);
                 try {

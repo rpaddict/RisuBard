@@ -1,4 +1,5 @@
 import {
+    isNarrativeContextOptedIn,
     loadNarrativeInquiry,
     selectNarrativeWorkingMessages,
     type NarrativeInquiryResponse,
@@ -401,6 +402,7 @@ export async function decorateBardWikiChatForPlugin<
     onError?: (error: unknown) => void
 }, dependencies: Partial<BardWikiPluginContextDependencies> = {}): Promise<T> {
     try {
+        if (!isNarrativeContextOptedIn()) return input.chat
         // Cache only compatibility reads; explicit bardWiki.getContext() stays fresh.
         // Never cache the chat itself: polling must see current streaming state.
         const settings = resolveRisuBardChatSettings(input.globalSettings, input.chat.risuBardSettings, input.character?.risuBardPinnedSettings)

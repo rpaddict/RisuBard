@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
     BARDWIKI_VIRTUAL_MEMORY_MARKER,
     buildBardWikiPluginContext,
     type BardWikiCompatibleCharacter,
     decorateBardWikiCharacterForPlugin,
+    decorateBardWikiChatForPlugin,
     getBardWikiPluginDocuments,
     injectBardWikiVirtualMemory,
     saveBardWikiPluginDocument,
@@ -11,6 +12,24 @@ import {
     stripBardWikiVirtualMemory,
     stripBardWikiVirtualMemoryFromDatabase,
 } from './pluginBardWiki'
+import { NARRATIVE_CONTEXT_OPT_IN_KEY, type NarrativeInquiryResponse } from './narrativeContext'
+
+const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+beforeEach(() => {
+    const values = new Map<string, string>()
+    Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: {
+            getItem: (key: string) => values.get(key) ?? null,
+            setItem: (key: string, value: string) => { values.set(key, value) },
+            removeItem: (key: string) => { values.delete(key) },
+        },
+    })
+})
+afterEach(() => {
+    if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage)
+    else Reflect.deleteProperty(globalThis, 'localStorage')
+})
 
 describe('BardWiki legacy plugin compatibility', () => {
     it('projects one identical payload into all legacy memory shapes without mutation', () => {
@@ -110,6 +129,88 @@ describe('BardWiki legacy plugin compatibility', () => {
 
         expect(selected.map((message) => message.data))
             .toEqual(['current', 'answer'])
+    })
+})
+
+describe('BardWiki compatibility context opt-out', () => {
+    function fixture() {
+        const input = {
+            characterId: 'opt-out-character',
+            chatId: 'opt-out-chat',
+            chat: {
+                id: 'opt-out-chat',
+                message: [{ role: 'user' as const, data: 'current message' }],
+                supaMemoryData: 'existing legacy memory',
+            },
+            globalSettings: {},
+            fetchImpl: fetch,
+            createAuth: vi.fn(async () => 'auth'),
+        }
+        const response: NarrativeInquiryResponse = {
+            mode: 'v2-current', graphRevision: 1, indexRevision: 1, cacheStatus: 'current',
+            sources: [{ id: 'wiki:opt-out', kind: 'memory', role: 'system', content: 'wiki context', tokens: 2 }],
+            evidenceRequests: [], entityCandidates: [],
+            metrics: {
+                candidateCount: 1, inspectedNodeCount: 1, inspectedEdgeCount: 0,
+                selectedNodeCount: 1, selectedTokens: 2, selectedEventTokens: 2,
+                hopCount: 0, auxiliaryModelCalls: 0,
+            },
+        }
+        return { input, response, loadInquiry: vi.fn(async () => response) }
+    }
+
+    async function withOptIn(value: string | null, action: () => Promise<void>) {
+        const previous = localStorage.getItem(NARRATIVE_CONTEXT_OPT_IN_KEY)
+        const set = (next: string | null) => next === null
+            ? localStorage.removeItem(NARRATIVE_CONTEXT_OPT_IN_KEY)
+            : localStorage.setItem(NARRATIVE_CONTEXT_OPT_IN_KEY, next)
+        set(value)
+        try { await action() }
+        finally { set(previous) }
+    }
+
+    it('returns original chat and character metadata without inquiry when explicitly disabled', async () => {
+        await withOptIn('false', async () => {
+            const { input, loadInquiry } = fixture()
+            expect(await decorateBardWikiChatForPlugin(input, { loadInquiry })).toBe(input.chat)
+            const character = { chaId: input.characterId, chatPage: 0, chats: [input.chat] }
+            expect(await decorateBardWikiCharacterForPlugin({
+                ...input, character,
+            }, { loadInquiry })).toBe(character)
+            expect(loadInquiry).not.toHaveBeenCalled()
+            expect(input.createAuth).not.toHaveBeenCalled()
+            expect(input.chat.supaMemoryData).toBe('existing legacy memory')
+        })
+    })
+
+    it.each([null, 'true'])('retains compatibility inquiry with opt-in value %s', async (value) => {
+        await withOptIn(value, async () => {
+            const { input, loadInquiry } = fixture()
+            const chat = await decorateBardWikiChatForPlugin(input, { loadInquiry })
+            expect(chat).not.toBe(input.chat)
+            expect(chat.supaMemoryData).toContain('wiki context')
+            expect(loadInquiry).toHaveBeenCalledOnce()
+        })
+    })
+
+    it('does not project a previously cached result after opt-out', async () => {
+        await withOptIn('true', async () => {
+            const { input, loadInquiry } = fixture()
+            expect((await decorateBardWikiChatForPlugin(input, { loadInquiry })).supaMemoryData)
+                .toContain('wiki context')
+            localStorage.setItem(NARRATIVE_CONTEXT_OPT_IN_KEY, 'false')
+            expect(await decorateBardWikiChatForPlugin(input, { loadInquiry })).toBe(input.chat)
+            expect(loadInquiry).toHaveBeenCalledOnce()
+        })
+    })
+
+    it('continues to honor explicit context requests while compatibility reads are disabled', async () => {
+        await withOptIn('false', async () => {
+            const { input, loadInquiry } = fixture()
+            const context = await buildBardWikiPluginContext(input, { loadInquiry })
+            expect(context.content).toContain('wiki context')
+            expect(loadInquiry).toHaveBeenCalledOnce()
+        })
     })
 })
 
