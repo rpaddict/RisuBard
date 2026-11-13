@@ -54,6 +54,8 @@ https://내PC이름.tail어쩌구.ts.net
 
 정확한 주소는 Tailscale 앱의 기기 목록에서 PC 이름으로 확인할 수 있습니다. 브라우저 즐겨찾기에 등록해두면 다음부터 PC에서 서버만 실행하면 바로 접속 가능합니다.
 
+> v0.9.98부터 서버는 기본으로 `127.0.0.1`에서만 접속을 받으므로, 3단계의 `tailscale serve`를 거친 ts.net 주소로만 접속됩니다. 전에 `http://100.x.x.x:7777`처럼 Tailscale IP로 바로 접속했다면 3단계를 한 번 실행하고 ts.net 주소로 바꾸세요. 꼭 IP로 접속해야 한다면 서버를 켜기 전에 `RISUBARD_HOST`에 이 PC의 Tailscale IP(`100.x.x.x`)를 설정하면 Tailscale 네트워크에서만 접속을 받습니다. 이 경우 Tailscale이 먼저 연결되어 있어야 서버가 시작됩니다.
+
 
 ---
 
