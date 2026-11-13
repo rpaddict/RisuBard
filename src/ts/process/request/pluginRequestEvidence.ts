@@ -22,6 +22,13 @@ interface PluginRequestEvidenceFinish {
     streaming: boolean
     output?: string
     errorMessage?: string
+    /** Provider-reported usage. Reported counts replace the local estimates. */
+    usage?: {
+        promptTokens?: number
+        completionTokens?: number
+        cachedTokens?: number
+        reasoningTokens?: number
+    } | null
 }
 
 interface PluginRequestEvidenceDependencies {
@@ -96,8 +103,9 @@ export function createPluginRequestEvidenceRecorder(
         async finish(result: PluginRequestEvidenceFinish): Promise<void> {
             if (finished) return
             finished = true
-            let outputTokens: number | undefined
-            if (result.output) {
+            const usage = result.usage ?? undefined
+            let outputTokens: number | undefined = usage?.completionTokens
+            if (outputTokens === undefined && result.output) {
                 try {
                     outputTokens = await dependencies.countTokens(result.output)
                 } catch {
@@ -123,8 +131,10 @@ export function createPluginRequestEvidenceRecorder(
                 ...(firstTokenAt === undefined ? {} : {
                     firstTokenMs: Math.max(0, firstTokenAt - input.startedAt),
                 }),
-                inputTokens: input.injectionManifest?.totalTokens,
+                inputTokens: usage?.promptTokens ?? input.injectionManifest?.totalTokens,
                 outputTokens,
+                ...(usage?.cachedTokens === undefined ? {} : { cachedTokens: usage.cachedTokens }),
+                ...(usage?.reasoningTokens === undefined ? {} : { reasoningTokens: usage.reasoningTokens }),
                 injectionManifest: input.injectionManifest,
                 requestBody,
                 responseBody: result.output || result.errorMessage || '',

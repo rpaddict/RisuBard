@@ -325,7 +325,7 @@ function requestOutcome(entry: RequestLogEntry): ChatRequestEvidenceEntry['outco
     if (entry.aborted) return 'aborted'
     if (!entry.success) return 'failed'
     return entry.source === 'memory'
-        && ['bardwiki-analysis', 'bardwiki-canonical-update'].includes(entry.purpose ?? '')
+        && ['bardwiki-analysis', 'bardwiki-canonical-update', 'bardwiki-canonical-maintenance'].includes(entry.purpose ?? '')
         ? 'response-received'
         : 'done'
 }

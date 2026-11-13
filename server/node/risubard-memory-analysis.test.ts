@@ -8,6 +8,7 @@ import { canonicalTurnNeedsRetry } from '../../src/ts/risubard/canonicalTurnRece
 import type {
     MemoryAnalysisInput,
     MemoryAnalysisModelRequest,
+    MemoryAnalysisRunnerOptions,
 } from './risubard-memory-analysis'
 import { createMemoryAnalysisRunner, MEMORY_ANALYSIS_MODEL_CALL_LIMIT } from './risubard-memory-analysis'
 import { stampStoryArcCheckpoint } from './risubard-story-arc-writer'
@@ -87,8 +88,10 @@ afterEach(async () => {
 })
 
 describe('memory analysis runner', () => {
-    test('treats characterKnowledge as a checklist rather than entries to append', async () => {
+    test('passes only knowledge gaps to canon, not facts a character merely witnessed', async () => {
         const systems: string[] = []
+        const inputs: string[] = []
+        const secret = { character: 'Alice', fact: 'The key is under the bell.', stance: 'knows', gap: 'Bob does not know.' }
         const runner = createMemoryAnalysisRunner({
             memoryService: { loadState: vi.fn(), applyDelta: vi.fn() }, nativeV2Analysis: true,
             markdownWikiService: {
@@ -105,9 +108,15 @@ describe('memory analysis runner', () => {
             onError: vi.fn(),
             analyze: vi.fn(async (request: MemoryAnalysisModelRequest) => {
                 systems.push(request.system)
+                inputs.push(request.input)
                 if (request.format === 'memory-draft') return JSON.stringify({
                     title: 'Arrival', establishedEvents: ['Alice arrived.'], stateChanges: [],
-                    characterKnowledge: [], persistentFacts: [], openContinuity: [], canonicalUpdateCandidates: [{
+                    characterKnowledge: [
+                        secret,
+                        { character: 'Alice', fact: 'The gate opens at dawn.', stance: 'knows', gap: null },
+                        // A draft from before gap existed carries no gap either.
+                        { character: 'Alice', fact: 'Bob runs the inn.', stance: 'knows' },
+                    ], persistentFacts: [], openContinuity: [], canonicalUpdateCandidates: [{
                         type: 'character', title: 'Alice', reason: 'Arrival', action: 'update',
                         targetDocumentId: 'character.Alice', confidence: 1,
                     }],
@@ -117,9 +126,18 @@ describe('memory analysis runner', () => {
         })
         await runner.run({ characterId: 'character', chatId: 'chat', wikiWritingLanguage: 'en',
             messages: [{ messageId: 'assistant-1', role: 'assistant', content: 'Alice arrived.' }] })
-        const canonical = systems.find(system => system.includes('Return only changed H3 sections'))!
-        expect(canonical).toContain('Use characterKnowledge as a coverage checklist')
+        const index = systems.findIndex(system => system.includes('Return only changed H3 sections'))
+        const canonical = systems[index]
+        expect(JSON.parse(inputs[index]).semanticUpdate.characterKnowledge).toEqual([secret])
+        expect(canonical).toContain('characterKnowledge lists only knowledge gaps')
+        expect(canonical).toContain('Remove or rewrite an entry once confirmedMessages close its gap')
+        expect(canonical).toContain('Never add an entry that only says this character saw, heard, was told, confirmed or learned something')
+        expect(canonical).not.toContain('coverage checklist: record an item')
         expect(canonical).toContain("Do not copy another character's facts into this target.")
+        // A superseded state stays in events; Major Transitions keeps only plot points.
+        expect(canonical).toContain('do not move it into Major Transitions')
+        expect(canonical).not.toContain('retain an old state only as a clearly historical transition')
+        expect(canonical).toContain("Major Transitions is a short synopsis of this character's own plot points")
         expect(canonical).not.toContain('relevant persistentFacts, characterKnowledge, and openContinuity')
     })
 
@@ -463,7 +481,7 @@ describe('memory analysis runner', () => {
         expect(result.canonicalReceipt?.notes).toContain('정본 항목 편집: Alice (삭제 1, 되살림 1)')
     })
 
-    test('retries maintenance of an oversized place after a few new sources instead of raising its baseline', async () => {
+    test('lets an oversized place that could not shrink rest until it grows instead of retrying in vain', async () => {
         const units = Array.from({ length: 30 }, (_, index) => `The north gate has rule number ${index + 1} for travelers.`)
         const gate = {
             id: 'location.gate', type: 'location' as const, title: 'North Gate', aliases: [],
@@ -508,7 +526,8 @@ describe('memory analysis runner', () => {
                 messages: [{ messageId: `assistant-${turn}`, role: 'assistant', content: 'The gate stayed closed.' }] })
         }
 
-        expect(maintenanceSystems).toHaveLength(3)
+        // Nine turns used to bring three attempts at a card that never shrank.
+        expect(maintenanceSystems).toHaveLength(1)
         expect(maintenanceSystems[0]).toContain('place, group, creature, item, concept or open thread')
     })
 
@@ -4035,11 +4054,15 @@ describe('canonical maintenance during turn analysis', () => {
         dispositions: knowledge.map((_, old) => ({ role: 'knowledge', old, action: 'merged', newIndex: 0,
             moveTo: null, movedText: null, documentId: null })),
     })
-    const setup = (maintenance: () => Promise<string>, options: { sources?: string[]; saveFails?: boolean; reboot?: boolean } = {}) => {
+    const setup = (maintenance: () => Promise<string>, options: {
+        sources?: string[]; saveFails?: boolean; reboot?: boolean; secondCard?: boolean
+        store?: MemoryAnalysisRunnerOptions['maintenanceStateStore']
+    } = {}) => {
         const targetSources = options.sources ?? ['old-1']
+        const cards = [{ id: 'character.mio', title: '미오' }, ...(options.secondCard ? [{ id: 'character.yuna', title: '유나' }] : [])]
         const saveCanonicalDocument = vi.fn(async (input) => {
             if (options.saveFails) throw new Error('disk full')
-            return { ...input, id: 'character.mio',
+            return { ...input, id: input.documentId ?? 'character.mio',
                 type: 'character' as const, relativePath: 'characters/mio.md', contentHash: 'mio-new' }
         })
         const analyze = vi.fn(async (request: MemoryAnalysisModelRequest) => {
@@ -4048,22 +4071,25 @@ describe('canonical maintenance during turn analysis', () => {
                     ? { schemaVersion: 1, turns: [{ title: '비', establishedEvents: ['비가 그쳤다.'] }] }
                     : { title: '비', establishedEvents: ['비가 그쳤다.'] }),
                 stateChanges: [], characterKnowledge: [],
-                persistentFacts: [], openContinuity: [], canonicalUpdateCandidates: [{
-                    type: 'character', title: '미오', reason: '날씨', action: 'update',
-                    targetDocumentId: 'character.mio', confidence: 1,
-                }],
+                persistentFacts: [], openContinuity: [], canonicalUpdateCandidates: cards.map((card) => ({
+                    type: 'character', title: card.title, reason: '날씨', action: 'update',
+                    targetDocumentId: card.id, confidence: 1,
+                })),
             })
             if (request.system.startsWith('Canonical maintenance:')) return maintenance()
-            return canonicalPatchBatch([{ heading: '현재 상태', operation: 'upsert', content: '- 역 대합실에 있다.\n- 비가 그쳤다.' }])
+            return canonicalPatchBatch(...cards.map(() =>
+                [{ heading: '현재 상태', operation: 'upsert' as const, content: '- 역 대합실에 있다.\n- 비가 그쳤다.' }]))
         })
         const runner = createMemoryAnalysisRunner({
             memoryService: { loadState: vi.fn(), applyDelta: vi.fn() }, nativeV2Analysis: true,
+            maintenanceStateStore: options.store,
             markdownWikiService: {
                 inquire: vi.fn(async () => ({ graphRevision: 0, sources: [] })),
-                loadDocuments: vi.fn(async () => [{
-                    id: 'character.mio', type: 'character' as const, title: '미오',
-                    relativePath: 'characters/mio.md', content: mio, contentHash: 'mio-old', sourceMessageIds: [...targetSources],
-                }]),
+                loadDocuments: vi.fn(async () => cards.map((card) => ({
+                    id: card.id, type: 'character' as const, title: card.title,
+                    relativePath: `characters/${card.id}.md`, content: mio.replace('## 미오', `## ${card.title}`),
+                    contentHash: 'mio-old', sourceMessageIds: [...targetSources],
+                }))),
                 saveConfirmedTurn: vi.fn(async () => undefined),
                 saveCanonicalDocument,
                 beginRebootBatch: vi.fn(async () => ({ canonicalCount: 0 })),
@@ -4169,6 +4195,41 @@ describe('canonical maintenance during turn analysis', () => {
         expect(maintenanceCalls(analyze)).toBe(1)
         await run('assistant-9')
         expect(maintenanceCalls(analyze)).toBe(2)
+    })
+
+    test('keeps the cooldown across a reload when the host stores it', async () => {
+        const stored = new Map<string, string>()
+        const store: MemoryAnalysisRunnerOptions['maintenanceStateStore'] = {
+            get: (key) => stored.has(key) ? JSON.parse(stored.get(key)!) : undefined,
+            set: (key, state) => { stored.set(key, JSON.stringify(state)) },
+        }
+        const first = setup(async () => 'not json', { store })
+        await first.run('assistant-1')
+        expect(maintenanceCalls(first.analyze)).toBe(1)
+        const reloaded = setup(async () => 'not json', { store, sources: ['old-1', 'assistant-1'] })
+        await reloaded.run('assistant-2')
+        expect(maintenanceCalls(reloaded.analyze)).toBe(0)
+        // Without the store the same reload tries the card again.
+        const forgetful = setup(async () => 'not json', { sources: ['old-1', 'assistant-1'] })
+        await forgetful.run('assistant-2')
+        expect(maintenanceCalls(forgetful.analyze)).toBe(1)
+    })
+
+    test('maintains one card per turn and lets the next due card go on the following turn', async () => {
+        const { run, analyze } = setup(async () => merged, { secondCard: true })
+        await run('assistant-1')
+        expect(maintenanceCalls(analyze)).toBe(1)
+        await run('assistant-2')
+        expect(maintenanceCalls(analyze)).toBe(2)
+        await run('assistant-3')
+        expect(maintenanceCalls(analyze)).toBe(2)
+    })
+
+    test('labels the maintenance call apart from the canonical update', async () => {
+        const { run, analyze } = setup(async () => merged)
+        await run('assistant-1')
+        const purposes = analyze.mock.calls.map(([request]) => (request as MemoryAnalysisModelRequest).purpose)
+        expect(purposes.filter(Boolean)).toEqual(['canonical-maintenance'])
     })
 
     test('does not claim a consolidation when the save fails', async () => {

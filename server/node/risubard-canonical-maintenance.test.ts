@@ -6,6 +6,7 @@ import {
     coverSupportsUnit,
     maintainCharacterCanon,
     maintenanceCoverDocuments,
+    restingBaseline,
 } from './risubard-canonical-maintenance'
 
 const knowledgeUnits = Array.from({ length: 14 }, (_, index) => `마을 규칙 ${index + 1}을 [[하루]]에게 들었다.`)
@@ -54,6 +55,19 @@ describe('canonical maintenance', () => {
         expect(cardMaintenanceDue({ tokens: 1100, perSourceTokens: 1000, baselineTokens: 1000 })).toBe(false)
         expect(cardMaintenanceDue({ tokens: 1300, perSourceTokens: 1000, baselineTokens: 1000 })).toBe(true)
         expect(cardMaintenanceDue({ tokens: 1100, perSourceTokens: 1000, baselineTokens: 600 })).toBe(true)
+    })
+
+    test('rests below a loose ceiling of four retrieval shares and never rests a failed pass below its size', () => {
+        // Below the ceiling a card that shrank waits until it grows by a quarter.
+        expect(restingBaseline(3_000, 1_000, true)).toBe(3_000)
+        expect(cardMaintenanceDue({ tokens: 3_700, perSourceTokens: 1_000, baselineTokens: 3_000 })).toBe(false)
+        // Above it the next pass is due as soon as the cooldown ends.
+        expect(restingBaseline(6_000, 1_000, true)).toBe(3_200)
+        expect(cardMaintenanceDue({ tokens: 6_000, perSourceTokens: 1_000, baselineTokens: 3_200 })).toBe(true)
+        // A pass that could not shrink the card waits for growth, wherever the card stands.
+        expect(restingBaseline(6_000, 1_000, false)).toBe(6_000)
+        expect(cardMaintenanceDue({ tokens: 7_000, perSourceTokens: 1_000, baselineTokens: 6_000 })).toBe(false)
+        expect(cardMaintenanceDue({ tokens: 7_600, perSourceTokens: 1_000, baselineTokens: 6_000 })).toBe(true)
     })
 
     test('does not call the model while the card is not due', async () => {
@@ -108,6 +122,61 @@ describe('canonical maintenance', () => {
         ].join('\n'))
         expect(result.markdown).toContain('### 장비와 소지품\n\n- 낡은 우산: 살이 하나 부러졌다.\n- 놋쇠 열쇠: 북문 자물쇠에 맞는다.')
         expect(result.markdown).toContain('### 인물 핵심\n\n- 우산을 든 소녀.')
+    })
+
+    test('lets a plot-point synopsis drop middle event links but never a character link', async () => {
+        const steps = Array.from({ length: 10 }, (_, index) =>
+            `- [[여정 ${index + 1}]]에서 [[하루]]와 함께 ${'길을 나아갔다. '.repeat(3).trim()}`)
+        const long = ['## 미오', '', '### 현재 상태', '', '- 북문 앞.', '', '### 주요 전환', '', ...steps].join('\n')
+        const merged = (links: string) => JSON.stringify({
+            sections: [{ role: 'transitions', units: [`${links}에 걸쳐 [[하루]]와 북문까지 왔다.`] }],
+            dispositions: steps.map((_, old) => disposition('transitions', old, 'merged', { newIndex: 0 })),
+        })
+        const run = (response: string, eventTitles?: string[]) => maintainCharacterCanon({
+            markdown: long, title: '미오', coverDocuments: [], policy: '', ...dueInput, force: true,
+            eventTitles, request: async () => response,
+        })
+        const events = steps.map((_, index) => `여정 ${index + 1}`)
+        // First and decisive event links only: the other eight events stay searchable.
+        const applied = await run(merged('[[여정 1]]부터 [[여정 10]]'), events)
+        expect(applied.outcome).toBe('applied')
+        expect(applied.markdown).toContain('### 주요 전환\n\n- [[여정 1]]부터 [[여정 10]]에 걸쳐 [[하루]]와 북문까지 왔다.')
+        expect(applied.note).not.toContain('그대로 두었습니다')
+        // Without event titles every unit with a dropped link comes back, as before.
+        const guarded = await run(merged('[[여정 1]]부터 [[여정 10]]'))
+        expect(guarded.note).toContain('근거를 확인하지 못한 8항목은 그대로 두었습니다')
+        expect(guarded.markdown).toContain('- [[여정 5]]에서')
+        // A character the card would no longer name brings back one unit that names it.
+        const noHaru = JSON.stringify({
+            sections: [{ role: 'transitions', units: ['[[여정 1]]부터 [[여정 10]]에 걸쳐 북문까지 왔다.'] }],
+            dispositions: steps.map((_, old) => disposition('transitions', old, 'merged', { newIndex: 0 })),
+        })
+        const kept = await run(noHaru, events)
+        expect(kept.note).toContain('근거를 확인하지 못한 1항목은 그대로 두었습니다')
+        expect(kept.markdown!.match(/\[\[하루\]\]/gu)).toHaveLength(1)
+    })
+
+    test('drops a covered unit when another section still names its person', () => {
+        const source = markdown.replace('마을 규칙 11을 [[하루]]에게 들었다.', '[[유키]]에게 비밀을 들었다.')
+            .replace('### 지식과 비밀', '### 인물 핵심 보충\n\n- [[유키]]의 소꿉친구.\n\n### 지식과 비밀')
+        const body = '- [[유키]]에게 비밀을 들었다.'
+        const request = buildMaintenanceRequest({
+            markdown: source, title: '미오', roles: ['knowledge'],
+            coverDocuments: [{ id: 'event.walk', title: '산책' }], policy: '',
+        })
+        const result = applyMaintenanceResponse({
+            markdown: source, title: '미오', sections: request.sections,
+            coverContents: new Map([['event.walk', body]]),
+            text: JSON.stringify({
+                sections: [{ role: 'knowledge', units: ['[[하루]]에게 마을 규칙을 들었다.'] }],
+                dispositions: knowledgeUnits.map((_, old) => old === 10
+                    ? disposition('knowledge', old, 'covered', { documentId: 'event.walk' })
+                    : disposition('knowledge', old, 'merged', { newIndex: 0 })),
+            }),
+        })
+        expect(result.restored).toBe(0)
+        expect(result.markdown).not.toContain('[[유키]]에게 비밀을 들었다.')
+        expect(result.markdown).toContain('- [[유키]]의 소꿉친구.')
     })
 
     test('reports no reduction and keeps the document when the rewrite saves less than a tenth', async () => {
@@ -167,6 +236,7 @@ describe('canonical maintenance', () => {
         expect(system).not.toMatch(/at most|\d+ units?/iu)
         expect(system).toContain('current-state card')
         expect(system).toContain('Major Transitions')
+        expect(system).toContain("short synopsis of this character's plot points")
         expect(system).toContain('Equipment and Possessions')
         const parsed = JSON.parse(schema)
         expect(parsed.properties.sections.maxItems).toBe(4)

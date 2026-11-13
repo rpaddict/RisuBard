@@ -48,6 +48,7 @@ import {
     buildMemoryWriterSystemPrompt,
     buildCanonicalBatchSchema,
     hasMemoryWriterContent,
+    knowledgeGaps,
     parseCanonicalBatch,
     parseCanonicalBatchIsolated,
     parseCanonicalSingle,
@@ -92,7 +93,7 @@ import {
 } from './risubard-canonical-unit-edit'
 import {
     MAINTENANCE_COOLDOWN_SOURCES,
-    MAINTENANCE_RETRY_SOURCES,
+    restingBaseline,
     changedCanonicalUnits,
     maintainCharacterCanon,
     maintenanceCoverDocuments,
@@ -307,6 +308,15 @@ export interface MemoryAnalysisModelRequest {
     inputTokenLimit?: number
     /** Stable owning chat for body-free request evidence. */
     sessionChatId?: string
+    /** Upkeep is logged apart from the turn's own canonical update. */
+    purpose?: 'canonical-maintenance'
+}
+
+/** Rest state of one card's upkeep, as plain JSON so a host can keep it across reloads. */
+export interface CanonMaintenanceRestState {
+    baselineTokens?: number
+    restingSources?: readonly string[]
+    retry?: boolean
 }
 
 export interface MemoryAnalysisRunResult extends NarrativeMemoryState {
@@ -433,6 +443,11 @@ export interface MemoryAnalysisRunnerOptions {
         signal?: AbortSignal
     ): Promise<string | ModelResponse>
     onError(error: unknown): void | Promise<void>
+    /** Without it upkeep cooldowns last one session and every reload retries each oversized card. */
+    maintenanceStateStore?: {
+        get(key: string): CanonMaintenanceRestState | undefined
+        set(key: string, state: CanonMaintenanceRestState): void
+    }
 }
 
 function optionalSignalArgument(signal?: AbortSignal): [] | [AbortSignal] {
@@ -1168,8 +1183,29 @@ export class ModelCallBudgetExhaustedError extends ModelOutputError {
 export function createMemoryAnalysisRunner(
     options: MemoryAnalysisRunnerOptions
 ) {
-    // Per session only: a reload forgets baselines and cooldowns, costing at most one extra attempt per card.
-    const maintenanceState = new Map<string, { baselineTokens?: number; restingSources?: ReadonlySet<string>; retry?: boolean }>()
+    type MaintenanceRest = { baselineTokens?: number; restingSources?: ReadonlySet<string>; retry?: boolean }
+    // Memory answers first; the host store only restores baselines and cooldowns after a reload.
+    const maintenanceState = new Map<string, MaintenanceRest>()
+    const readMaintenanceState = (key: string): MaintenanceRest | undefined => {
+        const known = maintenanceState.get(key)
+        if (known) return known
+        let stored: CanonMaintenanceRestState | undefined
+        try {
+            stored = options.maintenanceStateStore?.get(key)
+        }
+        catch { /* An unreadable store costs one extra attempt. */ }
+        if (!stored) return undefined
+        const restored = { ...stored, restingSources: stored.restingSources && new Set(stored.restingSources) }
+        maintenanceState.set(key, restored)
+        return restored
+    }
+    const writeMaintenanceState = (key: string, state: MaintenanceRest): void => {
+        maintenanceState.set(key, state)
+        try {
+            options.maintenanceStateStore?.set(key, { ...state, restingSources: state.restingSources && [...state.restingSources] })
+        }
+        catch { /* The cooldown still holds for this session. */ }
+    }
     const reportError = async (error: unknown): Promise<void> => {
         try {
             await options.onError(error)
@@ -1206,6 +1242,8 @@ export function createMemoryAnalysisRunner(
     ): Promise<MemoryAnalysisRunResult> => {
         const snapshot = snapshotInput(input)
         let modelCalls = 0
+        // Upkeep is one slow call per card; several due cards take turns instead of stacking on one turn.
+        let maintenanceAttempted = false
         const remainingModelCalls = () => MEMORY_ANALYSIS_MODEL_CALL_LIMIT - modelCalls
         const analyzeRaw = (request: MemoryAnalysisModelRequest) => {
             signal?.throwIfAborted()
@@ -1601,6 +1639,10 @@ export function createMemoryAnalysisRunner(
                         ...draft,
                         title: turn.title,
                         establishedEvents: turn.establishedEvents,
+                        // Batch-level changes are recorded once, on the batch's last turn.
+                        stateChanges: index === analyzedDraft.rebootDraft!.turns
+                            .findLastIndex((item) => item.establishedEvents.length > 0)
+                            ? draft.stateChanges : [],
                         keywords: turn.keywords,
                         temporalHint: turn.temporalHint,
                         canonicalUpdateCandidates: [],
@@ -1940,9 +1982,10 @@ export function createMemoryAnalysisRunner(
                                 'There is no fixed 4,000-character limit per section. Return every upsert section complete, never stop at an artificial character boundary, and stay concise enough to finish within the overall output token limit.',
                                 'Use semanticUpdate as a structured coverage checklist, but verify every item against confirmedMessages before applying it.',
                                 `Prefer a compact self-contained \`### ${wikiWritingHeadings[normalizeWikiWritingLanguage(snapshot.wikiWritingLanguage)].currentState}\` section near the top of character documents when verified current facts benefit from a snapshot. Its absence is not a persistence error and never justifies a structure-only rewrite.`,
-                                'Remove superseded facts from current-state sections; retain an old state only as a clearly historical transition when it remains narratively useful.',
+                                'Remove superseded facts from current-state sections. Events and the change ledger keep the old state; do not move it into Major Transitions.',
+                                'Major Transitions is a short synopsis of this character\'s own plot points, like chapter summaries of their journey. Each entry names one turning point in a few words, then what happened to this character and what it changed, with links to its first and decisive events. While the story stays within the latest stretch, rewrite that entry; add one only when this character\'s story turns, such as leaving home, taking on a task, joining or losing companions, or a defining loss or betrayal. As the story grows, merge older adjacent entries so the list still reads at a glance.',
                                 'Preserve unrelated established identity facts, relationships, knowledge, goals, possessions, constraints, and unresolved continuity unless confirmedMessages explicitly change them.',
-                                'Apply the stateChanges.after values and relevant persistentFacts and openContinuity to the correct subject document. Use characterKnowledge as a coverage checklist: record an item only where the canonical writing policy assigns it, merge it into an existing entry when one already covers the topic, and never append one entry per occasion of learning. Do not copy another character\'s facts into this target.',
+                                'Apply the stateChanges.after values and relevant persistentFacts and openContinuity to the correct subject document. characterKnowledge lists only knowledge gaps, each with gap naming who lacks the fact or why the belief may be wrong. Record a gap in Knowledge and Secrets by revising the existing entry on the same topic, never as one entry per occasion. Remove or rewrite an entry once confirmedMessages close its gap: the secret comes out, the belief is corrected or the question is answered. Never add an entry that only says this character saw, heard, was told, confirmed or learned something; the event document records that. Do not copy another character\'s facts into this target.',
                                 'Apply only changes supported by the confirmed messages and event.',
                                 snapshot.loreReference ? settingReferenceInstruction : '',
                                 'Never fill a section from external canon, source-work knowledge, or assumptions, including for a new document. The story may differ from a known source work in gender, age, role, ability, or relationships; follow the story. Omit a detail rather than guess it.',
@@ -1996,7 +2039,7 @@ export function createMemoryAnalysisRunner(
                                 })),
                                 semanticUpdate: {
                                     stateChanges: draft.stateChanges,
-                                    characterKnowledge: draft.characterKnowledge,
+                                    characterKnowledge: knowledgeGaps(draft),
                                     persistentFacts: draft.persistentFacts,
                                     openContinuity: draft.openContinuity,
                                 },
@@ -2335,18 +2378,19 @@ export function createMemoryAnalysisRunner(
                             if (entry.target && entry.candidate.type !== 'scene' && !entry.storyArcPlan
                                 && !snapshot.historicalReanalysis
                                 && !snapshot.additionalAnalysis
+                                && !maintenanceAttempted
                                 // Upkeep is optional; an exhausted budget waits for the next turn.
                                 && remainingModelCalls() > 0) {
                                 const attemptKey = `${snapshot.characterId}\u0000${snapshot.chatId}\u0000${entry.target.id}`
                                 // Stored documents keep only their last source IDs, so count IDs unseen at the last attempt.
                                 const currentSources = new Set([...entry.target.sourceMessageIds, ...sourceMessageIds])
-                                const state = maintenanceState.get(attemptKey)
+                                const state = readMaintenanceState(attemptKey)
                                 const restingSources = state?.restingSources
                                 // Every attempt, applied or not, waits for new sources, which bounds
                                 // upkeep calls per card; retrieval cuts any overflow meanwhile.
                                 if (restingSources === undefined
                                     || [...currentSources].filter((id) => !restingSources.has(id)).length
-                                        >= (state?.retry ? MAINTENANCE_RETRY_SOURCES : MAINTENANCE_COOLDOWN_SOURCES)) {
+                                        >= MAINTENANCE_COOLDOWN_SOURCES) {
                                     // Upkeep keeps a card within its retrieval share, so recall rarely cuts it.
                                     const perSourceTokens = wikiPageTokenCap({
                                         target: snapshot.inquiryTokenBudget?.target ?? RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT,
@@ -2357,6 +2401,8 @@ export function createMemoryAnalysisRunner(
                                         title: entry.target.title,
                                         documentType: entry.candidate.type,
                                         coverDocuments: maintenanceCoverDocuments(entry.target, [...documents, ...savedEvents]),
+                                        eventTitles: [...documents, ...savedEvents]
+                                            .filter((document) => document.type === 'event').map((document) => document.title),
                                         policy: [snapshot.wikiPromptGuide?.canonicalRewrite ?? '', canonicalWritingPolicy]
                                             .filter(Boolean).join('\n'),
                                         countTokens: countAnalysisTokens,
@@ -2364,6 +2410,7 @@ export function createMemoryAnalysisRunner(
                                         baselineTokens: state?.baselineTokens,
                                         request: async (prompt) => readModelResponseText(await analyzeResponse({
                                             format: 'canonical-batch',
+                                            purpose: 'canonical-maintenance',
                                             responseSchema: prompt.schema,
                                             inputTokenLimit: snapshot.analysisTokenLimit,
                                             system: prompt.system,
@@ -2371,17 +2418,23 @@ export function createMemoryAnalysisRunner(
                                         })),
                                     })
                                     signal?.throwIfAborted()
+                                    if (maintained.attempted) maintenanceAttempted = true
+                                    // A card that shrank keeps going while it is above the loose ceiling;
+                                    // one that could not shrink waits until it grows, so no attempt repeats in vain.
                                     if (maintained.outcome === 'applied') {
-                                        maintenanceState.set(attemptKey, { baselineTokens: maintained.tokensAfter, restingSources: currentSources })
+                                        writeMaintenanceState(attemptKey, {
+                                            baselineTokens: restingBaseline(maintained.tokensAfter ?? 0, perSourceTokens, true),
+                                            restingSources: currentSources,
+                                        })
                                     }
                                     else if (maintained.outcome === 'no-reduction') {
-                                        // Raising the baseline above the ceiling would let the card outgrow retrieval for good.
-                                        maintenanceState.set(attemptKey, (maintained.tokensBefore ?? 0) > perSourceTokens
-                                            ? { baselineTokens: state?.baselineTokens, restingSources: currentSources, retry: true }
-                                            : { baselineTokens: maintained.tokensBefore })
+                                        writeMaintenanceState(attemptKey, {
+                                            baselineTokens: restingBaseline(maintained.tokensBefore ?? 0, perSourceTokens, false),
+                                            restingSources: currentSources,
+                                        })
                                     }
                                     else if (maintained.outcome === 'error') {
-                                        maintenanceState.set(attemptKey, {
+                                        writeMaintenanceState(attemptKey, {
                                             baselineTokens: state?.baselineTokens, restingSources: currentSources,
                                         })
                                     }

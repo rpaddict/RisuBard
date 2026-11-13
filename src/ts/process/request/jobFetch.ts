@@ -152,21 +152,65 @@ export function makeJobFetch(opts: JobFetchOptions): typeof fetch {
         signal?.addEventListener('abort', abortJob, { once: true })
         const detach = () => signal?.removeEventListener('abort', abortJob)
 
-        // 2. Attach to the journal stream (replay from byte 0 + live tail).
-        let streamRes: Response
-        try {
-            streamRes = await fetch(`/api/model-jobs/${jobId}/stream`, { headers: await authHeader(), signal })
-        } catch (err) {
-            detach()
-            throw err
+        const baseDelay = opts.reconnectBaseDelayMs ?? 1000
+        const abortError = () => new DOMException('The operation was aborted.', 'AbortError')
+        const sleepAbortable = (ms: number) => new Promise<void>((resolve, reject) => {
+            const cleanup = () => {
+                clearTimeout(timer)
+                signal?.removeEventListener('abort', onAbort)
+            }
+            const onAbort = () => { cleanup(); reject(abortError()) }
+            const timer = setTimeout(() => { cleanup(); resolve() }, ms)
+            if (signal?.aborted) { onAbort(); return }
+            signal?.addEventListener('abort', onAbort)
+        })
+        const fetchJobStatus = async (): Promise<string | null> => {
+            try {
+                const res = await fetch(`/api/model-jobs/${jobId}`, { headers: await authHeader() })
+                if (!res.ok) return null
+                return (await res.json())?.status ?? null
+            } catch {
+                return null
+            }
         }
-        const upstreamStatus = streamRes.headers.get('x-model-job-upstream-status')
-        if (!streamRes.ok || upstreamStatus === null || !streamRes.body) {
-            // Upstream never connected (or the stream endpoint failed) —
-            // behave like a fetch network failure so the adapters' existing
-            // network-error handling applies unchanged.
-            detach()
-            throw new TypeError('model job upstream connection failed')
+
+        // 2. Attach to the journal stream (replay from byte 0 + live tail).
+        //    The server holds the response until the upstream sends headers,
+        //    which a non-streaming or long-thinking request can delay for
+        //    minutes. Anything in between (a tunnel's first-byte limit, a
+        //    mobile network drop) may give up first; that is a lost wait, not
+        //    a lost generation. While the job is still running, attach again
+        //    instead of failing the live send into background recovery.
+        let streamRes!: Response
+        let upstreamStatus: string | null = null
+        let waitAttempt = 0
+        while (true) {
+            let attachError: unknown = null
+            try {
+                streamRes = await fetch(`/api/model-jobs/${jobId}/stream`, { headers: await authHeader(), signal })
+            } catch (err) {
+                if (signal?.aborted) { detach(); throw err }
+                attachError = err
+            }
+            if (!attachError) {
+                upstreamStatus = streamRes.headers.get('x-model-job-upstream-status')
+                if (streamRes.ok && upstreamStatus !== null && streamRes.body) break
+                void streamRes.body?.cancel().catch(() => {})
+            }
+            if (await fetchJobStatus() !== 'running') {
+                // Upstream never connected (job ended without headers) or the
+                // server is unreachable — behave like a fetch network failure
+                // so the adapters' existing network-error handling applies.
+                detach()
+                if (attachError) throw attachError
+                throw new TypeError('model job upstream connection failed')
+            }
+            try {
+                await sleepAbortable(Math.min(baseDelay * 2 ** waitAttempt++, 5000))
+            } catch (err) {
+                detach()
+                throw err
+            }
         }
 
         // 3. Wrap the body: an ended HTTP stream does NOT prove completion
@@ -187,19 +231,6 @@ export function makeJobFetch(opts: JobFetchOptions): typeof fetch {
         let skipRemaining = 0
         let progressSinceAttach = true // first attach counts as progress
         let noProgressCycles = 0
-        const baseDelay = opts.reconnectBaseDelayMs ?? 1000
-
-        const abortError = () => new DOMException('The operation was aborted.', 'AbortError')
-        const sleepAbortable = (ms: number) => new Promise<void>((resolve, reject) => {
-            const cleanup = () => {
-                clearTimeout(timer)
-                signal?.removeEventListener('abort', onAbort)
-            }
-            const onAbort = () => { cleanup(); reject(abortError()) }
-            const timer = setTimeout(() => { cleanup(); resolve() }, ms)
-            if (signal?.aborted) { onAbort(); return }
-            signal?.addEventListener('abort', onAbort)
-        })
 
         // Re-attach to the journal stream. True = a fresh reader is installed
         // (replay from 0; skip what was already delivered). False = job gone

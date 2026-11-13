@@ -1791,3 +1791,58 @@ describe('Markdown narrative wiki', () => {
         })).rejects.toThrow('changed after the BARDCHAT command')
     })
 })
+
+describe('Markdown narrative wiki link upkeep', () => {
+    const setup = async () => {
+        const root = await fs.mkdtemp(join(tmpdir(), 'risubard-md-wiki-'))
+        temporaryDirectories.push(root)
+        const wiki = createMarkdownNarrativeWiki(root, { now: () => new Date('2026-11-13T00:00:00.000Z') })
+        const scope = { characterId: 'character', chatId: 'chat' }
+        const content = async (id: string) =>
+            (await wiki.loadView('character', 'chat')).documents.find((document) => document.id === id)?.content
+        const dangling = async () => (await wiki.loadCatalog('character', 'chat')).health.danglingLinks
+        return { wiki, scope, content, dangling }
+    }
+
+    test('follows an event renamed by re-analysis of the same turn', async () => {
+        const { wiki, scope, content, dangling } = await setup()
+        const sources = ['user-1', 'assistant-1']
+        await wiki.saveConfirmedTurn({ ...scope, sourceMessageIds: sources, markdown: '## 북문 앞의 만남\n\n하루를 만났다.' })
+        const card = await wiki.saveManualDocument({ ...scope, type: 'character', title: '미오',
+            markdown: '## 미오\n\n### 주요 전환\n\n- [[북문 앞의 만남]]에서 하루와 동행했다.\n- [[북문 앞의 만남|첫 만남]] 이후 마음을 열었다.' })
+
+        await wiki.saveConfirmedTurn({ ...scope, sourceMessageIds: sources, markdown: '## 비 오는 북문의 재회\n\n하루를 다시 만났다.' })
+
+        expect(await content(card.id)).toContain('- [[비 오는 북문의 재회]]에서 하루와 동행했다.')
+        expect(await content(card.id)).toContain('- [[비 오는 북문의 재회|첫 만남]] 이후 마음을 열었다.')
+        expect(await dangling()).toEqual([])
+    })
+
+    test('carries a manual rename into event pages too', async () => {
+        const { wiki, scope, content, dangling } = await setup()
+        const haru = await wiki.saveManualDocument({ ...scope, type: 'character', title: '하루', markdown: '## 하루\n\n안내인.' })
+        const event = await wiki.saveConfirmedTurn({ ...scope, sourceMessageIds: ['assistant-1'], markdown: '## 마중\n\n[[하루]]가 역에서 기다렸다.' })
+
+        await wiki.saveManualDocument({ ...scope, documentId: haru.id, type: 'character', title: '하루 아마네',
+            markdown: '## 하루 아마네\n\n안내인.', expectedContentHash: haru.contentHash })
+
+        expect(await content(event.id)).toContain('[[하루 아마네]]가 역에서 기다렸다.')
+        expect(await dangling()).toEqual([])
+    })
+
+    test('turns links to a deleted message\'s event into plain wording', async () => {
+        const { wiki, scope, content, dangling } = await setup()
+        await wiki.saveConfirmedTurn({ ...scope, sourceMessageIds: ['assistant-1'], markdown: '## 잘못된 만남\n\n없던 일.' })
+        const kept = await wiki.saveConfirmedTurn({ ...scope, sourceMessageIds: ['assistant-2'], markdown: '## 마중\n\n역에서 만났다.' })
+        const card = await wiki.saveManualDocument({ ...scope, type: 'character', title: '미오',
+            markdown: '## 미오\n\n- [[잘못된 만남]] 뒤 경계했다.\n- [[잘못된 만남|그날]]을 기억한다.\n- [[마중]]에서 하루를 만났다.' })
+
+        await wiki.retractEventsBySourceMessages({ ...scope, sourceMessageIds: ['assistant-1'] })
+
+        const after = await content(card.id)
+        expect(after).toContain('- 잘못된 만남 뒤 경계했다.')
+        expect(after).toContain('- 그날을 기억한다.')
+        expect(after).toContain(`- [[${kept.title}]]에서 하루를 만났다.`)
+        expect(await dangling()).toEqual([])
+    })
+})

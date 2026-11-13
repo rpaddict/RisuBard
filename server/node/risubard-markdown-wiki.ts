@@ -17,6 +17,8 @@ import {
     type MemoryStoryTime,
 } from './risubard-memory-metadata'
 
+import { normalizeWikiLinkKey } from '../../src/ts/risubard/wikiLink'
+
 export { eventSequences } from './risubard-event-sequence'
 
 export interface MarkdownWikiDocument {
@@ -686,6 +688,50 @@ async function writeAtomically(
     catch (error) {
         await fileSystem.rm(temporary, { force: true }).catch(() => undefined)
         throw error
+    }
+}
+
+const INBOUND_WIKI_LINK = /\[\[([^\]|#\n]+)((?:#[^\]|\n]*)?)((?:\|[^\]\n]*)?)\]\]/gu
+
+/**
+ * Keeps other pages' links valid when a page is renamed (`to` is its new title) or removed
+ * (`to` is null: each link becomes its plain wording). A wiki the AI rewrites must not leave
+ * dead links behind. Returns the rewritten copies so a caller can rebuild once.
+ */
+export function rewriteInboundWikiLinks(
+    documents: readonly MarkdownWikiDocument[],
+    excludedId: string,
+    from: readonly string[],
+    to: string | null,
+): Array<{ document: MarkdownWikiDocument; content: string }> {
+    // A name another page still owns keeps resolving there; leave its links alone.
+    const owned = new Set(documents.filter((document) => document.id !== excludedId && document.status !== 'retracted')
+        .flatMap((document) => [document.title, ...document.aliases]).map(normalizeWikiLinkKey))
+    const names = new Set(from.map(normalizeWikiLinkKey).filter((name) => name && !owned.has(name)))
+    if (to !== null) names.delete(normalizeWikiLinkKey(to))
+    if (names.size === 0 || (to !== null && (!to.trim() || /[\[\]|#\n]/u.test(to)))) return []
+    return documents.flatMap((document) => {
+        if (document.id === excludedId || document.status === 'retracted') return []
+        const content = document.content.replace(INBOUND_WIKI_LINK,
+            (match, target: string, section: string, label: string) => {
+                if (!names.has(normalizeWikiLinkKey(target))) return match
+                if (to !== null) return `[[${to.trim()}${section}${label}]]`
+                return label ? label.slice(1) : target.trim()
+            })
+        return content === document.content ? [] : [{ document, content }]
+    })
+}
+
+async function writeInboundLinkRewrites(
+    fileSystem: WikiFileSystem,
+    directory: string,
+    rewrites: ReturnType<typeof rewriteInboundWikiLinks>,
+    updated: string,
+): Promise<void> {
+    for (const { document, content } of rewrites) {
+        const { contentHash: _hash, ...stored } = document
+        await writeAtomically(fileSystem, join(directory, ...document.relativePath.split('/')),
+            serializeDocument({ ...stored, content, links: linksFrom(content), updated }))
     }
 }
 
@@ -1633,7 +1679,13 @@ export function createMarkdownNarrativeWiki(
                 join(workspace.eventsDirectory, file),
                 prepared.contents
             )
-            await rebuildIndex(input.characterId, input.chatId, writingLanguage, [`events/${file}`])
+            // Re-analysing a turn renames its event; pages that linked the old title follow it.
+            const relinked = existingEvent && existingEvent.title !== prepared.document.title
+                ? rewriteInboundWikiLinks(knownDocuments, existingEvent.id, [existingEvent.title], prepared.document.title)
+                : []
+            await writeInboundLinkRewrites(fileSystem, workspace.directory, relinked, operationTime)
+            await rebuildIndex(input.characterId, input.chatId, writingLanguage,
+                [`events/${file}`, ...relinked.map(({ document }) => document.relativePath)])
             return prepared.document
         },
 
@@ -1962,34 +2014,10 @@ export function createMarkdownNarrativeWiki(
             if (oldFile && oldFile !== file) {
                 await fileSystem.rm(oldFile)
             }
+            // Every page, events included, follows a rename; events link the people they mention.
             if (existing && existing.title !== title) {
-                for (const linked of documents) {
-                    if (linked.id === existing.id || linked.type === 'event') continue
-                    const escaped = existing.title.replace(
-                        /[.*+?^${}()|[\]\\]/g,
-                        '\\$&'
-                    )
-                    const changed = linked.content.replace(
-                        new RegExp(`\\[\\[${escaped}(?=\\]|\\|)`, 'g'),
-                        `[[${title}`
-                    )
-                    if (changed === linked.content) continue
-                    const linkedFile = join(
-                        workspace.directory,
-                        ...linked.relativePath.split('/')
-                    )
-                    const updatedLinked = {
-                        ...linked,
-                        content: changed,
-                        links: linksFrom(changed),
-                        updated: operationTime,
-                    }
-                    await writeAtomically(
-                        fileSystem,
-                        linkedFile,
-                        serializeDocument(updatedLinked)
-                    )
-                }
+                await writeInboundLinkRewrites(fileSystem, workspace.directory,
+                    rewriteInboundWikiLinks(documents, existing.id, [existing.title], title), operationTime)
             }
             await rebuildIndex(input.characterId, input.chatId)
             return prepared.document
@@ -2182,10 +2210,8 @@ export function createMarkdownNarrativeWiki(
             expectedContentHash: string
         }): Promise<MarkdownWikiDocument> {
             const workspace = workspaceFor(input.characterId, input.chatId)
-            const document = (await loadDocuments(
-                input.characterId,
-                input.chatId
-            )).find((item) => item.id === required(
+            const documents = await loadDocuments(input.characterId, input.chatId)
+            const document = documents.find((item) => item.id === required(
                 input.documentId,
                 'Document ID'
             ))
@@ -2212,6 +2238,9 @@ export function createMarkdownNarrativeWiki(
                 updated: now().toISOString(),
             })
             await fileSystem.rm(file, { force: true })
+            await writeInboundLinkRewrites(fileSystem, workspace.directory, rewriteInboundWikiLinks(
+                documents.filter((item) => item.id !== document.id), '',
+                [document.title, ...document.aliases], null), prepared.document.updated)
             try {
                 await rebuildIndex(input.characterId, input.chatId)
             } catch {
@@ -2232,10 +2261,8 @@ export function createMarkdownNarrativeWiki(
                 throw new Error('Event retraction requires at least one source message')
             }
             const workspace = workspaceFor(input.characterId, input.chatId)
-            const matches = (await loadDocuments(
-                input.characterId,
-                input.chatId
-            )).filter((document) =>
+            const documents = await loadDocuments(input.characterId, input.chatId)
+            const matches = documents.filter((document) =>
                 document.type === 'event'
                 && document.status === 'active'
                 && document.sourceMessageIds.some((id) => sources.has(id))
@@ -2249,6 +2276,11 @@ export function createMarkdownNarrativeWiki(
                     { force: true }
                 )
             }
+            // Links to a deleted message's events become plain wording instead of dead links.
+            const removed = new Set(matches.map((document) => document.id))
+            await writeInboundLinkRewrites(fileSystem, workspace.directory, rewriteInboundWikiLinks(
+                documents.filter((document) => !removed.has(document.id)), '',
+                matches.flatMap((document) => [document.title, ...document.aliases]), null), now().toISOString())
             if (matches.length > 0) {
                 await rebuildIndex(input.characterId, input.chatId)
             }

@@ -59,9 +59,10 @@ export const memoryWriterDraftSchema = JSON.stringify({
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['subject', 'before', 'after'],
+                required: ['subject', 'attribute', 'before', 'after'],
                 properties: {
                     subject: itemString,
+                    attribute: { type: 'string', minLength: 1, maxLength: 80 },
                     before: { ...itemString, type: ['string', 'null'] },
                     after: itemString,
                 },
@@ -73,13 +74,14 @@ export const memoryWriterDraftSchema = JSON.stringify({
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['character', 'fact', 'stance'],
+                required: ['character', 'fact', 'stance', 'gap'],
                 properties: {
                     character: itemString,
                     fact: itemString,
                     stance: {
                         type: 'string', enum: ['knows', 'believes'],
                     },
+                    gap: { ...itemString, type: ['string', 'null'] },
                 },
             },
         },
@@ -287,6 +289,8 @@ export interface MemoryWriterDraft {
     establishedEvents: string[]
     stateChanges: Array<{
         subject: string
+        /** What changed: a condition, a location, one named possession. Older drafts lack it. */
+        attribute?: string
         before: string | null
         after: string
     }>
@@ -294,6 +298,8 @@ export interface MemoryWriterDraft {
         character: string
         fact: string
         stance: 'knows' | 'believes'
+        /** Who lacks this or why the belief may be wrong; null when nobody relevant lacks it. Older drafts lack it. */
+        gap?: string | null
     }>
     persistentFacts: string[]
     openContinuity: string[]
@@ -455,9 +461,16 @@ export function parseMemoryWriterDraft(output: string): MemoryWriterDraft {
     const stateChanges = boundedArray(parsed.stateChanges, 'stateChanges', 12)
         .map((item, index) => {
             if (!isRecord(item)) throw new Error(`stateChanges[${index}] must be an object`)
-            exactKeys(item, ['subject', 'before', 'after'], `stateChanges[${index}]`)
+            // attribute arrived later; drafts without it stay valid.
+            exactKeys(item, Object.prototype.hasOwnProperty.call(item, 'attribute')
+                ? ['subject', 'attribute', 'before', 'after']
+                : ['subject', 'before', 'after'], `stateChanges[${index}]`)
+            const attribute = typeof item.attribute === 'string'
+                ? item.attribute.replace(/\s+/gu, ' ').trim().slice(0, 80)
+                : ''
             return {
                 subject: text(item.subject, `stateChanges[${index}].subject`),
+                ...(attribute ? { attribute } : {}),
                 before: item.before === null
                     ? null
                     : text(item.before, `stateChanges[${index}].before`),
@@ -470,14 +483,19 @@ export function parseMemoryWriterDraft(output: string): MemoryWriterDraft {
         12
     ).map((item, index) => {
         if (!isRecord(item)) throw new Error(`characterKnowledge[${index}] must be an object`)
-        exactKeys(item, ['character', 'fact', 'stance'], `characterKnowledge[${index}]`)
+        // gap arrived later; drafts without it stay valid.
+        const hasGap = Object.prototype.hasOwnProperty.call(item, 'gap')
+        exactKeys(item, hasGap ? ['character', 'fact', 'stance', 'gap'] : ['character', 'fact', 'stance'],
+            `characterKnowledge[${index}]`)
         if (item.stance !== 'knows' && item.stance !== 'believes') {
             throw new Error(`characterKnowledge[${index}].stance is invalid`)
         }
+        const gap = typeof item.gap === 'string' ? item.gap.trim().slice(0, 500) : null
         return {
             character: text(item.character, `characterKnowledge[${index}].character`),
             fact: text(item.fact, `characterKnowledge[${index}].fact`),
             stance: item.stance as 'knows' | 'believes',
+            ...(hasGap ? { gap: gap || null } : {}),
         }
     })
     const persistentFacts = strings(parsed.persistentFacts, 'persistentFacts')
@@ -855,6 +873,14 @@ export function parseCanonicalSingle(output: string): CanonicalBatch['documents'
     }), 1).documents[0]
 }
 
+/**
+ * Knowledge that canon may record: what someone lacks or gets wrong. A fact a character merely
+ * witnessed is already in the event document, and copying it into canon grew a diary every turn.
+ */
+export function knowledgeGaps(draft: Pick<MemoryWriterDraft, 'characterKnowledge'>): MemoryWriterDraft['characterKnowledge'] {
+    return draft.characterKnowledge.filter((item) => typeof item.gap === 'string' && item.gap.length > 0)
+}
+
 export function hasMemoryWriterContent(draft: MemoryWriterDraft): boolean {
     return draft.establishedEvents.length + draft.stateChanges.length
         + draft.characterKnowledge.length + draft.persistentFacts.length
@@ -862,12 +888,34 @@ export function hasMemoryWriterContent(draft: MemoryWriterDraft): boolean {
 }
 
 export function serializeMemoryWriterDraft(draft: MemoryWriterDraft, language: WikiWritingLanguage = 'ko'): string {
+    const headings = wikiWritingHeadings[normalizeWikiWritingLanguage(language)]
     const lines = [`## ${draft.title}`]
     if (draft.establishedEvents.length > 0) {
-        lines.push('', `### ${wikiWritingHeadings[normalizeWikiWritingLanguage(language)].summary}`, '')
+        lines.push('', `### ${headings.summary}`, '')
         lines.push(...draft.establishedEvents.map((item) =>
             item.startsWith('- ') ? item : `- ${item}`
         ))
     }
+    // The change ledger reads these lines back per character at recall time.
+    const changes = draft.stateChanges.map(formatStateChangeLine)
+        .filter((line): line is string => line !== undefined)
+    if (changes.length > 0 && draft.establishedEvents.length > 0) {
+        lines.push('', `### ${headings.changes}`, '', ...changes)
+    }
     return lines.join('\n')
+}
+
+function ledgerText(value: string): string {
+    return value.replace(/\s+/gu, ' ').trim()
+}
+
+/** `- subject / attribute: after`, or `- subject: after` without an attribute. */
+export function formatStateChangeLine(change: MemoryWriterDraft['stateChanges'][number]): string | undefined {
+    const subject = ledgerText(change.subject).replace(/[/:]/gu, ' ').replace(/\s+/gu, ' ').trim()
+    const after = ledgerText(change.after)
+    if (!subject || !after) return undefined
+    const attribute = change.attribute
+        ? ledgerText(change.attribute).replace(/:/gu, ' ').replace(/\s+/gu, ' ').trim()
+        : ''
+    return attribute ? `- ${subject} / ${attribute}: ${after}` : `- ${subject}: ${after}`
 }

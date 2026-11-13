@@ -25,7 +25,15 @@
     let { value = $bindable(""), onChange = (v) => {}, onclick, blankable, excludesPrefix, compact, label, disabled = false, blankLabel }: Props = $props();
     let openOptions = $state(false)
     let showUnrec = $state(false)
-    let activeTab = $state<'base' | 'plugin'>('base')
+    const TAB_KEY = 'risubard.modelList.lastTab'
+    function readLastTab(): 'base' | 'plugin' {
+        try { return localStorage.getItem(TAB_KEY) === 'plugin' ? 'plugin' : 'base' } catch { return 'base' }
+    }
+    function setTab(tab: 'base' | 'plugin'){
+        activeTab = tab
+        try { localStorage.setItem(TAB_KEY, tab) } catch {}
+    }
+    let activeTab = $state<'base' | 'plugin'>(readLastTab())
     let expandedGroups = $state<Set<string>>(new Set())
 
     function changeModel(name:string){
@@ -117,8 +125,8 @@
 
             {#if hasPlugins}
                 <div class="shrink-0 flex w-full rounded-md border border-selected mb-2">
-                    <button class="p-1.5 flex-1 text-sm" class:bg-selected={activeTab === 'base'} onclick={() => { activeTab = 'base' }}>{language.modelTabBuiltin}</button>
-                    <button class="p-1.5 flex-1 text-sm" class:bg-selected={activeTab === 'plugin'} onclick={() => { activeTab = 'plugin' }}>{language.modelTabPlugin}</button>
+                    <button class="p-1.5 flex-1 text-sm" class:bg-selected={activeTab === 'base'} onclick={() => { setTab('base') }}>{language.modelTabBuiltin}</button>
+                    <button class="p-1.5 flex-1 text-sm" class:bg-selected={activeTab === 'plugin'} onclick={() => { setTab('plugin') }}>{language.modelTabPlugin}</button>
                 </div>
             {:else}
                 <div class="shrink-0 border-t-1 border-y-selected mb-2"></div>

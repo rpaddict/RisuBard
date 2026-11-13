@@ -10,6 +10,7 @@ interface WikiWritingLocaleDefinition {
         related: string
         additional: string
         currentState: string
+        changes: string
     }
     characterSections: {
         identity: string
@@ -57,7 +58,7 @@ export function normalizeWikiWritingLanguage(value: unknown): WikiWritingLanguag
 
 function headingsByKey(): Record<WikiHeadingKey, string[]> {
     const result: Record<WikiHeadingKey, string[]> = {
-        summary: [], history: [], related: [], additional: [], currentState: [],
+        summary: [], history: [], related: [], additional: [], currentState: [], changes: [],
     }
     for (const locale of Object.values(wikiWritingLocales)) {
         const definition: WikiWritingLocaleDefinition = locale

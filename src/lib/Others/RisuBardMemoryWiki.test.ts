@@ -258,6 +258,46 @@ describe('RisuBardMemoryWiki', () => {
         expect(onNavigateOocMessage).toHaveBeenCalledWith(3)
     })
 
+    test('keeps the compression dialog open while it runs, stops on request and opens again', async () => {
+        const page = {
+            id: 'keisuke', title: '키스케', type: 'character' as const, status: 'active' as const,
+            contextMode: 'auto' as const, contentHash: 'hash-k', relativePath: 'characters/keisuke.md',
+            aliases: [], sourceMessageIds: [], updated: 'now', links: [], content: '## 키스케\n\n긴 문서.',
+        }
+        mocks.loadNarrativeMemoryWiki.mockResolvedValue({
+            mode: 'markdown', wikiPath: 'C:\\wiki', documents: [page],
+            health: { danglingLinks: [], unlinkedDocumentIds: [] },
+        })
+        const onPreviewCanonCompression = vi.fn((_ids: readonly string[], _catalog: unknown,
+            _progress: unknown, stop?: AbortSignal) => new Promise<never>((_resolve, reject) => {
+            stop?.addEventListener('abort', () => reject(stop.reason))
+        }))
+        mounted = mount(RisuBardMemoryWiki, {
+            target: document.body,
+            props: { open: true, characterId: 'character', chatId: 'compress-chat', onPreviewCanonCompression },
+        })
+        const compress = () => document.querySelector<HTMLButtonElement>('[data-wiki-compress-document]')
+        const dialog = () => document.querySelector('[data-wiki-compress-dialog]')
+        await vi.waitFor(() => expect(compress()).not.toBeNull())
+
+        compress()!.click()
+        await vi.waitFor(() => expect(dialog()).not.toBeNull())
+        document.querySelector<HTMLButtonElement>('[data-wiki-compress-run]')!.click()
+        await vi.waitFor(() => expect(document.querySelector('[data-wiki-compress-stop]')).not.toBeNull())
+        // No close control while a request is out: closing only hid the dialog and left it stuck open.
+        expect(document.querySelector('[aria-label="Close"]')).toBeNull()
+
+        document.querySelector<HTMLButtonElement>('[data-wiki-compress-stop]')!.click()
+        await vi.waitFor(() => expect(dialog()?.textContent).toContain('중지했습니다. 문서는 바뀌지 않았습니다.'))
+        expect(onPreviewCanonCompression.mock.calls[0][3]?.aborted).toBe(true)
+        document.querySelector<HTMLButtonElement>('[aria-label="Close"]')!.click()
+        await vi.waitFor(() => expect(dialog()).toBeNull())
+
+        compress()!.click()
+        await vi.waitFor(() => expect(dialog()).not.toBeNull())
+        expect(dialog()?.textContent).not.toContain('중지했습니다')
+    })
+
     test('opens with a body-less catalog and fetches only the selected page body', async () => {
         const page = (id: string, title: string) => ({
             id, title, type: 'character' as const, status: 'active' as const,

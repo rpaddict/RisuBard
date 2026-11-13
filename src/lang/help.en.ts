@@ -307,6 +307,8 @@ export const helpEn = {
         sideMenuRerollButton: "Show a regenerate/reroll button in the chat side menu.",
         localActivationInGlobalLorebook:
             "Allow global lorebooks to use local activation options such as activating only for the current character.",
+        loreAlwaysActiveBeforeChat:
+            "Sends always-active lorebook entries right after the persona, before the chat history, instead of at the preset's lorebook block. Their text is the same every turn, so prompt caching can cover them. Keyword-matched entries and entries with a position or depth decorator stay where they are. Applies only when the preset places its lorebook block after the chat history.",
         requestInfoInsideChat: "Allow LLM request information such as sent prompts and token counts to be displayed inside the chat area.",
         inlayErrorResponse: "When a model request fails, show the error as an inlaid chat response.",
         bulkEnabling: "Show buttons in the lorebook editor for enabling or disabling multiple entries at once.",

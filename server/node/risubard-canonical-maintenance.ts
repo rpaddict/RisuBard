@@ -4,9 +4,18 @@ import { applyCanonicalSectionPatches, listCanonicalSections, readCanonicalSecti
 import type { CanonicalSectionPatch } from './risubard-memory-writer'
 
 export const MAINTENANCE_COOLDOWN_SOURCES = 8
-/** After an attempt that could not shrink an over-budget card, try again sooner than after a success. */
-export const MAINTENANCE_RETRY_SOURCES = 3
 export const CARD_GROWTH_RATIO = 1.25
+/**
+ * A loose ceiling in retrieval shares. Below it a card is maintained again only after growing by
+ * CARD_GROWTH_RATIO, so a long story's main card may grow. Above it every successful pass is
+ * followed by another after the cooldown, while each pass still shrinks the card.
+ */
+export const CARD_CEILING_SHARES = 4
+
+/** The baseline a card rests at after an attempt. A pass that could not shrink it rests at its size. */
+export function restingBaseline(tokens: number, perSourceTokens: number, reduced: boolean): number {
+    return reduced ? Math.min(tokens, perSourceTokens * CARD_CEILING_SHARES / CARD_GROWTH_RATIO) : tokens
+}
 export const CARD_MIN_REDUCTION_RATIO = 0.9
 const MAX_COVER_DOCUMENTS = 24
 const MAX_UNITS = 128
@@ -126,7 +135,7 @@ const MAINTENANCE_SYSTEM = [
     'The document is a current-state card: it keeps what is true now and what matters for later choices. The card is over its size budget, so the result must be clearly shorter. Merge units about the same topic, source or counterpart. Drop how and when something came about only through the covered disposition.',
     'Knowledge and Secrets keeps only what changes how this character acts later: a secret and who shares it, a fact a relevant counterpart does not know, a mistaken belief or open question. Combine units about the same topic or source into one concise unit. A unit that only says this character saw, heard, was told, confirmed or learned something is covered when a supplied event records it; name that event in documentId. Check every such unit against the cover documents before keeping it.',
     'Relationships and Trust keeps one compact current entry per counterpart: present relationship, trust, conflict, promises and explicit values. Remove the chronicle of scenes that led there.',
-    'Major Transitions: merge successive steps of the same change into one unit, keeping the resulting change and its [[event]] links.',
+    'Major Transitions is a short synopsis of this character\'s plot points. Merge units from the same stretch of their story into one, and merge older adjacent units, keeping each turning point\'s result and its first and decisive [[event]] links. A unit that only records a former state or a single scene is covered by the event that records it.',
     'Equipment and Possessions: one entry per meaningful item with its current condition only.',
     'Dispositions: kept or merged means the old unit\'s facts are in new unit newIndex of the same section. moved means the old unit is not state that belongs in this section; set moveTo to identity or currentState and movedText to one concise sentence for that section. covered means the old unit only narrates how or when something happened and documentId names a supplied cover document that records it. Use null for fields that do not apply.',
     'Never invent facts. Keep every [[wiki link]] that still applies. Preserve attribution, certainty and conditions. Write in the language already used by the units.',
@@ -286,7 +295,10 @@ export function applyMaintenanceResponse(input: {
     text: string
     sections: ReadonlyMap<string, SectionUnits>
     coverContents: ReadonlyMap<string, string>
+    /** Event titles. A merge may drop these links; other events stay searchable without them. */
+    eventTitles?: readonly string[]
 }): MaintenanceApplication {
+    const events = new Set((input.eventTitles ?? []).map(identityKey))
     const response = parseResponse(input.text)
     if (!response) return { reason: 'invalid-response', restored: 0, counts: [] }
     const patches: CanonicalSectionPatch[] = []
@@ -295,13 +307,14 @@ export function applyMaintenanceResponse(input: {
     let restored = 0
     // Parts of one section are judged on their own and saved together.
     const outcomes = new Map<string, { units: string[]; restored: number; moves: Array<{ to: MoveRole; text: string }> }>()
+    const drafts: Array<{ role: string; section: SectionUnits; result: string[]; restoredUnits: string[]
+        roleMoves: Array<{ to: MoveRole; text: string }> }> = []
     for (const [role, section] of input.sections) {
         const proposed = response.sections.find((candidate) => candidate.role === role)
             ?.units.map((unit) => unit.trim())
         if (!proposed) continue
         const used = new Set<number>()
         const restoredUnits: string[] = []
-        const covered = new Set<number>()
         const roleMoves: Array<{ to: MoveRole; text: string }> = []
         section.units.forEach((unit, index) => {
             const item = response.dispositions.find((candidate) =>
@@ -322,20 +335,30 @@ export function applyMaintenanceResponse(input: {
             if (item?.action === 'covered' && item.documentId
                 && input.coverContents.has(item.documentId)
                 && coverSupportsUnit(unit, input.coverContents.get(item.documentId)!)) {
-                covered.add(index)
                 return
             }
             restoredUnits.push(unit)
         })
-        const result = [...proposed.filter((unit, index) => used.has(index) && unit), ...restoredUnits]
-        const present = linksIn([...result, ...roleMoves.map((move) => move.text)].join('\n'))
-        section.units.forEach((unit, index) => {
-            if (restoredUnits.includes(unit)) return
-            if ([...linksIn(unit)].some((link) => !present.has(link))) {
+        drafts.push({ role, section, roleMoves, restoredUnits,
+            result: [...proposed.filter((unit, index) => used.has(index) && unit), ...restoredUnits] })
+    }
+    // The card must still name every person and place it named before, anywhere in it; one section
+    // may drop a link another section keeps. Event links may go: events stay searchable.
+    const maintainedHeadings = new Set([...input.sections.values()].map((section) => section.heading))
+    const present = linksIn([
+        ...listCanonicalSections(input.markdown)
+            .filter((section) => !maintainedHeadings.has(section.heading)).map((section) => section.body),
+        ...drafts.flatMap((draft) => [...draft.result, ...draft.roleMoves.map((move) => move.text)]),
+    ].join('\n'))
+    for (const { role, section, result, restoredUnits, roleMoves } of drafts) {
+        for (const unit of section.units) {
+            if (restoredUnits.includes(unit)) continue
+            if ([...linksIn(unit)].some((link) => !present.has(link) && !events.has(identityKey(link)))) {
                 result.push(unit)
                 restoredUnits.push(unit)
+                for (const link of linksIn(unit)) present.add(link)
             }
-        })
+        }
         if (characters(result.join('\n')) >= characters(section.units.join('\n'))) continue
         outcomes.set(role, { units: result, restored: restoredUnits.length, moves: roleMoves })
     }
@@ -420,6 +443,8 @@ export async function maintainCharacterCanon(input: {
     /** Documents other than characters keep every section but the current-state snapshot. */
     documentType?: string
     coverDocuments: readonly { id: string; title: string; content: string }[]
+    /** Titles of the story's event documents; see applyMaintenanceResponse. */
+    eventTitles?: readonly string[]
     policy: string
     countTokens(value: string): number
     perSourceTokens: number
@@ -458,6 +483,7 @@ export async function maintainCharacterCanon(input: {
         applied = applyMaintenanceResponse({
             markdown: input.markdown, title: input.title, text, sections: prepared.sections,
             coverContents: new Map(input.coverDocuments.map((document) => [document.id, document.content])),
+            eventTitles: input.eventTitles,
         })
         if (applied.markdown) tokensAfter = input.countTokens(applied.markdown)
     }

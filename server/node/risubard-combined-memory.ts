@@ -25,7 +25,7 @@ export const combinedMemoryInstruction = [
     'For character updates, preserve durable relationships, trust, mental state, knowledge boundaries, promises, injuries, and meaningful possessions, equipment, appearance, and constraints outside transient current-scene changes. Keep relationships, trust, mental state, knowledge boundaries, and meaningful possessions, equipment, appearance, and constraints in separate evidence-grounded sections when useful. Do not create empty sections or templates.',
     'Do not infer shared knowledge, ownership, or relationship meaning from structured state values alone.',
     'Use an empty sections array for a verified no-op. Omit a candidate patch entirely when the complete existing document is unavailable or you cannot safely finish it.',
-    'Use confirmedMessages as evidence; stateChanges, characterKnowledge, persistentFacts and openContinuity are coverage checks, not permission to invent.',
+    'Use confirmedMessages as evidence; stateChanges, characterKnowledge items with a gap, persistentFacts and openContinuity are coverage checks, not permission to invent.',
     'Never supply a reserved story arc patch unless separately requested by the program. Never return paths, frontmatter or source IDs.',
 ].join('\n')
 

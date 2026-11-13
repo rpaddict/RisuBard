@@ -571,6 +571,16 @@
             </section>
         {/if}
 
+        <section class="lore-settings-card" data-lore-stable-prefix>
+            <div data-lorebook-setting-row class="lore-setting-row">
+                <span class="lore-setting-row-label">{language.loreAlwaysActiveBeforeChat} <Help key="loreAlwaysActiveBeforeChat"/></span>
+                <ShSwitch
+                    checked={DBState.db.loreAlwaysActiveBeforeChat === true}
+                    onCheckedChange={(checked) => { DBState.db.loreAlwaysActiveBeforeChat = checked }}
+                />
+            </div>
+        </section>
+
         <section class="lore-settings-card lore-settings-card--quiet">
             {#if DBState.db.characters[$selectedCharID].loreSettings}
                 <div data-lorebook-setting-row class="lore-setting-row">

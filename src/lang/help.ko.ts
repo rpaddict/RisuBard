@@ -189,6 +189,7 @@ export const helpKo = {
         "sideMenuRerollButton": "채팅 사이드 메뉴에 메시지 재생성(reroll) 버튼을 표시합니다.",
         "localActivationInGlobalLorebook": "글로벌 로어북에서도 캐릭터 로컬 로어북처럼 \"현재 캐릭터에서만 활성화\" 같은 로컬 활성화 옵션을 사용할 수 있게 합니다.",
         "requestInfoInsideChat": "채팅 메시지 영역에 LLM 요청 정보(전송된 프롬프트, 토큰 수 등)를 표시할 수 있게 합니다.",
+        "loreAlwaysActiveBeforeChat": "항상 활성화된 로어북 항목을 프리셋의 로어북 블록 대신 페르소나 바로 뒤, 채팅 기록 앞에 넣습니다. 매 턴 내용이 같아서 프롬프트 캐시 대상이 됩니다. 키워드로 불려온 항목과 위치나 깊이 데코레이터가 붙은 항목은 원래 자리에 그대로 둡니다. 프리셋의 로어북 블록이 채팅 기록 뒤에 있을 때만 적용됩니다.",
         "inlayErrorResponse": "모델 요청이 실패했을 때 오류 메시지를 채팅 영역 안에 인레이로 표시합니다.",
         "bulkEnabling": "로어북 편집기에서 여러 항목을 한번에 활성화/비활성화하는 버튼을 표시합니다.",
         "showTranslationLoading": "메시지 번역이 진행 중일 때 로딩 인디케이터를 표시합니다.",

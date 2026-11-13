@@ -2171,6 +2171,8 @@ export interface Database{
         model: string,       
     },
     localActivationInGlobalLorebook: boolean
+    /** Experimental: emit always-active lore before the chat history so prompt caching covers it. */
+    loreAlwaysActiveBeforeChat?: boolean
     showFolderName: boolean
     automaticCachePoint: boolean
     // Show the floating request-status toast (phase / thinking+response tokens /

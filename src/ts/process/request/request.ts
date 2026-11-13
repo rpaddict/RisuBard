@@ -1895,6 +1895,8 @@ async function requestPlugin(arg:RequestDataArgumentExtended):Promise<requestDat
                                 success: true,
                                 streaming: true,
                                 output: fullText,
+                                // Read at stream end, so a plugin that fills usage in while streaming is covered.
+                                usage: 'usage' in d ? d.usage : undefined,
                             })
                             controller.close()
                             return
@@ -1956,6 +1958,7 @@ async function requestPlugin(arg:RequestDataArgumentExtended):Promise<requestDat
                 success: true,
                 streaming: false,
                 output: content,
+                usage: 'usage' in d ? d.usage : undefined,
             })
             return preparePluginResponse(d, content, responseModel)
         }

@@ -3,7 +3,7 @@
     "label": "한국어",
     "languageName": "Korean",
     "indexTitle": "서사 위키",
-    "headings": { "summary": "이야기 요약", "history": "작중 행적", "related": "관련 문서", "additional": "추가 분석", "currentState": "현재 상태" },
+    "headings": { "summary": "이야기 요약", "history": "작중 행적", "related": "관련 문서", "additional": "추가 분석", "currentState": "현재 상태", "changes": "상태 변화" },
     "characterSections": { "identity": "인물 핵심", "relationships": "관계와 신뢰", "knowledge": "지식과 비밀", "transitions": "주요 전환", "equipment": "장비와 소지품" },
     "storyArc": { "title": "스토리 아크 플롯", "overview": "아크 개요", "turningPoints": "주요 전환점", "openThreads": "미해결 줄기" },
     "legacyHeadings": ["확정된 사건"]
@@ -12,7 +12,7 @@
     "label": "English",
     "languageName": "English",
     "indexTitle": "Narrative Wiki",
-    "headings": { "summary": "Story Summary", "history": "Story History", "related": "Related Documents", "additional": "Additional Analysis", "currentState": "Current State" },
+    "headings": { "summary": "Story Summary", "history": "Story History", "related": "Related Documents", "additional": "Additional Analysis", "currentState": "Current State", "changes": "State Changes" },
     "characterSections": { "identity": "Identity", "relationships": "Relationships and Trust", "knowledge": "Knowledge and Secrets", "transitions": "Major Transitions", "equipment": "Equipment and Possessions" },
     "storyArc": { "title": "Story Arc Plot", "overview": "Arc Overview", "turningPoints": "Major Turning Points", "openThreads": "Open Threads" },
     "legacyHeadings": ["Established Events"]
@@ -21,7 +21,7 @@
     "label": "日本語",
     "languageName": "Japanese",
     "indexTitle": "物語ウィキ",
-    "headings": { "summary": "物語の要約", "history": "作中の履歴", "related": "関連文書", "additional": "追加分析", "currentState": "現在の状態" },
+    "headings": { "summary": "物語の要約", "history": "作中の履歴", "related": "関連文書", "additional": "追加分析", "currentState": "現在の状態", "changes": "状態の変化" },
     "characterSections": { "identity": "人物の核心", "relationships": "関係と信頼", "knowledge": "知識と秘密", "transitions": "主要な転換", "equipment": "装備と所持品" },
     "storyArc": { "title": "ストーリーアークプロット", "overview": "アーク概要", "turningPoints": "主要な転換点", "openThreads": "未解決の糸口" }
   },
@@ -29,7 +29,7 @@
     "label": "简体中文",
     "languageName": "Simplified Chinese",
     "indexTitle": "叙事维基",
-    "headings": { "summary": "故事摘要", "history": "剧情历程", "related": "相关文档", "additional": "补充分析", "currentState": "当前状态" },
+    "headings": { "summary": "故事摘要", "history": "剧情历程", "related": "相关文档", "additional": "补充分析", "currentState": "当前状态", "changes": "状态变化" },
     "characterSections": { "identity": "人物核心", "relationships": "关系与信任", "knowledge": "知识与秘密", "transitions": "主要转变", "equipment": "装备与随身物品" },
     "storyArc": { "title": "故事篇章情节", "overview": "篇章概览", "turningPoints": "主要转折点", "openThreads": "未解决线索" }
   },
@@ -37,7 +37,7 @@
     "label": "繁體中文",
     "languageName": "Traditional Chinese",
     "indexTitle": "敘事維基",
-    "headings": { "summary": "故事概要", "history": "劇情歷程", "related": "相關文件", "additional": "補充分析", "currentState": "當前狀態" },
+    "headings": { "summary": "故事概要", "history": "劇情歷程", "related": "相關文件", "additional": "補充分析", "currentState": "當前狀態", "changes": "狀態變化" },
     "characterSections": { "identity": "人物核心", "relationships": "關係與信任", "knowledge": "知識與秘密", "transitions": "主要轉變", "equipment": "裝備與隨身物品" },
     "storyArc": { "title": "故事篇章情節", "overview": "篇章概覽", "turningPoints": "主要轉折點", "openThreads": "未解決線索" }
   }

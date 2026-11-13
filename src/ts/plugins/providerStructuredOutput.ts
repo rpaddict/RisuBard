@@ -60,7 +60,8 @@ export function createPluginStructuredOutput(
     // Canonical updates share the same rejection: sending the native schema
     // first cost one failed request before every fallback.
     if ((context?.purpose === 'bardwiki-analysis'
-        || context?.purpose === 'bardwiki-canonical-update')
+        || context?.purpose === 'bardwiki-canonical-update'
+        || context?.purpose === 'bardwiki-canonical-maintenance')
         && /^pagefold-(?:google-)?gemini-.+/.test(context.provider)) {
         return undefined
     }

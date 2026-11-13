@@ -60,6 +60,7 @@ import {
 } from '../../../server/node/risubard-memory-writer'
 import { createStructuredOutputFallbackMessage } from '../process/request/structuredOutputFallback'
 import { requestWithProviderOutputLimit } from './providerOutputTokenLimit'
+import { createCanonMaintenanceStore } from './canonMaintenanceStore'
 
 interface StoredMessage {
     role?: unknown
@@ -90,7 +91,7 @@ export interface MemoryAnalysisModelCall {
     schema?: string
     realChatId?: string
     logSource?: 'memory'
-    logPurpose?: 'bardwiki-analysis' | 'bardwiki-canonical-update'
+    logPurpose?: 'bardwiki-analysis' | 'bardwiki-canonical-update' | 'bardwiki-canonical-maintenance'
 }
 
 interface MemoryAnalysisClientOptions {
@@ -1009,6 +1010,7 @@ export function createStoredResponseMemoryAnalysis(
         markdownWikiService,
         nativeV2Analysis: options.nativeV2Analysis,
         onError: options.onError,
+        maintenanceStateStore: createCanonMaintenanceStore(),
         async analyze(request, signal) {
             const nativeDraft = ['memory-draft', 'reboot-batch', 'canonical-batch']
                 .includes(request.format ?? '')
@@ -1060,7 +1062,9 @@ export function createStoredResponseMemoryAnalysis(
                 ...(request.sessionChatId ? {
                     realChatId: request.sessionChatId,
                     logSource: 'memory' as const,
-                    logPurpose: request.format === 'canonical-batch'
+                    logPurpose: request.purpose === 'canonical-maintenance'
+                        ? 'bardwiki-canonical-maintenance' as const
+                        : request.format === 'canonical-batch'
                         || request.format === 'markdown'
                         ? 'bardwiki-canonical-update' as const
                         : 'bardwiki-analysis' as const,

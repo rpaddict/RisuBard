@@ -9,6 +9,9 @@ import { isStoryArcChapterTitle, isStoryArcTitle } from '../../src/ts/risubard/w
 import { normalizeWikiRetrievalLimits, wikiPageTokenCap, type WikiRetrievalLimits } from '../../src/ts/risubard/wikiRetrievalLimits'
 import { RESOLVED_SOURCE_SCORE } from '../../src/ts/risubard/historicalSourceRecall'
 import { describeStoryTimeForModel, storyTimeStamp, type MemoryStoryTime } from './risubard-memory-metadata'
+import { buildCharacterLedgers, formatCharacterLedger, type LedgerEntry } from './risubard-change-ledger'
+
+const MAX_LEDGER_TOKENS = 400
 
 const MAX_SELECTED_DOCUMENTS = 12
 // Client validation accepts at most 44 sources per inquiry.
@@ -794,6 +797,8 @@ export function inquireMarkdownDocuments(
         input.tokenBudget?.perSource,
     )
     const pageTokenCap = wikiPageTokenCap(tokenBudget)
+    let ledgers: Map<string, LedgerEntry[]> | undefined
+    const characterLedgers = () => ledgers ??= buildCharacterLedgers(eligibleDocuments, sequences)
     const prepared = [
         ...(input.contextSelection === 'auto' ? [] : requiredDocuments).map((document) => ({
             document,
@@ -807,8 +812,18 @@ export function inquireMarkdownDocuments(
     ].map((candidate) => {
         // Each optional page gets a share of the page lane, so a long card cannot
         // keep every other named character out; events and pinned pages keep the per-source cap.
-        const perSource = candidate.document.type === 'event' || requiredIds.has(candidate.document.id)
+        const sourceBudget = candidate.document.type === 'event' || requiredIds.has(candidate.document.id)
             ? tokenBudget.perSource : pageTokenCap
+        // A character's change ledger leads its card and takes at most a quarter of its share.
+        const ledgerEntries = candidate.document.type === 'character'
+            ? characterLedgers().get(candidate.document.id) : undefined
+        const ledgerBlock = ledgerEntries?.length
+            ? truncateToTokenBudget(formatCharacterLedger(ledgerEntries, eventTimes),
+                Math.min(MAX_LEDGER_TOKENS, Math.floor(sourceBudget / 4)))
+            : ''
+        const perSource = ledgerBlock
+            ? Math.max(1, sourceBudget - countInquiryTokens(ledgerBlock) - countInquiryTokens('\n\n'))
+            : sourceBudget
         const passages = semanticPassages.get(candidate.document.id)
         const preferSemantic = passages?.length && !requiredIds.has(candidate.document.id)
             && !(currentStateIntent && candidate.document.type === 'character')
@@ -850,6 +865,7 @@ export function inquireMarkdownDocuments(
                 return stamp ? `(#${value}, ${stamp})` : match
             })
         }
+        if (ledgerBlock) content = `${ledgerBlock}\n\n${content}`
         const sequence = sequences.get(candidate.document.id)
         const labels = candidate.document.type === 'event'
             ? [
@@ -861,7 +877,7 @@ export function inquireMarkdownDocuments(
             : []
         const boundedContent = truncateToTokenBudget(
             labels.length > 0 ? `${labels.join('\n')}\n${content}` : content,
-            perSource,
+            sourceBudget,
         )
         // When the scene's original text comes along, the label and title are enough to place it.
         const heading = candidate.document.type === 'event'

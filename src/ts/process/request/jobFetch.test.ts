@@ -34,6 +34,9 @@ interface ServerBehavior {
     streamChunksQueue?: string[][]
     /** Defaults to a healthy stream (content-type + upstream-status 200). */
     streamHeaders?: Record<string, string>
+    /** Responses returned by successive GET /stream calls before the normal
+     *  stream (e.g. a tunnel's 524 while the upstream is still thinking). */
+    streamPrelude?: { status: number, headers?: Record<string, string> }[]
     /** Body of the never-closing kind for abort tests. */
     streamNeverEnds?: boolean
     /** GET /api/model-jobs/:id after the stream ends. */
@@ -55,6 +58,8 @@ function setupServer(behavior: ServerBehavior) {
             return new Response(JSON.stringify(c.body ?? {}), { status: c.status })
         }
         if (url === '/api/model-jobs/job-1/stream') {
+            const prelude = behavior.streamPrelude?.shift()
+            if (prelude) return new Response('gateway timeout', prelude)
             const headers = behavior.streamHeaders ?? {
                 'content-type': 'text/event-stream',
                 'x-model-job-upstream-status': '200',
@@ -214,6 +219,18 @@ describe('makeJobFetch', () => {
         setupServer({ streamHeaders: { 'content-type': 'text/plain' } })
         await expect(makeJobFetch(makeOpts())('https://provider.example/v1/chat', { method: 'POST', body: '{}' }))
             .rejects.toThrow(TypeError)
+    })
+
+    test('keeps waiting when a proxy gives up before upstream headers while the job runs', async () => {
+        const { calls } = setupServer({
+            streamPrelude: [{ status: 524 }, { status: 200, headers: { 'content-type': 'text/plain' } }],
+            streamChunks: ['late answer'],
+            jobQueue: [{ status: 'running' }, { status: 'running' }, { status: 'done' }],
+        })
+        const res = await makeJobFetch(makeOpts({ reconnectBaseDelayMs: 1 }))('https://provider.example/v1/chat', { method: 'POST', body: '{}' })
+        expect(res.status).toBe(200)
+        expect(await res.text()).toBe('late answer')
+        expect(callsFor(calls, '/api/model-jobs/job-1/stream')).toHaveLength(3)
     })
 
     test('reattaches after a dropped tail and resumes without duplicating bytes', async () => {

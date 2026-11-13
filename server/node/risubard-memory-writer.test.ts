@@ -7,6 +7,7 @@ import {
     memoryWriterDraftSchema,
     memoryWriterSystemPrompt,
     hasMemoryWriterContent,
+    knowledgeGaps,
     parseMemoryWriterDraft,
     parseCanonicalBatch,
     parseCanonicalBatchIsolated,
@@ -34,6 +35,29 @@ describe('BardWiki memory writer skill', () => {
         [{ sections: [] }],
     ].map((documents) => [documents]))('rejects ambiguous batch routing before accepting any entries: %j', (documents) => {
         expect(() => parseCanonicalBatchIsolated(JSON.stringify({ documents }), 2)).toThrow(/candidateIndex/)
+    })
+
+    test('asks for knowledge gaps and keeps drafts written before gap existed', () => {
+        const knowledge = JSON.parse(memoryWriterDraftSchema).properties.characterKnowledge.items
+        expect(knowledge.required).toContain('gap')
+        expect(knowledge.properties.gap.type).toEqual(['string', 'null'])
+        expect(memoryWriterSystemPrompt).toContain('Only information gaps')
+        const base = { title: 'Gate', establishedEvents: ['The gate opened.'], stateChanges: [],
+            persistentFacts: [], openContinuity: [], canonicalUpdateCandidates: [] }
+        const draft = parseMemoryWriterDraft(JSON.stringify({ ...base, characterKnowledge: [
+            { character: 'Alice', fact: 'The key is under the bell.', stance: 'knows', gap: ' Bob does not know. ' },
+            { character: 'Alice', fact: 'The gate opens at dawn.', stance: 'knows', gap: '  ' },
+            { character: 'Alice', fact: 'Bob runs the inn.', stance: 'believes' },
+        ] }))
+        expect(draft.characterKnowledge).toEqual([
+            { character: 'Alice', fact: 'The key is under the bell.', stance: 'knows', gap: 'Bob does not know.' },
+            { character: 'Alice', fact: 'The gate opens at dawn.', stance: 'knows', gap: null },
+            { character: 'Alice', fact: 'Bob runs the inn.', stance: 'believes' },
+        ])
+        expect(knowledgeGaps(draft).map((item) => item.fact)).toEqual(['The key is under the bell.'])
+        expect(() => parseMemoryWriterDraft(JSON.stringify({ ...base, characterKnowledge: [
+            { character: 'Alice', fact: 'x', stance: 'knows', gap: null, extra: 1 },
+        ] }))).toThrow(/characterKnowledge\[0\]/)
     })
 
     test('provides an English recording contract and deterministic English headings', () => {
@@ -376,6 +400,10 @@ describe('BardWiki memory writer skill', () => {
             '### 이야기 요약',
             '',
             '- [[라비안]]이 [[케사리아]] 성문에 도착했다.',
+            '',
+            '### 상태 변화',
+            '',
+            '- [[라비안]]: 케사리아 성문에 있음',
         ].join('\n'))
     })
 

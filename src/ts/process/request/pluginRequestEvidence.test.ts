@@ -100,6 +100,26 @@ describe('plugin request evidence recorder', () => {
         const other = createPluginRequestEvidenceRecorder({ startedAt: 0, source: 'main', generationId: 'g', model: 'm', provider: 'p' }, { record, countTokens: async () => 0 })
         expect(() => other.setRequestBody({ toJSON() { throw new Error('cannot serialize') } })).not.toThrow()
     })
+    it('prefers provider-reported usage over local estimates', async () => {
+        const record = vi.fn()
+        const recorder = createPluginRequestEvidenceRecorder(
+            { startedAt: 0, source: 'main', generationId: 'g', model: 'm', provider: 'p', injectionManifest: { totalTokens: 900, items: [], estimated: true } },
+            { record, countTokens: async () => 7 },
+        )
+        await recorder.finish({ success: true, streaming: true, output: 'answer', usage: { promptTokens: 1000, completionTokens: 50, cachedTokens: 800 } })
+        expect(record).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 1000, outputTokens: 50, cachedTokens: 800 }))
+        expect(record.mock.calls[0][0]).not.toHaveProperty('reasoningTokens')
+    })
+    it('keeps the local estimates when the provider reports no usage', async () => {
+        const record = vi.fn()
+        const recorder = createPluginRequestEvidenceRecorder(
+            { startedAt: 0, source: 'main', generationId: 'g', model: 'm', provider: 'p', injectionManifest: { totalTokens: 900, items: [], estimated: true } },
+            { record, countTokens: async () => 7 },
+        )
+        await recorder.finish({ success: true, streaming: false, output: 'answer' })
+        expect(record).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 900, outputTokens: 7 }))
+        expect(record.mock.calls[0][0]).not.toHaveProperty('cachedTokens')
+    })
     it('preserves streamed partial output alongside interruption errors', async () => {
         const record = vi.fn()
         const recorder = createPluginRequestEvidenceRecorder({ startedAt: 0, source: 'main', generationId: 'g', model: 'm', provider: 'p' }, { record, countTokens: async () => 2 })

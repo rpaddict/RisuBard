@@ -53,6 +53,8 @@ export async function previewCanonCompression(input: {
         input.onProgress?.(index, targets.length, target.title)
         previews.push(await previewOne(target, input, scope))
     }
+    // A stopped request reads as a failed page inside previewOne; report the stop instead.
+    input.signal?.throwIfAborted()
     input.onProgress?.(targets.length, targets.length, '')
     return previews
 }
@@ -81,6 +83,7 @@ async function previewOne(
             title: target.title,
             documentType: target.type,
             coverDocuments: covers.map((cover) => ({ ...cover, content: bodies.get(cover.id) ?? '' })),
+            eventTitles: input.catalog.filter((document) => document.type === 'event').map((document) => document.title),
             policy: input.policy,
             countTokens: directWikiTokens,
             perSourceTokens: 0,

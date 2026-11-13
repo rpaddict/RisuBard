@@ -3,7 +3,7 @@
 - `title`: 사건이나 변화 하나를 식별하는 짧은 제목. Markdown 표식을 넣지 않는다.
 - `establishedEvents`: 확정 본문에서 실제로 일어난 사건. 시간 순서대로 최대 12개. 이 배열만 이어 읽어도 이야기 흐름이 자연스러워야 하며 상태 관리, 미완성 플롯 관리, 정본 갱신 제안은 넣지 않는다. 항목 하나는 짧은 사실 하나다. 분위기, 감정, 일상적인 이동보다 나중에 물어볼 만한 구체적 사실(수량, 이름, 물건과 위치, 가격, 시도 결과, 핵심 대사 몇 마디)에 글자를 쓴다.
 - `stateChanges`: `subject`, `before`, `after`. `before`가 근거에 없으면 `null`.
-- `characterKnowledge`: `character`, `fact`, `stance`. `stance`는 직접 안 사실인 `knows` 또는 사실 여부와 무관한 믿음인 `believes`.
+- `characterKnowledge`: `character`, `fact`, `stance`, `gap`. `stance`는 직접 안 사실인 `knows` 또는 사실 여부와 무관한 믿음인 `believes`. 이후 행동을 바꾸는 정보 차이만 적는다: 인물이 숨기는 것, 관련 인물이 모르거나 잘못 믿는 것, 인물 자신의 오해, 아직 모르는 것. `gap`에는 누가 모르는지 또는 왜 틀릴 수 있는지를 쓴다. 보거나 듣거나 전해 들은 것만으로는 적지 않는다. 사건 요약에 이미 남는다. 등장인물 등록에만 필요하고 정보 차이가 없는 항목은 `gap`을 `null`로 두며, 프로그램은 이런 항목을 정본에 옮기지 않는다.
 - `persistentFacts`: 이후 장면에도 유지되어야 할 현재 사실.
 - `openContinuity`: 아직 해결되지 않았지만 이후 일관성에 필요한 질문·약속·위험.
 - `canonicalUpdateCandidates`: 정본 후보의 `type`, `title`, `aliases`, `reason`, `action`, `targetDocumentId`, `confidence`. 자동 반영하지 않는다.

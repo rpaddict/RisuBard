@@ -116,7 +116,8 @@
         onPreviewCanonCompression?: (
             documentIds: readonly string[],
             catalog: readonly WikiCatalogDocument[],
-            onProgress?: (done: number, total: number, title: string) => void
+            onProgress?: (done: number, total: number, title: string) => void,
+            stop?: AbortSignal
         ) => Promise<CanonCompressionPreview[]>
         onApplyCanonCompression?: (
             previews: readonly CanonCompressionPreview[]
@@ -375,6 +376,7 @@
     let compressPreviews = $state<CanonCompressionPreview[]>([])
     let compressChecked = $state<Record<string, boolean>>({})
     let compressMessage = $state('')
+    let compressStop: AbortController | null = null
     let compressibleCharacters = $derived(markdownDocuments.filter((document) =>
         document.type === 'character' && canCompressCanonDocument(document)))
     let compressTargets = $derived(compressScope === 'selected' && compressDocumentId
@@ -396,16 +398,20 @@
         compressPhase = 'running'
         compressMessage = ''
         compressProgress = `0 / ${compressTargets.length}`
+        compressStop = new AbortController()
+        const stop = compressStop
         try {
             const previews = await onPreviewCanonCompression(compressTargets, markdownDocuments, (done, total, title) => {
                 compressProgress = title ? `${done + 1} / ${total} · ${title}` : `${total} / ${total}`
-            })
+            }, stop.signal)
             compressPreviews = previews
             compressChecked = Object.fromEntries(previews.map((preview) => [preview.documentId, preview.outcome === 'ready']))
             compressPhase = 'preview'
         }
         catch (cause) {
-            compressMessage = cause instanceof Error ? cause.message : String(cause)
+            compressMessage = stop.signal.aborted
+                ? '중지했습니다. 문서는 바뀌지 않았습니다.'
+                : cause instanceof Error ? cause.message : String(cause)
             compressPhase = 'choose'
         }
     }
@@ -1573,6 +1579,8 @@
     <ShDialog
         open={true}
         onOpenChange={(value) => { if (!value && compressPhase !== 'running' && compressPhase !== 'applying') compressOpen = false }}
+        closable={compressPhase !== 'running' && compressPhase !== 'applying'}
+        closeOnOutsideClick={compressPhase !== 'running' && compressPhase !== 'applying'}
         size="default"
         tier="top"
     >
@@ -1593,6 +1601,11 @@
                     <LoaderCircleIcon class="animate-spin" size={24} />
                     <span>{compressPhase === 'running' ? `압축안을 만드는 중... ${compressProgress}` : '적용하는 중...'}</span>
                 </div>
+                {#if compressPhase === 'running'}
+                    <div class="compress-actions">
+                        <ShButton size="sm" variant="ghost" data-wiki-compress-stop onclick={() => compressStop?.abort()}>중지</ShButton>
+                    </div>
+                {/if}
             {:else if compressPhase === 'preview'}
                 <ul class="compress-list">
                     {#each compressPreviews as preview (preview.documentId)}
@@ -1624,6 +1637,8 @@
     <ShDialog
         open={true}
         onOpenChange={(value) => { if (!value && storyTimePhase !== 'running' && storyTimePhase !== 'preparing') storyTimeOpen = false }}
+        closable={storyTimePhase !== 'running' && storyTimePhase !== 'preparing'}
+        closeOnOutsideClick={storyTimePhase !== 'running' && storyTimePhase !== 'preparing'}
         size="default"
         tier="top"
     >
