@@ -30,7 +30,7 @@ vi.mock('../util', () => ({ BufferToText: vi.fn(), selectSingleFile: vi.fn() }))
 vi.mock('../alert', () => ({ notifyError: vi.fn() }))
 vi.mock('../stores.svelte', async () => {
     const { writable } = await import('svelte/store')
-    return { CustomCSSStore: writable(''), SafeModeStore: writable(false) }
+    return { CustomCSSStore: writable(''), SafeModeStore: writable(false), selectedCharID: writable(-1) }
 })
 vi.mock('../lite', async () => {
     const { writable } = await import('svelte/store')

@@ -41,8 +41,9 @@ describe('RisuBard analysis settings', () => {
             const event = buildRisuBardEventWritingPolicy('concise', '', locale)
             const canon = buildRisuBardCanonicalWritingPolicy('concise', '', locale)
             expect(event).toContain(`(${locale})`)
-            expect(canon).toContain('dynamic lorebook')
-            expect(canon).toContain('recommended')
+            // Card contents come from the wiki preset's continuity contract, not this policy.
+            expect(canon).not.toContain('dynamic lorebook')
+            expect(canon).not.toContain('recommended')
             expect(canon).not.toContain('3-6')
             expect(canon).toContain('entire body')
             expect(canon).toContain('existing document titles')
@@ -186,13 +187,11 @@ describe('RisuBard analysis settings', () => {
     test('keeps character canon compact while preserving detailed event evidence', () => {
         const policy = buildRisuBardCanonicalWritingPolicy('concise', '')
 
-        expect(policy).toContain('dynamic lorebook')
-        expect(policy).toContain('major irreversible or causally useful transitions')
-        expect(policy).toContain('not a turn-by-turn action log')
-        expect(policy).toContain('event documents')
+        // The old snapshot and history headings contradicted the preset's section roles.
+        expect(policy).not.toContain('### 현재 상태')
+        expect(policy).not.toContain('### 작중 행적')
+        expect(policy).toContain('supplied event document')
         expect(policy).toContain('do not present both states as current')
-        expect(policy).toContain('### 현재 상태')
-        expect(policy).toContain('### 작중 행적')
         expect(policy).not.toContain('3-6')
         expect(policy).toContain('[[event document titles]]')
         expect(policy).toContain('copy its complete title character-for-character')
@@ -206,7 +205,6 @@ describe('RisuBard analysis settings', () => {
         expect(policy).toContain('species, creatures, and monster kinds')
         expect(policy).toContain('named sublocation')
         expect(policy).toContain('investigation thread')
-        expect(policy).toContain('do not copy event sentences or paragraphs')
         expect(policy).toContain('Do not create empty sections')
     })
 

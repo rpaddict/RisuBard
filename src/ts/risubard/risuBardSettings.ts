@@ -2,7 +2,6 @@ import {
     buildWikiCharacterSectionHeadingGuide,
     buildWikiWritingLanguageGuard,
     normalizeWikiWritingLanguage,
-    wikiWritingHeadings,
     type WikiWritingLanguage,
 } from './wikiWritingLanguage'
 
@@ -383,22 +382,18 @@ export function buildRisuBardCanonicalWritingPolicy(
     playerName?: unknown,
 ): string {
     const normalizedLanguage = normalizeWikiWritingLanguage(language)
-    const headings = wikiWritingHeadings[normalizedLanguage]
     return [
         buildRisuBardEventWritingPolicy(style, customStyle, language, playerName),
-        'Treat each character document as a dynamic lorebook entry: keep durable identity, role, traits, capabilities and rules, relationships, knowledge boundaries, goals, possessions, constraints, and open continuity that help the character operate in the next scene.',
-        `A compact self-contained \`### ${headings.currentState}\` snapshot near the top is recommended when useful, but no exact heading is required and its absence is valid.`,
-        `An optional \`### ${headings.history}\` or turning-point map should contain major irreversible or causally useful transitions, not a turn-by-turn action log.`,
+        // Card contents, section roles and what to keep are the wiki preset's continuity contract; repeating them
+        // here cost tokens and, for the old current-state and history headings, contradicted it.
         'Link exact [[event document titles]] from turning points. For every event link, copy its complete title character-for-character from confirmedEvent, storyArcEvents, or another supplied event document; never paraphrase, shorten, translate, inflect, reconstruct, or invent the target text inside [[...]].',
-        'If surrounding prose needs different wording, preserve the exact target with [[exact title|display text]]. Retrieve exact chronology, actions, targets, locations, and evidence from event documents rather than copying those details into character canon.',
+        'If surrounding prose needs different wording, preserve the exact target with [[exact title|display text]].',
         'Do not update a character document merely because the character participated in an event. Update it only for a durable lorebook fact or a major transition.',
-        'Events own exact historical observations and actions. Other canon owns durable current state and rules; do not copy event sentences or paragraphs into it.',
         'Register recurring species, creatures, and monster kinds as creature canon. Split a variant only for durable distinct rules, not an individual encounter or cosmetic difference.',
         'Give a named sublocation its own location canon when it has independent persistent state, structure, people, secrets, or repeated scene use; keep only a short link summary in its parent.',
         'Do not create canon for every clue. Keep one compact investigation thread in other canon only when clues cross events or remain unresolved and affect future decisions.',
-        'When new facts replace old ones, do not present both states as current. Preserve unrelated established facts.',
-        'Preserve distinct still-valid operating facts, relationship direction, individual knowledge and lasting consequences when compressing. The selected wiki preset governs how confirmed completed or expired state is retired. Preserve unrelated durable state and unresolved obligations; silence alone never establishes completion or forgetting.',
+        'When new facts replace old ones, do not present both states as current.',
         buildWikiCharacterSectionHeadingGuide(normalizedLanguage),
-        'The selected wiki preset defines section organization and compression pressure. Keep durable facts distinct from transient observations without requiring separate sections. Do not create empty sections or templates, and do not infer shared knowledge, ownership, or relationship meaning from structured state values alone.',
+        'The selected wiki preset defines section organization and compression pressure. Do not create empty sections or templates, and do not infer shared knowledge, ownership, or relationship meaning from structured state values alone.',
     ].join('\n')
 }

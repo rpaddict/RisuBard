@@ -8,6 +8,7 @@ import previousFictionOfficial from './fixtures/wikiPromptPreset-261021-v7.json'
 import previousRecallGuardOfficial from './fixtures/wikiPromptPreset-261027-v8.json'
 import previousCardOfficial from './fixtures/wikiPromptPreset-261028-v9.json'
 import previousOrderOfficial from './fixtures/wikiPromptPreset-261029-v10.json'
+import previousRemarkOfficial from './fixtures/wikiPromptPreset-261103-v11.json'
 import type { WikiPromptPreset } from './wikiPromptPreset'
 import {
     compileWikiPromptGuide,
@@ -24,6 +25,7 @@ import {
     OFFICIAL_WIKI_V8_BACKUP_ID,
     OFFICIAL_WIKI_V9_BACKUP_ID,
     OFFICIAL_WIKI_V10_BACKUP_ID,
+    OFFICIAL_WIKI_V11_BACKUP_ID,
     organizeOfficialWikiArchives,
     parseWikiPromptPreset,
     resolveWikiPromptPreset,
@@ -43,7 +45,7 @@ describe('Wiki prompt presets', () => {
             'core-historical-analysis-contract',
             'default-fiction-overview',
             'main-wiki-guide',
-            'default-puzzle-clue-tracker',
+            // The puzzle tracker left in 2026-11-14: the canonical writing policy keeps puzzle observations.
             'default-puzzle-response-reasoning',
             'default-character-equipment',
             'default-length-compression',
@@ -51,6 +53,8 @@ describe('Wiki prompt presets', () => {
             'default-recall-detail',
             'default-dialogue-recall',
             'default-recall-response',
+            'default-final-checklist',
+            'default-final-stopper',
             'character-wiki-guide',
             'chat-wiki-guide',
             'core-output-contract',
@@ -58,9 +62,6 @@ describe('Wiki prompt presets', () => {
         expect(preset.blocks.every((block) => block.readonly)).toBe(true)
         expect(preset.blocks.filter((block) => block.type !== 'text')
             .every((block) => Boolean(block.content?.trim()))).toBe(true)
-        expect(preset.blocks.find((block) =>
-            block.id === 'default-puzzle-clue-tracker'
-        )).toMatchObject({ target: 'both', readonly: true, enabled: true })
         expect(preset.blocks.find((block) =>
             block.id === 'default-puzzle-response-reasoning'
         )).toMatchObject({ target: 'response', readonly: true, enabled: true })
@@ -161,6 +162,63 @@ describe('Wiki prompt presets', () => {
         expect(result.response).toContain('relationship')
         expect(result.response).not.toContain('Track STR and DEX.')
         expect(result.analysis).not.toContain('reason about the relationship')
+    })
+
+    test('compiles user and character blocks as ordered messages outside the system guide', () => {
+        const preset = createDefaultWikiPromptPreset('preset-1')
+        preset.builtin = false
+        preset.blocks = preset.blocks.filter((entry) => !entry.id.startsWith('default-final-'))
+        const block = (id: string, role: unknown, content: string, target = 'both') => ({
+            id, type: 'text', name: id, target, enabled: true, readonly: false, role, content,
+        })
+        preset.blocks.push(
+            block('checklist', 'bot', 'Scene check done.') as never,
+            block('analysis-prefill', 'user', 'Prefill for analysis.', 'analysis') as never,
+            block('stopper', 'user', 'OOC stop.') as never,
+            block('system-note', 'system', 'Plain system note.') as never,
+            block('response-user', 'user', 'Response stays text.', 'response') as never,
+            block('unknown-role', 'narrator', 'Unknown role note.') as never,
+        )
+        const restored = parseWikiPromptPreset(serializeWikiPromptPreset(preset), () => 'copy')
+        const result = compileWikiPromptGuide(restored)
+
+        expect(restored.blocks.find((entry) => entry.id === 'checklist')?.role).toBe('bot')
+        expect(restored.blocks.find((entry) => entry.id === 'system-note')).not.toHaveProperty('role')
+        expect(restored.blocks.find((entry) => entry.id === 'unknown-role')).not.toHaveProperty('role')
+        expect(result.analysisMessages).toEqual([
+            { role: 'assistant', content: 'Scene check done.' },
+            { role: 'user', content: 'Prefill for analysis.' },
+            { role: 'user', content: 'OOC stop.' },
+        ])
+        expect(result.canonicalRewriteMessages).toEqual([
+            { role: 'assistant', content: 'Scene check done.' },
+            { role: 'user', content: 'OOC stop.' },
+        ])
+        for (const text of [result.analysis, result.canonicalRewrite]) {
+            expect(text).not.toContain('Scene check done.')
+            expect(text).not.toContain('OOC stop.')
+            expect(text).toContain('Plain system note.')
+            expect(text).toContain('Unknown role note.')
+        }
+        expect(result.response).toContain('Response stays text.')
+    })
+
+    test('lets an editable core block of a copy become a user message, but not in the official preset', () => {
+        const official = createDefaultWikiPromptPreset('preset-1')
+        const copy = duplicateWikiPromptPreset(official, 'copy-1')
+        const contract = copy.blocks.find((entry) => entry.id === 'core-output-contract')!
+        contract.role = 'user'
+        const reloaded = parseWikiPromptPreset(serializeWikiPromptPreset(copy), () => 'copy-2')
+        const guide = compileWikiPromptGuide(reloaded)
+
+        expect(reloaded.blocks.find((entry) => entry.id === 'core-output-contract')?.role).toBe('user')
+        expect(guide.analysisMessages.at(-1)).toEqual({ role: 'user', content: contract.content })
+        expect(guide.analysis).not.toContain('Return only the structured fields')
+
+        const forcedOfficial = { ...official, blocks: official.blocks.map((entry) => entry.id === 'core-output-contract'
+            ? { ...entry, role: 'user' as const } : entry) }
+        expect(compileWikiPromptGuide(forcedOfficial).analysisMessages.map((message) => message.content))
+            .not.toContain(contract.content)
     })
 
     test('uses a dedicated analysis contract for historical turn reanalysis', () => {
@@ -264,30 +322,44 @@ describe('Wiki prompt presets', () => {
     })
 })
 
-const CURRENT_NAME = '공식 기본 프리셋 (2026-11-03)'
+const CURRENT_NAME = '공식 기본 프리셋 (2026-11-14)'
 const officialOf = (presets: readonly WikiPromptPreset[]) => presets.filter(preset => preset.builtin)
 
 describe('official preset release and archives', () => {
-    test('the 2026-11-03 release marks unheard remarks and thoughts on top of the 10-29 text', () => {
+    test('the 2026-11-14 release ends each wiki request with a character self-check and a user cue', () => {
         const current = compileWikiPromptGuide(createDefaultWikiPromptPreset(OFFICIAL_WIKI_CURRENT_ID))
-        const previous = compileWikiPromptGuide(previousOrderOfficial.preset as WikiPromptPreset)
-        for (const stage of [current.analysis, current.canonicalRewrite]) {
-            expect(stage).toContain('A muttered X alone in the car, and no one heard it.')
-            expect(stage).toContain('known only to that character')
+        const previous = compileWikiPromptGuide(previousRemarkOfficial.preset as WikiPromptPreset)
+        expect(current.response).toBe(previous.response)
+        expect(previous.analysisMessages).toEqual([])
+        for (const messages of [current.analysisMessages, current.canonicalRewriteMessages]) {
+            expect(messages.map(message => message.role)).toEqual(['assistant', 'user'])
+            expect(messages[0].content).toContain('I do not output this check')
+            expect(messages[0].content).toContain('a tiara stays a tiara')
+            expect(messages[0].content).toContain('no source-work canon')
+            expect(messages[0].content).toContain('Card, not log')
         }
-        expect(current.response).toContain('recorded as unheard or done alone stays unknown to every other character')
-        expect(current.response).toContain('use the order numbers on retrieved original excerpts')
-        expect(previous.analysis).not.toContain('no one heard it')
-        expect(current.analysis.length).toBeGreaterThan(previous.analysis.length)
+        // The same release drops instructions the rest of the request already gives.
+        for (const [now, before] of [[current.analysis, previous.analysis], [current.canonicalRewrite, previous.canonicalRewrite]]) {
+            expect(before).toContain('Collaboration & Craft')
+            expect(now).not.toContain('Collaboration & Craft')
+            expect(now).toContain('consenting adults')
+            expect(before).toContain('The document is over its length goal')
+            expect(now).toContain('When a document is over its length goal')
+            expect(before).toContain('Puzzle & clue tracker')
+            expect(now).not.toContain('Puzzle & clue tracker')
+            expect(now).not.toContain('The event draft fields are')
+            expect(now.length).toBeLessThan(before.length)
+        }
+        expect(current.analysis).not.toContain('Preserve exact puzzle observations')
     })
 
     test('ships one locked official preset and three unlocked dated archives', () => {
         const state = normalizeWikiPromptPresetState(undefined, () => 'unused')
         expect(state.presets.map(preset => [preset.name, preset.builtin, preset.writingPolicyVersion])).toEqual([
-            [CURRENT_NAME, true, 11],
+            [CURRENT_NAME, true, 12],
+            ['공식 기본 프리셋 (2026-11-03)', false, 11],
             ['공식 기본 프리셋 (2026-10-29)', false, 10],
             ['공식 기본 프리셋 (2026-10-28)', false, 9],
-            ['공식 기본 프리셋 (2026-10-27)', false, 8],
         ])
         expect(state.chatPresetId).toBe(OFFICIAL_WIKI_CURRENT_ID)
         expect(state.officialRelease).toBe(OFFICIAL_WIKI_RELEASE)
@@ -298,28 +370,31 @@ describe('official preset release and archives', () => {
         const state = normalizeWikiPromptPresetState(undefined, () => 'unused')
         const v7 = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V7_BACKUP_ID)
         const v6 = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V6_BACKUP_ID)
-        const v8 = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V8_BACKUP_ID)!
+        const v8 = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V8_BACKUP_ID)
         const v9 = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V9_BACKUP_ID)!
         const v10 = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V10_BACKUP_ID)!
+        const v11 = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V11_BACKUP_ID)!
+        expect(compileWikiPromptGuide(v11)).toEqual(compileWikiPromptGuide(previousRemarkOfficial.preset as WikiPromptPreset))
         expect(compileWikiPromptGuide(v10)).toEqual(compileWikiPromptGuide(previousOrderOfficial.preset as WikiPromptPreset))
         expect(compileWikiPromptGuide(v9)).toEqual(compileWikiPromptGuide(previousCardOfficial.preset as WikiPromptPreset))
-        expect(compileWikiPromptGuide(v8)).toEqual(compileWikiPromptGuide(previousRecallGuardOfficial.preset as WikiPromptPreset))
+        expect(previousRecallGuardOfficial.preset.writingPolicyVersion).toBe(8)
+        expect(v8).toBeUndefined()
         expect(v7).toBeUndefined()
         expect(v6).toBeUndefined()
         expect(previousOctoberOfficial.preset.writingPolicyVersion).toBe(6)
         expect(state.presets.some(preset => preset.id === OFFICIAL_WIKI_V3_BACKUP_ID)).toBe(false)
-        expect(deleteWikiPromptPreset(state.presets, v8.id).deleted).toBe(true)
+        expect(deleteWikiPromptPreset(state.presets, v9.id).deleted).toBe(true)
         expect(deleteWikiPromptPreset(state.presets, OFFICIAL_WIKI_CURRENT_ID).deleted).toBe(false)
     })
 
     test('keeps a deleted archive deleted and an edited archive unchanged on reload', () => {
         const state = normalizeWikiPromptPresetState(undefined, () => 'unused')
-        const edited = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V9_BACKUP_ID)!
+        const edited = state.presets.find(preset => preset.id === OFFICIAL_WIKI_V10_BACKUP_ID)!
         edited.blocks.find(block => block.id === 'main-wiki-guide')!.content = 'My archive edit.'
-        const remaining = state.presets.filter(preset => preset.id !== OFFICIAL_WIKI_V8_BACKUP_ID)
+        const remaining = state.presets.filter(preset => preset.id !== OFFICIAL_WIKI_V9_BACKUP_ID)
         const reloaded = normalizeWikiPromptPresetState({ ...state, presets: remaining, chatPresetId: edited.id }, () => 'unused')
         expect(reloaded.presets.map(preset => preset.id))
-            .toEqual([OFFICIAL_WIKI_CURRENT_ID, OFFICIAL_WIKI_V10_BACKUP_ID, OFFICIAL_WIKI_V9_BACKUP_ID])
+            .toEqual([OFFICIAL_WIKI_CURRENT_ID, OFFICIAL_WIKI_V11_BACKUP_ID, OFFICIAL_WIKI_V10_BACKUP_ID])
         expect(reloaded.chatPresetId).toBe(edited.id)
         expect(compileWikiPromptGuide(reloaded.presets[2]).analysis).toContain('My archive edit.')
     })
@@ -340,7 +415,7 @@ describe('official preset release and archives', () => {
         ]
         const state = normalizeWikiPromptPresetState({ presets, chatPresetId: 'official-wiki-261003' }, () => 'unused')
         expect(state.presets.map(preset => preset.name)).toEqual([
-            CURRENT_NAME, '공식기본-261003-v5 Copy', '공식 기본 프리셋 (2026-10-29)', '공식 기본 프리셋 (2026-10-28)', '공식 기본 프리셋 (2026-10-27)',
+            CURRENT_NAME, '공식기본-261003-v5 Copy', '공식 기본 프리셋 (2026-11-03)', '공식 기본 프리셋 (2026-10-29)', '공식 기본 프리셋 (2026-10-28)',
         ])
         expect(officialOf(state.presets).map(preset => preset.id)).toEqual([OFFICIAL_WIKI_CURRENT_ID])
         expect(state.presets.find(preset => preset.id === OFFICIAL_WIKI_V3_BACKUP_ID)).toBeUndefined()
@@ -366,14 +441,14 @@ describe('official preset release and archives', () => {
         const organized = organizeOfficialWikiArchives(undefined, state.presets, true)
         expect(organized.folders).toEqual([{ id: OFFICIAL_WIKI_ARCHIVE_FOLDER_ID, name: '과거 공식 프리셋', createdAt: 0 }])
         expect(organized.folderByItemId).toEqual({
+            [OFFICIAL_WIKI_V11_BACKUP_ID]: OFFICIAL_WIKI_ARCHIVE_FOLDER_ID,
             [OFFICIAL_WIKI_V10_BACKUP_ID]: OFFICIAL_WIKI_ARCHIVE_FOLDER_ID,
             [OFFICIAL_WIKI_V9_BACKUP_ID]: OFFICIAL_WIKI_ARCHIVE_FOLDER_ID,
-            [OFFICIAL_WIKI_V8_BACKUP_ID]: OFFICIAL_WIKI_ARCHIVE_FOLDER_ID,
         })
-        expect(organized.itemOrder).toEqual([OFFICIAL_WIKI_CURRENT_ID, 'mine', OFFICIAL_WIKI_V10_BACKUP_ID, OFFICIAL_WIKI_V9_BACKUP_ID, OFFICIAL_WIKI_V8_BACKUP_ID])
-        const legacyOrder = { itemOrder: [OFFICIAL_WIKI_V8_BACKUP_ID, 'mine', OFFICIAL_WIKI_CURRENT_ID] }
+        expect(organized.itemOrder).toEqual([OFFICIAL_WIKI_CURRENT_ID, 'mine', OFFICIAL_WIKI_V11_BACKUP_ID, OFFICIAL_WIKI_V10_BACKUP_ID, OFFICIAL_WIKI_V9_BACKUP_ID])
+        const legacyOrder = { itemOrder: [OFFICIAL_WIKI_V9_BACKUP_ID, 'mine', OFFICIAL_WIKI_CURRENT_ID] }
         expect(organizeOfficialWikiArchives(legacyOrder, state.presets, true).itemOrder)
-            .toEqual([OFFICIAL_WIKI_CURRENT_ID, 'mine', OFFICIAL_WIKI_V10_BACKUP_ID, OFFICIAL_WIKI_V9_BACKUP_ID, OFFICIAL_WIKI_V8_BACKUP_ID])
+            .toEqual([OFFICIAL_WIKI_CURRENT_ID, 'mine', OFFICIAL_WIKI_V11_BACKUP_ID, OFFICIAL_WIKI_V10_BACKUP_ID, OFFICIAL_WIKI_V9_BACKUP_ID])
         const folderDeletedByUser = { ...organized, folders: [], folderByItemId: {} }
         expect(organizeOfficialWikiArchives(folderDeletedByUser, state.presets, false).folders).toEqual([])
     })
@@ -401,7 +476,7 @@ describe('in-place official preset upgrades', () => {
             old.blocks.find(block => block.id === 'default-length-compression')!.enabled = true
             const state = normalizeWikiPromptPresetState({ presets: [old], chatPresetId: old.id }, () => 'unused')
             const selected = resolveWikiPromptPreset(state.presets, state.chatPresetId)!
-            expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, builtin: true, writingPolicyVersion: 11 })
+            expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, builtin: true, writingPolicyVersion: 12 })
             expect(selected.blocks.find(block => block.id === 'default-character-equipment')?.enabled).toBe(false)
             expect(selected.blocks.find(block => block.id === 'default-length-compression')?.enabled).toBe(true)
         })
@@ -413,7 +488,7 @@ describe('in-place official preset upgrades', () => {
         old.blocks.find(block => block.id === 'default-character-equipment')!.enabled = false
         const state = normalizeWikiPromptPresetState({ presets: [old], chatPresetId: old.id }, () => 'unused')
         const selected = resolveWikiPromptPreset(state.presets, state.chatPresetId)!
-        expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, writingPolicyVersion: 11 })
+        expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, writingPolicyVersion: 12 })
         expect(selected.blocks.find(block => block.id === 'default-character-equipment')?.enabled).toBe(false)
         expect(selected.blocks.find(block => block.id === 'default-length-compression')?.enabled).toBe(true)
     })
@@ -424,7 +499,7 @@ describe('in-place official preset upgrades', () => {
         old.blocks.find(block => block.id === 'default-length-compression')!.enabled = false
         const state = normalizeWikiPromptPresetState({ presets: [old], chatPresetId: old.id }, () => 'unused')
         const selected = resolveWikiPromptPreset(state.presets, state.chatPresetId)!
-        expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, writingPolicyVersion: 11 })
+        expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, writingPolicyVersion: 12 })
         expect(selected.blocks.find(block => block.id === 'default-length-compression')?.enabled).toBe(false)
         const continuity = selected.blocks.find(block => block.id === 'core-character-continuity-contract')!.content
         expect(continuity).toContain('A character document is a current card, not a log.')
@@ -441,7 +516,7 @@ describe('in-place official preset upgrades', () => {
         const before = old.blocks.find(block => block.id === 'default-recall-response')!.content!
         const state = normalizeWikiPromptPresetState({ presets: [old], chatPresetId: old.id, officialRelease: '2026-10-21' }, () => 'unused')
         const selected = resolveWikiPromptPreset(state.presets, state.chatPresetId)!
-        expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, builtin: true, writingPolicyVersion: 11 })
+        expect(selected).toMatchObject({ id: old.id, name: CURRENT_NAME, builtin: true, writingPolicyVersion: 12 })
         const response = compileWikiPromptGuide(selected).response
         expect(before).toContain('Missing context remains uncertain.')
         expect(response).toContain('Do not invent past facts that no supplied source supports')
@@ -486,7 +561,7 @@ describe('official instruction content', () => {
     test('routes recall instructions to their intended stages after export and import', () => {
         const preset = createDefaultWikiPromptPreset('latest')
         const imported = parseWikiPromptPreset(serializeWikiPromptPreset(preset), () => 'imported')
-        expect(imported.writingPolicyVersion).toBe(11)
+        expect(imported.writingPolicyVersion).toBe(12)
         for (const candidate of [preset, imported]) {
             const guide = compileWikiPromptGuide(candidate)
             const historical = compileWikiPromptGuide(candidate, { analysisMode: 'historical' })

@@ -107,10 +107,11 @@ describe('combined semantic and canonical writing', () => {
         expect(result.patches.has(result.draft.canonicalUpdateCandidates[1])).toBe(false)
     })
 
-    test('instructs section rewrites to retain durable character state outside the current scene', () => {
-        expect(combinedMemoryInstruction).toContain('relationships, trust, mental state, knowledge boundaries')
-        expect(combinedMemoryInstruction).toContain('meaningful possessions, equipment, appearance, and constraints')
-        expect(combinedMemoryInstruction).toContain('Do not create empty sections')
+    test('leaves what a character card keeps to the wiki preset sent in the same request', () => {
+        // The preset's continuity contract keeps promises, secrets, injuries and possessions; repeating
+        // it here cost tokens on every request.
+        expect(combinedMemoryInstruction).not.toContain('relationships, trust, mental state, knowledge boundaries')
+        expect(combinedMemoryInstruction).toContain('Omitted sections are preserved by the program')
     })
 
     test('injects shared analysis and rewrite guidance once into the combined memory request', async () => {

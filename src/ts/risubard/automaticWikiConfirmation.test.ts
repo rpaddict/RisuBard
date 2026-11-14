@@ -78,6 +78,11 @@ describe('automatic BardWiki confirmation', () => {
             expect(restart, name).toBeGreaterThan(0)
             expect(restart, name).toBeLessThan(source.search(/processNarrativeBacklog\(|confirmProjectedNarrativeTurn\(/))
         }
+        // Additional analysis runs turns already queued before the latest one first, in order.
+        const force = body('forceCurrentNarrativeWikiUpdate')
+        expect(force).toMatch(/gapChoice === 'catch-up' \|\| queuedBefore\.length > 0/)
+        expect(force.indexOf('drainNarrativeBacklog(')).toBeLessThan(force.indexOf('additionalAnalysis: true'))
+        expect(processSource).toContain('narrativeTurnsPerCall(settings.risuBardAnalysisTurnInterval)')
         // Queued analyses of that chat are dropped too, so they cannot hang on the same provider again.
         expect(processSource).toMatch(/wikiChatCancellationEpoch\(chatKey\) === chatEpoch/)
     })

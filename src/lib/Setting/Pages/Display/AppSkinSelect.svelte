@@ -1,13 +1,15 @@
 <script lang="ts">
     import { language } from 'src/lang';
-    import { DBState } from 'src/ts/stores.svelte';
+    import { DBState, selectedCharID } from 'src/ts/stores.svelte';
     import { CheckIcon, ClipboardPasteIcon, DownloadIcon, ExternalLinkIcon, FileUpIcon, Trash2Icon, TriangleAlertIcon } from '@lucide/svelte';
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte';
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte';
     import { type AppSkin, type AppSkinFont } from 'src/ts/gui/appSkin';
     import { appSkinSwatch, defaultAppSkinSwatch, type AppSkinSwatch } from 'src/ts/gui/appSkinSwatch';
     import { detectInstalledFont } from 'src/ts/gui/appSkinFonts';
+    import AppSkinPreview from './AppSkinPreview.svelte';
     import {
+        characterAppSkinId,
         exportAppSkin,
         importAppSkinFile,
         installAppSkinFromText,
@@ -26,6 +28,9 @@
     const activeId = $derived(DBState.db.appSkinId ?? '');
     const suppressed = isAppSkinSuppressed();
     const activeSkin = $derived(skins.find((skin) => skin.id === activeId));
+    // A skin linked to the open bot hides the app-wide choice while that bot is open.
+    const botSkinId = $derived(characterAppSkinId(DBState.db, $selectedCharID));
+    const botSkinName = $derived(botSkinId === null ? '' : botSkinId === '' ? copy.defaultSkin : (skins.find((skin) => skin.id === botSkinId)?.name ?? botSkinId));
     // The default card shows the user's own color scheme, not whatever skin is active.
     const defaultSwatch = $derived(defaultAppSkinSwatch(DBState.db.colorScheme));
 
@@ -54,27 +59,7 @@
 </script>
 
 {#snippet preview(s: AppSkinSwatch | null)}
-    <span
-        class="block h-16 overflow-hidden rounded-md border"
-        style:background-color={s?.ground ?? 'var(--color-bgcolor)'}
-        style:border-color={s?.border ?? 'var(--color-darkborderc)'}
-        aria-hidden="true"
-    >
-        <span
-            class="m-2 flex h-12 items-center gap-2 border px-2"
-            style:background-color={s?.surface ?? 'var(--color-darkbg)'}
-            style:border-color={s?.border ?? 'var(--color-darkborderc)'}
-            style:border-radius={s?.radius ?? 'var(--risu-radius-md)'}
-        >
-            <span class="min-w-0 flex-1 text-left text-xs font-semibold" style:color={s?.text ?? 'var(--color-textcolor)'} style:font-family={s?.font ?? 'inherit'}>Aa 가</span>
-            <span
-                class="inline-flex h-6 shrink-0 items-center px-2 text-[10px] font-bold"
-                style:background-color={s?.accent ?? 'var(--color-primary)'}
-                style:color={s?.accentText ?? 'var(--color-accenttext)'}
-                style:border-radius={s?.radius ?? 'var(--risu-radius-md)'}
-            >OK</span>
-        </span>
-    </span>
+    <AppSkinPreview swatch={s} />
 {/snippet}
 
 <section class="border-t border-darkborderc py-3" aria-labelledby="app-skin-label" data-app-skin-settings>
@@ -83,6 +68,8 @@
         <p class="mt-0.5 text-xs text-textcolor2">{copy.help}</p>
         {#if suppressed}
             <p class="mt-2 rounded-md border border-warning-border bg-warning-bg px-2 py-1.5 text-xs text-warning" role="status">{copy.safeModeActive}</p>
+        {:else if botSkinId !== null && botSkinId !== activeId}
+            <p class="mt-2 rounded-md border border-info/40 bg-info/10 px-2 py-1.5 text-xs text-info" role="status" data-app-skin-bot-override>{copy.botOverride.replace('{}', botSkinName)}</p>
         {/if}
     </div>
 

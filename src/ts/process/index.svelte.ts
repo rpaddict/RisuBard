@@ -13,7 +13,6 @@ import { language } from "../../lang";
 import { alertConfirmMulti, alertError, notifyError } from "../alert";
 import { parseChatML } from "../parser/chatML";
 import { loadLoreBookV3Prompt } from "./lorebook.svelte";
-import { isStableAlwaysActiveLore, resolveStableLoreIndex } from "./lorebookStablePrefix";
 import { findCharacterbyId, getPersonaPrompt, getUserName, isLastCharPunctuation, trimUntilPunctuation, parseToggleSyntax, prebuiltAssetCommand, sleep } from "../util";
 import { requestChatData } from "./request/request";
 import { getPartialPresetStreamText } from './request/presetStreamPump';
@@ -49,7 +48,7 @@ import {
     type MemoryAnalysisMessage,
 } from "../risubard/memoryAnalysisClient";
 import { enqueueNarrativeConfirmation, narrativeConfirmationsSettled } from '../risubard/narrativeConfirmationQueue';
-import { groupNarrativeBacklog, NARRATIVE_BACKLOG_TURNS_PER_RUN, narrativeAnalysisDue, withoutRepeatedMessages } from '../risubard/narrativeBacklogBatch';
+import { groupNarrativeBacklog, NARRATIVE_BACKLOG_TURNS_PER_RUN, narrativeAnalysisDue, narrativeTurnsPerCall, withoutRepeatedMessages } from '../risubard/narrativeBacklogBatch';
 import { summarizeWikiAnalysisGap, wikiBacklogMessages } from '../risubard/wikiBacklog';
 import { projectActiveNarrativeSources } from "../risubard/sourceProjection";
 import {
@@ -434,10 +433,7 @@ async function runNarrativeConfirmation(
             wikiWritingLanguage: settings.risuBardWikiWritingLanguage,
             arcPlotterSettings: resolvedArcPlotterSettings(),
             ...(compiledWikiPromptGuide ? {
-                wikiPromptGuide: {
-                    analysis: compiledWikiPromptGuide.analysis,
-                    canonicalRewrite: compiledWikiPromptGuide.canonicalRewrite,
-                },
+                wikiPromptGuide: wikiPromptGuideInput(compiledWikiPromptGuide),
             } : {}),
             ...(loreReference ? { loreReference } : {}),
             ...(input.additionalAnalysis ? { additionalAnalysis: true } : {}),
@@ -694,8 +690,9 @@ async function runNarrativeBacklog(input: {
         limit: NARRATIVE_BACKLOG_TURNS_PER_RUN,
         ignoreOocTurns: true,
     })
-    const analysisTokenLimit = resolvedRisuBardSettings(chat, true).risuBardAnalysisTokenLimit
-    const batches = groupNarrativeBacklog(turns, analysisTokenLimit)
+    const settings = resolvedRisuBardSettings(chat, true)
+    const batches = groupNarrativeBacklog(turns, settings.risuBardAnalysisTokenLimit,
+        narrativeTurnsPerCall(settings.risuBardAnalysisTurnInterval))
     const epoch = wikiCancellationEpoch()
     for (let batch = batches.shift(); batch; batch = batches.shift()) {
         const last = batch.at(-1)!
@@ -801,10 +798,26 @@ function renderWikiPromptGuide(
         chat,
         globalChatVariables,
     })
+    const renderMessages = (messages: CompiledWikiPromptGuide['analysisMessages']) => messages
+        .map((message) => ({ role: message.role, content: render(message.content).trim() }))
+        .filter((message) => message.content)
     return {
         analysis: render(guide.analysis),
         canonicalRewrite: render(guide.canonicalRewrite),
         response: render(guide.response),
+        analysisMessages: renderMessages(guide.analysisMessages),
+        canonicalRewriteMessages: renderMessages(guide.canonicalRewriteMessages),
+    }
+}
+
+/** The analysis request copy of a compiled guide; role blocks are added only when present. */
+function wikiPromptGuideInput(guide: CompiledWikiPromptGuide) {
+    return {
+        analysis: guide.analysis,
+        canonicalRewrite: guide.canonicalRewrite,
+        ...(guide.analysisMessages.length > 0 ? { analysisMessages: guide.analysisMessages } : {}),
+        ...(guide.canonicalRewriteMessages.length > 0
+            ? { canonicalRewriteMessages: guide.canonicalRewriteMessages } : {}),
     }
 }
 
@@ -842,7 +855,11 @@ export async function forceCurrentNarrativeWikiUpdate(): Promise<boolean | null>
     if (!target?.chatId) return false
     const gapChoice = await askWikiGapCatchUp(chat, target.chatId, false)
     if (gapChoice === 'cancel') return null
-    if (gapChoice === 'catch-up') {
+    // Turns already queued before the latest one, such as a batch that was waiting for its interval or was
+    // stopped, go first and in story order; analyzing only the latest let it overtake them.
+    const queuedBefore = wikiBacklogMessages(chat.message, target.chatId, true)
+        .filter((message) => message.chatId !== target.chatId)
+    if (gapChoice === 'catch-up' || queuedBefore.length > 0) {
         const chatId = ensureNarrativeSessionChatId(chat, v4)
         if (target.risubardMemoryConfirmed !== true) target.risubardWikiPending ??= {}
         await restartChatWikiAnalysis(character.chaId, chatId)
@@ -1130,11 +1147,7 @@ async function runWikiReboot(
                     wikiWritingLanguage: job.writingLanguage ?? 'ko',
                     arcPlotterSettings: resolvedArcPlotterSettings(),
                     ...(compiledWikiPromptGuide ? {
-                        wikiPromptGuide: {
-                            analysis: compiledWikiPromptGuide.analysis,
-                            canonicalRewrite:
-                                compiledWikiPromptGuide.canonicalRewrite,
-                        },
+                        wikiPromptGuide: wikiPromptGuideInput(compiledWikiPromptGuide),
                     } : {}),
                     ...(loreReference ? { loreReference } : {}),
                     contextMessages,
@@ -1517,12 +1530,14 @@ export async function previewCurrentCanonCompression(
         DBState.db.risuBardWikiPromptPresets,
         DBState.db.risuBardChatWikiPromptPresetId
     )
-    const policy = wikiPromptPreset
+    const rewriteGuide = wikiPromptPreset
         ? renderWikiPromptGuide(compileWikiPromptGuide(wikiPromptPreset, {
             characterGuide: risuChatParser(character.risuBardWikiGuide ?? '', { chara: character }),
             chatGuide: risuChatParser(chat.risuBardWikiGuide ?? '', { chara: character }),
-        }), character, chat).canonicalRewrite
-        : ''
+        }), character, chat)
+        : undefined
+    const policy = rewriteGuide?.canonicalRewrite ?? ''
+    const trailingMessages = rewriteGuide?.canonicalRewriteMessages ?? []
     const operation = `compress:${characterId}:${chatId}`
     const generation = beginWikiGeneration(operation)
     const signal = stop && typeof AbortSignal.any === 'function' ? AbortSignal.any([generation, stop]) : generation
@@ -1536,6 +1551,7 @@ export async function previewCurrentCanonCompression(
                     formated: [
                         { role: 'system' as const, content: prompt.system },
                         { role: 'user' as const, content: prompt.input },
+                        ...trailingMessages,
                     ],
                     useStreaming: false,
                     noMultiGen: true,
@@ -2627,18 +2643,8 @@ export async function sendChat(chatProcessIndex = -1,arg:{
     })
     console.log(normalActives)
 
-    // Experimental: always-active lore goes in front of the chat history so it
-    // stays inside the cacheable prefix (see lorebookStablePrefix.ts).
-    const stableLoreIndex = requestSettings.loreAlwaysActiveBeforeChat
-        ? resolveStableLoreIndex(promptTemplate)
-        : -1
-    const stableLorePrompts: OpenAIChat[] = []
-
     for(const lorebook of normalActives){
-        const target = stableLoreIndex >= 0 && isStableAlwaysActiveLore(lorebook)
-            ? stableLorePrompts
-            : unformated.lorebook
-        target.push(setRequestStatusSource({
+        unformated.lorebook.push(setRequestStatusSource({
             role: lorebook.role,
             content: parseGenerationText(resolvePosition(lorebook.prompt), {chara: currentChar})
         }, lorebook.requestStatusKind, lorebook.source))
@@ -2796,7 +2802,6 @@ export async function sendChat(chatProcessIndex = -1,arg:{
             }
         }
 
-        let stableLoreTokenized = false
         for(const card of template){
             switch(card.type){
                 case 'persona':{
@@ -2836,10 +2841,6 @@ export async function sendChat(chatProcessIndex = -1,arg:{
                 }
                 case 'lorebook':{
                     await tokenizeChatArray(unformated.lorebook)
-                    if(!stableLoreTokenized){
-                        stableLoreTokenized = true
-                        await tokenizeChatArray(stableLorePrompts)
-                    }
                     break
                 }
                 case 'postEverything':{
@@ -3348,11 +3349,7 @@ export async function sendChat(chatProcessIndex = -1,arg:{
     if(promptTemplate){
         const template = promptTemplate
 
-        let templateCardIndex = -1
         for(const card of template){
-            if(++templateCardIndex === stableLoreIndex){
-                pushPrompts(stableLorePrompts, { kind: 'lorebook' })
-            }
             switch(card.type){
                 case 'persona':{
                     let pmt = safeStructuredClone(unformated.personaPrompt)

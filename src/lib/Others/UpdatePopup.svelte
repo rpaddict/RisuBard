@@ -39,16 +39,15 @@
      *  update has finished (so reload fires) and through dismiss otherwise. */
     function handleClose() {
         if (isUpdating) handleDone()
-        else dismissUpdatePopup()
+        else dismissUpdatePopup(true)
     }
 </script>
 
 <!--
     tier="base" so any alertError / alertConfirm fired during the update
     surfaces above this popup. closeOnOutsideClick stays false because
-    showUpdatePopupOnce() persists the dismiss before render — accidental
-    backdrop clicks would silently drop the version forever. ESC stays
-    blocked per branch convention.
+    closing without updating remembers the version — accidental backdrop
+    clicks would silently drop it. ESC stays blocked per branch convention.
 -->
 {#if info}
     <ShDialog
@@ -142,7 +141,7 @@
             </ShButton>
         {/if}
     {:else if info}
-        <ShButton variant="outline" onclick={dismissUpdatePopup}>
+        <ShButton variant="outline" onclick={() => dismissUpdatePopup(true)}>
             {language.updatePopupLater}
         </ShButton>
         <ShButton variant="outline" onclick={() => SaveLocalBackup()}>

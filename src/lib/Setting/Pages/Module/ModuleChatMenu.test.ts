@@ -11,14 +11,14 @@ import { language } from 'src/lang'
 
 vi.mock('src/ts/stores.svelte', async () => {
     const { writable } = await import('svelte/store')
-    return { DBState: { db: {} }, ReloadGUIPointer: writable(0), selectedCharID: writable(0), openModuleEditId: writable(null) }
+    return { DBState: { db: {} }, ReloadGUIPointer: writable(0), selectedCharID: writable(0), openModuleEditId: writable(null), SafeModeStore: writable(false) }
 })
 vi.mock('src/ts/storage/database.svelte', async () => {
     const { DBState } = await import('src/ts/stores.svelte')
     return { getDatabase: () => DBState.db, normalizePersonaEnabledModules: (value: unknown) => value ?? {} }
 })
 vi.mock('src/ts/globalApi.svelte', () => ({ requestImmediateSave: vi.fn() }))
-vi.mock('src/ts/alert', () => ({ alertConfirm: vi.fn(), alertInput: vi.fn(), notifySuccess: vi.fn() }))
+vi.mock('src/ts/alert', () => ({ alertConfirm: vi.fn(), alertInput: vi.fn(), notifySuccess: vi.fn(), notifyError: vi.fn(), notifyWarning: vi.fn() }))
 vi.mock('src/ts/routing', () => ({ openSettings: vi.fn(), SettingsRoute: { Module: 14 } }))
 vi.mock('src/ts/util', () => ({ checkPersonaBinded: () => null }))
 
@@ -239,6 +239,45 @@ describe('chat module manager', () => {
         expect(DBState.db.collectionOrganizers.modules.folderByItemId).toEqual({})
         expect(notifySuccess).toHaveBeenCalledWith(language.moduleDeleted)
         expect(requestImmediateSave).toHaveBeenCalledTimes(1)
+    })
+
+    test('links a skin to the open bot from the skins tab', async () => {
+        DBState.db.characters[0].chaId = 'bot-a'
+        DBState.db.appSkins = []
+        DBState.db.appSkinId = ''
+        DBState.db.characterAppSkins = {}
+        DBState.db.colorScheme = {} as typeof DBState.db.colorScheme
+        await openMenu()
+        const tab = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((item) => item.textContent === language.appSkin.botTab)!
+        tab.click()
+        await tick()
+        expect(document.querySelector('[data-collection-organizer-list="modules"]')).toBeNull()
+        const card = document.querySelector<HTMLButtonElement>('[data-character-app-skin="rounded"]')!
+        expect(card.getAttribute('aria-pressed')).toBe('false')
+        card.click()
+        await tick()
+        expect(DBState.db.characterAppSkins).toEqual({ 'bot-a': 'rounded' })
+        expect(requestImmediateSave).toHaveBeenCalledTimes(1)
+        expect(DBState.db.appSkinId).toBe('')
+    })
+
+    test('marks the skin already linked to the open bot', async () => {
+        DBState.db.characters[0].chaId = 'bot-a'
+        DBState.db.appSkins = []
+        DBState.db.appSkinId = 'rounded'
+        DBState.db.characterAppSkins = { 'bot-a': 'hero-comic' }
+        DBState.db.colorScheme = {} as typeof DBState.db.colorScheme
+        await openMenu()
+        ;[...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((item) => item.textContent === language.appSkin.botTab)!.click()
+        await tick()
+        expect(document.querySelector('[data-character-app-skin="hero-comic"]')!.getAttribute('aria-pressed')).toBe('true')
+        expect(document.querySelector('[data-character-app-skin="rounded"]')!.getAttribute('aria-pressed')).toBe('false')
+        expect(document.querySelector('[data-character-app-skin="rounded"]')!.textContent).toContain(language.appSkin.botGlobal)
+    })
+
+    test('hides the skins tab in the module picker', async () => {
+        await openMenu(true)
+        expect(document.querySelector('[role="tab"]')).toBeNull()
     })
 
     test('hides edit and delete in the module picker', async () => {

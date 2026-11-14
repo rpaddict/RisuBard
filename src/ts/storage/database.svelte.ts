@@ -746,6 +746,7 @@ export function setDatabase(data:Database){
     data.customCSS ??= ''
     if(!Array.isArray(data.appSkins)) data.appSkins = []
     if(typeof data.appSkinId !== 'string') data.appSkinId = ''
+    if(!data.characterAppSkins || typeof data.characterAppSkins !== 'object' || Array.isArray(data.characterAppSkins)) data.characterAppSkins = {}
     data.strictJsonSchema ??= true
     data.statics ??= {
         messages: 0,
@@ -2082,6 +2083,8 @@ export interface Database{
     appSkins: AppSkin[]
     /** Active app skin id; '' is the default look. */
     appSkinId: string
+    /** Skin linked to a bot, by character chaId. Wins over appSkinId while that bot is open. */
+    characterAppSkins: Record<string, string>
     betaMobileGUI:boolean
     jsonSchemaEnabled:boolean
     jsonSchema:string
@@ -2172,7 +2175,6 @@ export interface Database{
     },
     localActivationInGlobalLorebook: boolean
     /** Experimental: emit always-active lore before the chat history so prompt caching covers it. */
-    loreAlwaysActiveBeforeChat?: boolean
     showFolderName: boolean
     automaticCachePoint: boolean
     // Show the floating request-status toast (phase / thinking+response tokens /

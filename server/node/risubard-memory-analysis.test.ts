@@ -4057,6 +4057,10 @@ describe('canonical maintenance during turn analysis', () => {
     const setup = (maintenance: () => Promise<string>, options: {
         sources?: string[]; saveFails?: boolean; reboot?: boolean; secondCard?: boolean
         store?: MemoryAnalysisRunnerOptions['maintenanceStateStore']
+        /** The turn's canonical update response, instead of a current-state-only patch. */
+        update?: string
+        /** Other stored documents, such as the story arc plot. */
+        extraDocuments?: Array<{ id: string; type: 'event' | 'other'; title: string; content: string }>
     } = {}) => {
         const targetSources = options.sources ?? ['old-1']
         const cards = [{ id: 'character.mio', title: '미오' }, ...(options.secondCard ? [{ id: 'character.yuna', title: '유나' }] : [])]
@@ -4077,6 +4081,7 @@ describe('canonical maintenance during turn analysis', () => {
                 })),
             })
             if (request.system.startsWith('Canonical maintenance:')) return maintenance()
+            if (options.update) return options.update
             return canonicalPatchBatch(...cards.map(() =>
                 [{ heading: '현재 상태', operation: 'upsert' as const, content: '- 역 대합실에 있다.\n- 비가 그쳤다.' }]))
         })
@@ -4085,11 +4090,14 @@ describe('canonical maintenance during turn analysis', () => {
             maintenanceStateStore: options.store,
             markdownWikiService: {
                 inquire: vi.fn(async () => ({ graphRevision: 0, sources: [] })),
-                loadDocuments: vi.fn(async () => cards.map((card) => ({
+                loadDocuments: vi.fn(async () => [...cards.map((card) => ({
                     id: card.id, type: 'character' as const, title: card.title,
                     relativePath: `characters/${card.id}.md`, content: mio.replace('## 미오', `## ${card.title}`),
                     contentHash: 'mio-old', sourceMessageIds: [...targetSources],
-                }))),
+                })), ...(options.extraDocuments ?? []).map((document) => ({
+                    ...document, relativePath: `${document.type}/${document.id}.md`,
+                    contentHash: `${document.id}-hash`, sourceMessageIds: ['old-1'],
+                }))]),
                 saveConfirmedTurn: vi.fn(async () => undefined),
                 saveCanonicalDocument,
                 beginRebootBatch: vi.fn(async () => ({ canonicalCount: 0 })),
@@ -4124,6 +4132,54 @@ describe('canonical maintenance during turn analysis', () => {
         expect(result.canonicalReceipt?.warnings).toEqual([])
         expect(result.canonicalReceipt?.notes).toHaveLength(1)
         expect(result.canonicalReceipt?.notes?.[0]).toMatch(/^정본 정리: 미오 지식과 비밀 14→1항목 \(\d+→\d+토큰\)$/u)
+    })
+
+    test('asks the turn update to consolidate an oversized card and skips upkeep once it fits', async () => {
+        const update = JSON.stringify({
+            schemaVersion: 1,
+            documents: [{ candidateIndex: 0, sections: [
+                { heading: '현재 상태', operation: 'upsert', content: '- 역 대합실에 있다.\n- 비가 그쳤다.', add: [], replace: [], remove: [] },
+                { heading: '지식과 비밀', operation: 'edit', content: '', add: [],
+                    replace: [{ index: 0, text: '[[하루]]에게 마을 규칙을 들었다.' }],
+                    remove: knowledge.slice(1).map((_, offset) => ({ index: offset + 1, reason: 'merged', mergedInto: 0 })) },
+            ] }],
+        })
+        const { run, analyze, saveCanonicalDocument } = setup(async () => merged, { update })
+        await run('assistant-1')
+        const updateRequest = analyze.mock.calls.map(([request]) => request as MemoryAnalysisModelRequest)
+            .find((request) => request.format === 'canonical-batch' && !request.system.startsWith('Canonical maintenance:'))!
+        expect(updateRequest.system).toContain('A target marked overBudget is over its size budget.')
+        expect(JSON.parse(updateRequest.input).targets[0].target).toMatchObject({ overBudget: true })
+        expect(maintenanceCalls(analyze)).toBe(0)
+        const saved = saveCanonicalDocument.mock.calls[0][0].markdown as string
+        expect(saved).toContain('### 지식과 비밀\n\n- [[하루]]에게 마을 규칙을 들었다.')
+        expect(saved).not.toContain('마을 규칙 14')
+    })
+
+    test('tags a unit tied to an open thread of the story arc plot so the update keeps it', async () => {
+        const { run, analyze } = setup(async () => merged, {
+            update: canonicalPatchBatch([{ heading: '현재 상태', operation: 'upsert', content: '- 역 대합실에 있다.' }]),
+            extraDocuments: [{
+                id: 'other.plot', type: 'other', title: '스토리 아크 플롯',
+                content: '## 스토리 아크 플롯\n\n### 미해결 줄기\n\n- 마을 규칙 3을 [[하루]]가 왜 숨겼는지는 아직 모른다.',
+            }],
+        })
+        await run('assistant-1')
+        const updateRequest = analyze.mock.calls.map(([request]) => request as MemoryAnalysisModelRequest)
+            .find((request) => request.format === 'canonical-batch' && !request.system.startsWith('Canonical maintenance:'))!
+        const markdown = JSON.parse(updateRequest.input).targets[0].target.markdown as string
+        expect(markdown).toContain('[2] [open] 마을 규칙 3을 [[하루]]에게 들었다.')
+        expect(markdown).toContain('- [0] 역 대합실에 있다.')
+        expect(updateRequest.system).toContain('never by how old it is')
+    })
+
+    test('does not offer consolidation to a card within its budget', async () => {
+        const { run, analyze } = setup(async () => merged)
+        await run('assistant-1', { inquiryTokenBudget: { target: 2000, events: 2000, perSource: 2000, maximum: 6000 } })
+        const updateRequest = analyze.mock.calls.map(([request]) => request as MemoryAnalysisModelRequest)
+            .find((request) => request.format === 'canonical-batch')!
+        expect(updateRequest.system).not.toContain('overBudget is over')
+        expect(JSON.parse(updateRequest.input).targets[0].target.overBudget).toBeUndefined()
     })
 
     test('maintains an oversized card during a wiki reboot as well', async () => {

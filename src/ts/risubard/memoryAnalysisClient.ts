@@ -78,7 +78,7 @@ export interface MemoryAnalysisModelResponse extends ModelResponse {
 
 export interface MemoryAnalysisModelCall {
     formated: Array<{
-        role: 'system' | 'user'
+        role: 'system' | 'user' | 'assistant'
         content: string
     }>
     useStreaming: false
@@ -1038,17 +1038,22 @@ export function createStoredResponseMemoryAnalysis(
                 request.system,
                 promptSchemaMessage?.content,
             ].filter(Boolean).join('\n\n')
-            const fitted = fitAnalysisInput(
-                requestSystem,
+            const trailing = (request.trailingMessages ?? []).map((message) => ({ ...message }))
+            // Trailing preset blocks count against the input budget like the system prompt.
+            const trailingText = trailing.map((message) => message.content).join('\n')
+            const fitInput = (system: string) => fitAnalysisInput(
+                trailingText ? `${system}\n${trailingText}` : system,
                 request.input,
                 request.inputTokenLimit
             )
+            const fitted = fitInput(requestSystem)
             let inputReport = fitted.report
             const boundedInput = fitted.input
             const modelCall: MemoryAnalysisModelCall = {
                 formated: [
                     { role: 'system', content: requestSystem },
                     { role: 'user', content: boundedInput },
+                    ...trailing,
                 ],
                 useStreaming: false,
                 noMultiGen: true,
@@ -1079,7 +1084,7 @@ export function createStoredResponseMemoryAnalysis(
                         ...modelCall,
                         formated: [{ role: 'system', content: requestSystem
                             + (feedback ? `\n\n${modelOutputRepairInstruction(feedback)}` : '') },
-                        modelCall.formated[1]],
+                        ...modelCall.formated.slice(1)],
                     }, signal)
                     if (nativeDraft && modelCall.schema
                         && rejectsNativeSchema(response)) {
@@ -1098,11 +1103,7 @@ export function createStoredResponseMemoryAnalysis(
                                     : '',
                                 fallbackMessage.content,
                             ].filter(Boolean).join('\n\n')
-                            const fallbackFit = fitAnalysisInput(
-                                fallbackSystem,
-                                request.input,
-                                request.inputTokenLimit
-                            )
+                            const fallbackFit = fitInput(fallbackSystem)
                             inputReport = fallbackFit.report
                             response = {
                                 ...await requestMemoryModel({
@@ -1117,6 +1118,7 @@ export function createStoredResponseMemoryAnalysis(
                                             role: 'user',
                                             content: fallbackFit.input,
                                         },
+                                        ...trailing,
                                     ],
                                 }, signal),
                                 noRetry: true,

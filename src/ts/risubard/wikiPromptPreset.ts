@@ -9,6 +9,8 @@ import {
 export type WikiPromptStage ='analysis' | 'canonical-rewrite' | 'both' | 'response'
 export type WikiPromptBlockType = 'core-ref' | 'text' | 'injection'
 export type WikiPromptAnalysisMode = 'all' | 'normal' | 'historical'
+/** Same role names as chat prompt blocks: bot is the character (assistant). */
+export type WikiPromptRole = 'system' | 'user' | 'bot'
 
 export interface WikiPromptBlock {
     id: string
@@ -18,12 +20,14 @@ export interface WikiPromptBlock {
     enabled: boolean
     readonly: boolean
     analysisMode?: WikiPromptAnalysisMode
+    /** Omitted means system. User and character blocks follow the analysis input as separate messages. */
+    role?: WikiPromptRole
     content?: string
 }
 
 export interface WikiPromptPreset {
     schemaVersion: 1
-    writingPolicyVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11
+    writingPolicyVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12
     id: string
     name: string
     revision: number
@@ -37,10 +41,18 @@ export interface WikiPromptPresetState {
     officialRelease: string
 }
 
+export interface WikiPromptMessage {
+    role: 'user' | 'assistant'
+    content: string
+}
+
 export interface CompiledWikiPromptGuide {
     analysis: string
     canonicalRewrite: string
     response: string
+    /** User and character blocks, in preset order, sent after the analysis input. */
+    analysisMessages: WikiPromptMessage[]
+    canonicalRewriteMessages: WikiPromptMessage[]
 }
 
 const MAX_PRESETS = 64
@@ -133,17 +145,18 @@ export const OFFICIAL_WIKI_V7_BACKUP_ID = 'official-wiki-261021'
 export const OFFICIAL_WIKI_V8_BACKUP_ID = 'official-wiki-261027'
 export const OFFICIAL_WIKI_V9_BACKUP_ID = 'official-wiki-261028'
 export const OFFICIAL_WIKI_V10_BACKUP_ID = 'official-wiki-261029'
+export const OFFICIAL_WIKI_V11_BACKUP_ID = 'official-wiki-261103'
 export const OFFICIAL_WIKI_CURRENT_ID = 'official-wiki-current'
 export const OFFICIAL_WIKI_ARCHIVE_FOLDER_ID = 'official-wiki-archive'
 // Named like the official presets themselves; the UI language is not loaded yet when this folder is created.
 const OFFICIAL_WIKI_ARCHIVE_FOLDER_NAME = '과거 공식 프리셋'
 // Shipping a new official version: bump the release date, move the previous release to the front of
 // OFFICIAL_WIKI_ARCHIVES, and move archives beyond OFFICIAL_WIKI_ARCHIVE_LIMIT to RETIRED_OFFICIAL_IDS.
-export const OFFICIAL_WIKI_RELEASE = '2026-11-03'
+export const OFFICIAL_WIKI_RELEASE = '2026-11-14'
 export const OFFICIAL_WIKI_ARCHIVE_LIMIT = 3
 const RETIRED_OFFICIAL_IDS: ReadonlySet<string> = new Set([
     OFFICIAL_WIKI_BACKUP_ID, OFFICIAL_WIKI_V2_BACKUP_ID, OFFICIAL_WIKI_V4_BACKUP_ID, OFFICIAL_WIKI_V3_BACKUP_ID,
-    OFFICIAL_WIKI_V5_BACKUP_ID, OFFICIAL_WIKI_V6_BACKUP_ID, OFFICIAL_WIKI_V7_BACKUP_ID,
+    OFFICIAL_WIKI_V5_BACKUP_ID, OFFICIAL_WIKI_V6_BACKUP_ID, OFFICIAL_WIKI_V7_BACKUP_ID, OFFICIAL_WIKI_V8_BACKUP_ID,
 ])
 
 export function officialWikiPresetName(date: string): string {
@@ -292,6 +305,16 @@ const REQUIRED_SUFFIX: readonly WikiPromptBlock[] = [
     },
 ]
 
+// Version 12 drops core sentences other instructions in the same request already give: puzzle observations
+// (the canonical writing policy) and the draft field list (the response schema).
+const V12_CORE_CONTENT: Readonly<Record<string, string>> = {
+    'core-analysis-contract': 'Separate established events, state changes, character knowledge, persistent facts, unresolved continuity, and canonical update candidates.',
+    'core-output-contract': [
+        'Return only the structured fields required by the active operation.',
+        'Do not create IDs, paths, revisions, hashes, timestamps, source IDs, or YAML frontmatter.',
+    ].join('\n'),
+}
+
 const RESERVED_IDS = new Set([
     ...REQUIRED_PREFIX.map((block) => block.id),
     ...REQUIRED_SUFFIX.map((block) => block.id),
@@ -312,6 +335,10 @@ function normalizeTarget(value: unknown): WikiPromptStage {
 
 function normalizeAnalysisMode(value: unknown): WikiPromptAnalysisMode {
     return value === 'normal' || value === 'historical' ? value : 'all'
+}
+
+function roleField(value: unknown): { role?: WikiPromptRole } {
+    return value === 'user' || value === 'bot' ? { role: value } : {}
 }
 
 function isLegacyBuiltinPreset(source: Record<string, unknown>): boolean {
@@ -346,6 +373,7 @@ function normalizeEditableBlocks(value: unknown): WikiPromptBlock[] {
             enabled: source.enabled !== false,
             readonly: false,
             analysisMode: normalizeAnalysisMode(source.analysisMode),
+            ...roleField(source.role),
             content: boundedText(source.content, MAX_BLOCK_CONTENT),
         })
         if (blocks.length >= MAX_EDITABLE_BLOCKS) break
@@ -380,7 +408,8 @@ function normalizePreset(value: unknown, idFactory: () => string): WikiPromptPre
             content: '',
         })
     }
-    const writingPolicyVersion = source.writingPolicyVersion === 11 ? 11
+    const writingPolicyVersion = source.writingPolicyVersion === 12 ? 12
+        : source.writingPolicyVersion === 11 ? 11
         : source.writingPolicyVersion === 10 ? 10
         : source.writingPolicyVersion === 9 ? 9
         : source.writingPolicyVersion === 8 ? 8
@@ -412,11 +441,14 @@ function normalizePreset(value: unknown, idFactory: () => string): WikiPromptPre
                         : writingPolicyVersion >= 6 ? V6_CONTINUITY
                         : writingPolicyVersion >= 5 ? CURRENT_CONTINUITY
                         : writingPolicyVersion >= 4 ? V4_CONTINUITY : MODULAR_CONTINUITY } : {}),
+                    ...(writingPolicyVersion >= 12 && V12_CORE_CONTENT[block.id]
+                        ? { content: V12_CORE_CONTENT[block.id] } : {}),
                     ...(stored ? {
                         name: boundedText(stored.name, 80) || block.name,
                         target: normalizeTarget(stored.target),
                         analysisMode: normalizeAnalysisMode(stored.analysisMode ?? block.analysisMode),
                         enabled: stored.enabled !== false,
+                        ...roleField(stored.role),
                         content: typeof stored.content === 'string'
                             ? boundedText(stored.content, MAX_BLOCK_CONTENT)
                             : block.content,
@@ -430,11 +462,14 @@ function normalizePreset(value: unknown, idFactory: () => string): WikiPromptPre
                 const stored = builtin ? undefined : storedCore.get(block.id)
                 return {
                     ...block,
+                    ...(writingPolicyVersion >= 12 && V12_CORE_CONTENT[block.id]
+                        ? { content: V12_CORE_CONTENT[block.id] } : {}),
                     ...(stored ? {
                         name: boundedText(stored.name, 80) || block.name,
                         target: normalizeTarget(stored.target),
                         analysisMode: normalizeAnalysisMode(stored.analysisMode ?? block.analysisMode),
                         enabled: stored.enabled !== false,
+                        ...roleField(stored.role),
                         content: typeof stored.content === 'string'
                             ? boundedText(stored.content, MAX_BLOCK_CONTENT)
                             : block.content,
@@ -611,7 +646,7 @@ When a character speaks, thinks or acts with no one else present, or so that tho
 
 const RECALL_RESPONSE_V11 = `${RECALL_RESPONSE_V10} A remark, thought or action recorded as unheard or done alone stays unknown to every other character until the story shows them learning it.`
 
-export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
+function createV11WikiPromptPreset(id: string): WikiPromptPreset {
     const previous = createV10WikiPromptPreset(id)
     return normalizePreset({
         ...previous, writingPolicyVersion: 11, revision: 10,
@@ -620,11 +655,58 @@ export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
     }, () => id)
 }
 
+// Version 12 (2026-11-14) ends every wiki writing request with a self-check in the character's voice,
+// like a chat preset's final scene check, gathering the failures earlier versions each patched one rule at a time.
+// A user block follows so the request still ends on a user message.
+const FINAL_CHECKLIST_BLOCKS: readonly WikiPromptBlock[] = [
+    {
+        id: 'default-final-checklist', type: 'text', name: '최종 점검 [캐릭터]',
+        target: 'both', enabled: true, readonly: true, analysisMode: 'all', role: 'bot',
+        // Names each rule the system prompt states in full; it is a reminder, not a second copy.
+        content: [
+            'Before I return this, I check and fix my draft. I do not output this check.',
+            '1. Plain: one fact per short line; no narration, mood or filler.',
+            '2. Story only: no source-work canon or guesses; claims stay attributed.',
+            '3. Private: thoughts and unheard remarks stay with their speaker.',
+            '4. Exact: names, items, colors, counts and bodily states as written (a tiara stays a tiara); no one who left returns and no lost state resets unless the story says so.',
+            '5. Order: events in story order; a cause only when the story gives one.',
+            '6. Card, not log: no "saw, heard, learned" lines; Major Transitions only for real turning points.',
+            '7. Short: rewrite instead of append, merge and delete; one section per fact.',
+            '8. Kept: open promises, secrets, wrong beliefs, injuries, constraints and possessions.',
+        ].join('\n'),
+    },
+    {
+        id: 'default-final-stopper', type: 'text', name: '출력 지시 [유저]',
+        target: 'both', enabled: true, readonly: true, analysisMode: 'all', role: 'user',
+        content: 'Return the result now, exactly in the required format, with no commentary.',
+    },
+]
+
+// The craft half of the overview asked for vivid immersive prose, the opposite of a terse wiki.
+const FICTION_OVERVIEW_V12 = FICTION_OVERVIEW_BLOCK.content!.split('\n\n- Collaboration & Craft:')[0]
+
+// Compression used to open with "The document is over its length goal" on every request, new documents included.
+const COMPRESSION_V12 = 'When a document is over its length goal, shorten it: merge lines on the same topic or counterpart, delete lines that are finished, no longer true or already recorded by an event, and combine evidence marks into ranges. Keep each secret and who shares it, wrong beliefs, unresolved promises, lasting constraints, relationship direction and values, and each transition\'s result. Merge and delete source sections in the same patch batch.'
+
+export function createDefaultWikiPromptPreset(id: string): WikiPromptPreset {
+    const previous = createV11WikiPromptPreset(id)
+    return normalizePreset({
+        ...previous, writingPolicyVersion: 12, revision: 11,
+        blocks: [
+            // Puzzle observations are kept by the canonical writing policy sent with every wiki request.
+            ...previous.blocks.filter(block => block.id !== 'default-puzzle-clue-tracker').map(block =>
+                block.id === 'default-fiction-overview' ? { ...block, content: FICTION_OVERVIEW_V12 }
+                    : block.id === 'default-length-compression' ? { ...block, content: COMPRESSION_V12 } : block),
+            ...FINAL_CHECKLIST_BLOCKS.map(block => ({ ...block })),
+        ],
+    }, () => id)
+}
+
 // Newest first; at most OFFICIAL_WIKI_ARCHIVE_LIMIT entries.
 const OFFICIAL_WIKI_ARCHIVES: readonly { id: string; date: string; create: (id: string) => WikiPromptPreset }[] = [
+    { id: OFFICIAL_WIKI_V11_BACKUP_ID, date: '2026-11-03', create: createV11WikiPromptPreset },
     { id: OFFICIAL_WIKI_V10_BACKUP_ID, date: '2026-10-29', create: createV10WikiPromptPreset },
     { id: OFFICIAL_WIKI_V9_BACKUP_ID, date: '2026-10-28', create: createV9WikiPromptPreset },
-    { id: OFFICIAL_WIKI_V8_BACKUP_ID, date: '2026-10-27', create: createV8WikiPromptPreset },
 ]
 
 export function createWikiPromptPreset(id: string, name = 'Wiki Prompt'): WikiPromptPreset {
@@ -662,7 +744,7 @@ export function normalizeWikiPromptPresetState(
         }
         // Only one official preset stays locked; it keeps its stable ID and optional toggles.
         if (official) continue
-        official = normalized.writingPolicyVersion === 11 ? normalized : upgradeOfficialPreset(normalized)
+        official = normalized.writingPolicyVersion === 12 ? normalized : upgradeOfficialPreset(normalized)
         presets.push(official)
     }
     if (!official) {
@@ -727,14 +809,22 @@ function compileStage(
     characterGuide: string,
     chatGuide: string,
     analysisMode: Exclude<WikiPromptAnalysisMode, 'all'>
-): string {
+): { text: string; messages: WikiPromptMessage[] } {
     const sections: string[] = []
+    const messages: WikiPromptMessage[] = []
     for (const block of preset.blocks) {
         if (!block.enabled || !targetIncludes(block.target, stage)
             || (stage === 'analysis'
                 && block.analysisMode !== undefined
                 && block.analysisMode !== 'all'
                 && block.analysisMode !== analysisMode)) continue
+        // A chat response stage has no request of its own, so its blocks stay in the guide text.
+        if ((block.type === 'text' || block.type === 'core-ref') && stage !== 'response'
+            && (block.role === 'user' || block.role === 'bot')) {
+            const content = boundedText(block.content, MAX_BLOCK_CONTENT)
+            if (content) messages.push({ role: block.role === 'bot' ? 'assistant' : 'user', content })
+            continue
+        }
         if (block.type === 'text' || block.type === 'core-ref') {
             const content = boundedText(block.content, MAX_BLOCK_CONTENT)
             if (content) sections.push(`## ${block.name}\n${content}`)
@@ -748,7 +838,7 @@ function compileStage(
             if (content) sections.push(`## Chat Wiki Guide\n${content}`)
         }
     }
-    return sections.join('\n\n').slice(0, MAX_COMPILED_GUIDE)
+    return { text: sections.join('\n\n').slice(0, MAX_COMPILED_GUIDE), messages }
 }
 
 export function compileWikiPromptGuide(
@@ -760,22 +850,26 @@ export function compileWikiPromptGuide(
     } = {}
 ): CompiledWikiPromptGuide {
     const normalized = normalizePreset(preset, () => preset.id)
+    const analysis = compileStage(
+        normalized,
+        'analysis',
+        injections.characterGuide ?? '',
+        injections.chatGuide ?? '',
+        injections.analysisMode ?? 'normal'
+    )
+    const canonicalRewrite = compileStage(
+        normalized,
+        'canonical-rewrite',
+        injections.characterGuide ?? '',
+        injections.chatGuide ?? '',
+        'normal'
+    )
     return {
-        analysis: compileStage(
-            normalized,
-            'analysis',
-            injections.characterGuide ?? '',
-            injections.chatGuide ?? '',
-            injections.analysisMode ?? 'normal'
-        ),
-        canonicalRewrite: compileStage(
-            normalized,
-            'canonical-rewrite',
-            injections.characterGuide ?? '',
-            injections.chatGuide ?? '',
-            'normal'
-        ),
-        response: compileStage(normalized, 'response', '', '', 'normal'),
+        analysis: analysis.text,
+        canonicalRewrite: canonicalRewrite.text,
+        response: compileStage(normalized, 'response', '', '', 'normal').text,
+        analysisMessages: analysis.messages,
+        canonicalRewriteMessages: canonicalRewrite.messages,
     }
 }
 

@@ -25,6 +25,11 @@ describe('per-assistant canonical turn receipt', () => {
             'canonicalReceipt: message.risubardCanonicalReceipt'
         )
         expect(chats).toContain('JSON.stringify(message.risubardCanonicalReceipt')
+        // A message mounted with a preserved reading position must still react to a later receipt,
+        // so the effect reads it before the deferred mount.
+        const mount = chats.slice(chats.indexOf('const messageData = message.data'), chats.indexOf('queueMicrotask(() => {'))
+        expect(mount).toContain('const canonicalReceipt = message.risubardCanonicalReceipt')
+        expect(mount).toContain('const memoryConfirmed = message.risubardMemoryConfirmed === true')
         expect(chat).not.toContain('onUndoCanonical')
         expect(chats).not.toContain('onUndoCanonical')
     })

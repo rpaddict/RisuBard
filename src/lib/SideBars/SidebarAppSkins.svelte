@@ -2,9 +2,9 @@
     // Quick app skin picker above the recent chats. Picking a row applies the skin at once.
     // Collapsed state and list height are per-device conveniences kept in local storage.
     import { language } from 'src/lang';
-    import { DBState } from 'src/ts/stores.svelte';
+    import { DBState, selectedCharID } from 'src/ts/stores.svelte';
     import { CheckIcon, ChevronDownIcon } from '@lucide/svelte';
-    import { isAppSkinSuppressed, listAppSkins, selectAppSkin } from 'src/ts/gui/appSkinRuntime';
+    import { characterAppSkinId, isAppSkinSuppressed, listAppSkins, selectAppSkin } from 'src/ts/gui/appSkinRuntime';
     import { appSkinSwatch, defaultAppSkinSwatch, type AppSkinSwatch } from 'src/ts/gui/appSkinSwatch';
     import { resizeHandle } from 'src/ts/gui/resizeHandle';
     import { clearResizableSize, loadResizableSize, saveResizableSize } from 'src/ts/gui/resizableSize';
@@ -30,6 +30,8 @@
     const activeId = $derived(DBState.db.appSkinId ?? '');
     const suppressed = isAppSkinSuppressed();
     const defaultSwatch = $derived(defaultAppSkinSwatch(DBState.db.colorScheme));
+    const botSkinId = $derived(characterAppSkinId(DBState.db, $selectedCharID));
+    const botSkinName = $derived(botSkinId === null ? '' : botSkinId === '' ? copy.defaultSkin : (entries.find((entry) => entry.skin.id === botSkinId)?.skin.name ?? botSkinId));
     const listId = 'sidebar-app-skin-list';
 
     function toggle() {
@@ -108,6 +110,8 @@
     {#if !collapsed}
         {#if suppressed}
             <p class="mt-1 text-xs text-warning" role="status">{copy.safeModeActive}</p>
+        {:else if botSkinId !== null && botSkinId !== activeId}
+            <p class="mt-1 text-xs text-info" role="status" data-sidebar-app-skin-bot-override>{copy.botOverrideShort.replace('{}', botSkinName)}</p>
         {/if}
         <div
             bind:this={list}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { groupNarrativeBacklog, narrativeAnalysisDue, withoutRepeatedMessages } from './narrativeBacklogBatch'
+import { groupNarrativeBacklog, narrativeAnalysisDue, narrativeTurnsPerCall, withoutRepeatedMessages } from './narrativeBacklogBatch'
 
 const turn = (id: string, length: number) => ({
     targetMessageId: id,
@@ -19,6 +19,16 @@ describe('narrative backlog batches', () => {
             .toEqual([['a1'], ['a2'], ['a3']])
         const many = ['a1', 'a2', 'a3', 'a4', 'a5'].map((id) => turn(id, 10))
         expect(groupNarrativeBacklog(many, 32_768).map((batch) => batch.length)).toEqual([4, 1])
+    })
+
+    test('a catch-up keeps the user\'s turn interval as the batch size', () => {
+        const waiting = ['t52', 't53', 't54'].map((id) => turn(id, 10))
+        expect(groupNarrativeBacklog(waiting, 32_768, narrativeTurnsPerCall(2))
+            .map((batch) => batch.map((item) => item.targetMessageId)))
+            .toEqual([['t52', 't53'], ['t54']])
+        expect(narrativeTurnsPerCall(1)).toBe(4)
+        expect(narrativeTurnsPerCall(3)).toBe(3)
+        expect(narrativeTurnsPerCall(9)).toBe(4)
     })
 
     test('analyzes an oversized turn alone', () => {

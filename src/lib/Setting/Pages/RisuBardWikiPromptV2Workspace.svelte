@@ -172,6 +172,13 @@
         onTouch()
     }
 
+    function setSelectedRole(value: string) {
+        if (!canEdit() || !selectedBlock) return
+        if (value === 'user' || value === 'bot') selectedBlock.role = value
+        else delete selectedBlock.role
+        onTouch()
+    }
+
     function replaceCurrent(all = false) {
         if (!canEdit() || !search.trim()) return
         if (!all && blockEditor?.replaceCurrentBodyMatch(search, replacement)) return
@@ -216,7 +223,7 @@
                         onclick={() => { blockEditor?.flushPendingText(); selectedId = block.id; compactPane = 'editor' }}
                     >
                         <span>{displayName(block)}</span>
-                        <small>{block.target}</small>
+                        <small>{block.target}{block.target !== 'response' && block.role === 'user' ? ` / ${language.user}` : block.target !== 'response' && block.role === 'bot' ? ` / ${language.character}` : ''}</small>
                     </button>
                 {/each}
             </div>
@@ -230,6 +237,9 @@
             {#if selectedBlock}
                 <div class="block-toolbar">
                     <label><span>{language.target}</span><select value={selectedBlock.target} disabled={!canEdit()} onchange={(event) => updateSelected({ target: event.currentTarget.value as WikiPromptStage })}><option value="analysis">analysis</option><option value="canonical-rewrite">canonical-rewrite</option><option value="both">both</option><option value="response">response</option></select></label>
+                    {#if selectedBlock.target !== 'response'}
+                        <label title={language.risuBardWikiPrompt.roleMessageHint}><span>{language.role}</span><select value={selectedBlock.role ?? 'system'} disabled={!canEdit()} onchange={(event) => setSelectedRole(event.currentTarget.value)}><option value="system">{language.systemPrompt}</option><option value="user">{language.user}</option><option value="bot">{language.character}</option></select></label>
+                    {/if}
                     {#if selectedBlock.target === 'analysis'}
                         <label><span>Mode</span><select value={selectedBlock.analysisMode ?? 'all'} disabled={!canEdit()} onchange={(event) => updateSelected({ analysisMode: event.currentTarget.value as WikiPromptBlock['analysisMode'] })}><option value="all">all</option><option value="normal">normal</option><option value="historical">historical</option></select></label>
                     {/if}

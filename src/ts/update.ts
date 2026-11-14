@@ -55,12 +55,19 @@ const DISMISSED_KEY = 'risuNodeOnly_dismissedUpdateVersion'
 function showUpdatePopupOnce(info: UpdateInfo) {
     const dismissed = localStorage.getItem(DISMISSED_KEY)
     if (dismissed === info.latestVersion) return
-
-    localStorage.setItem(DISMISSED_KEY, info.latestVersion)
     updatePopupStore.set(info)
 }
 
-export function dismissUpdatePopup() {
+/**
+ * Closes the popup. Only an explicit "later" remembers the version; an update
+ * that was started but failed, was interrupted, or the page closing all leave
+ * the popup to return on the next check while the version is still behind.
+ */
+export function dismissUpdatePopup(remember = false) {
+    const info = get(updatePopupStore)
+    if (remember && info) {
+        try { localStorage.setItem(DISMISSED_KEY, info.latestVersion) } catch {}
+    }
     updatePopupStore.set(null)
 }
 

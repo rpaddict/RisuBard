@@ -240,7 +240,7 @@ export function buildCanonicalBatchSchema(candidateCount?: number): string {
                                             required: ['index', 'reason', 'mergedInto'],
                                             properties: {
                                                 index: { type: 'integer', minimum: 0 },
-                                                reason: { type: 'string', enum: ['superseded', 'merged', 'corrected'] },
+                                                reason: { type: 'string', enum: ['superseded', 'merged', 'corrected', 'covered'] },
                                                 mergedInto: { type: ['integer', 'null'], minimum: 0 },
                                             },
                                         },
@@ -322,7 +322,7 @@ export interface MemoryWriterDraft {
 export interface CanonicalUnitEdits {
     add: string[]
     replace: Array<{ index: number; text: string }>
-    remove: Array<{ index: number; reason: 'superseded' | 'merged' | 'corrected'; mergedInto: number | null }>
+    remove: Array<{ index: number; reason: 'superseded' | 'merged' | 'corrected' | 'covered'; mergedInto: number | null }>
 }
 
 export interface CanonicalSectionPatch {
@@ -706,7 +706,7 @@ function parseCanonicalUnitEdits(section: Record<string, unknown>, label: string
         if (!isRecord(item)) throw new Error(`${label}.remove[${index}] must be an object`)
         exactKeys(item, ['index', 'reason', 'mergedInto'], `${label}.remove[${index}]`)
         if (!Number.isSafeInteger(item.index) || (item.index as number) < 0
-            || !['superseded', 'merged', 'corrected'].includes(item.reason as string)
+            || !['superseded', 'merged', 'corrected', 'covered'].includes(item.reason as string)
             || (item.mergedInto !== null && (!Number.isSafeInteger(item.mergedInto) || (item.mergedInto as number) < 0))) {
             throw new Error(`${label}.remove[${index}] is invalid`)
         }

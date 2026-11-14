@@ -1440,11 +1440,12 @@ export async function exportCharacterCard(char:character, type:'png'|'json'|'cha
         img = type === 'png' ? (await reencodeImage(img)) : img
         const localWriter = arg.writer ?? (new LocalWriter())
         if(!arg.writer && type !== 'json'){
+            const baseName = (char.name ?? '').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim().replace(/[. ]+$/, '') || 'character'
             const nameExt = {
-                'png': ['Image File', 'png'],
-                'json': ['JSON File', 'json'],
-                'charx': ['CharX File', 'charx'],
-                'charxJpeg': ['CharX Embeded Jpeg', 'jpeg']
+                'png': [baseName, 'png'],
+                'json': [baseName, 'json'],
+                'charx': [baseName, 'charx'],
+                'charxJpeg': [`${baseName} charx`, 'jpeg']
             }
             const ext = nameExt[type]
             await (localWriter as LocalWriter).init(ext[0], [ext[1]])

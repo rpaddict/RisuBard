@@ -48,6 +48,9 @@
     import RequestStatusToaster from './lib/UI/GUI/RequestStatusToaster.svelte';
     import { createKeepAliveAudio } from './ts/keepAliveAudio';
     import { RISU_APP_INTERNAL_DRAG_TYPE, RISU_SIDEBAR_DRAG_TYPE } from './ts/dragTypes';
+    import { untrack } from 'svelte';
+    import { selectedCharID } from './ts/stores.svelte';
+    import { applyAppSkin } from './ts/gui/appSkinRuntime';
 
     let gridOpen = $state(false)
     let aprilFools = $state(new Date().getMonth() === 3 && new Date().getDate() === 1)
@@ -84,6 +87,14 @@
     $effect(() => { if ($characterAssistantOpen) characterAssistantMounted = true })
     let readerBoardMounted = $state(false)
     $effect(() => { if ($readerBoardOpen) readerBoardMounted = true })
+
+    // A skin linked to the open bot replaces the app-wide skin while that bot is open.
+    $effect(() => {
+        if (!$loadedStore) return
+        const key = DBState.db.characters?.[$selectedCharID]?.chaId
+        void (key ? DBState.db.characterAppSkins?.[key] : undefined)
+        untrack(() => applyAppSkin(DBState.db))
+    })
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->

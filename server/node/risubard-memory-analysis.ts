@@ -95,6 +95,8 @@ import {
     MAINTENANCE_COOLDOWN_SOURCES,
     restingBaseline,
     changedCanonicalUnits,
+    cardMaintenanceDue,
+    coverSupportsUnit,
     maintainCharacterCanon,
     maintenanceCoverDocuments,
 } from './risubard-canonical-maintenance'
@@ -106,7 +108,9 @@ import {
     applyCanonicalSectionPatches,
     parseCanonicalSectionPatchMarkdown,
     prepareCanonicalMarkdown,
+    readCanonicalSection,
 } from './risubard-markdown-section-patch'
+import { wikiWritingLocales } from '../../src/ts/risubard/wikiWritingLanguage'
 import {
     STORY_ARC_EVENT_EXCERPT_CHARACTERS,
     STORY_ARC_MAX_MARKDOWN_CHARACTERS,
@@ -280,6 +284,9 @@ export interface MemoryAnalysisInput {
     wikiPromptGuide?: {
         analysis: string
         canonicalRewrite: string
+        /** User and character preset blocks sent after the request input, in preset order. */
+        analysisMessages?: readonly WikiPromptTrailingMessage[]
+        canonicalRewriteMessages?: readonly WikiPromptTrailingMessage[]
     }
     /** Lorebook entries the story used around the analyzed turn, already rendered. Reference only, never evidence. */
     loreReference?: readonly AnalysisLoreReference[]
@@ -298,9 +305,16 @@ export interface MemoryAnalysisInput {
     }[]
 }
 
+export interface WikiPromptTrailingMessage {
+    role: 'user' | 'assistant'
+    content: string
+}
+
 export interface MemoryAnalysisModelRequest {
     system: string
     input: string
+    /** Wiki preset user and character blocks, sent after the input message. */
+    trailingMessages?: readonly WikiPromptTrailingMessage[]
     schemaVersion?: 1 | 2
     format?: 'markdown' | 'memory-draft' | 'reboot-batch' | 'canonical-batch'
     responseSchema?: string
@@ -518,15 +532,14 @@ function requireNonEmptyString(value: unknown, label: string): string {
     return value
 }
 
-function parseWikiPromptGuide(value: unknown): {
-    analysis: string
-    canonicalRewrite: string
-} | undefined {
+const MESSAGE_KEYS = ['analysisMessages', 'canonicalRewriteMessages'] as const
+
+function parseWikiPromptGuide(value: unknown): MemoryAnalysisInput['wikiPromptGuide'] {
     if (value === undefined) return undefined
     if (!isRecord(value)) throw new Error('Wiki prompt guide must be an object')
     assertExactKeys(
         value,
-        ['analysis', 'canonicalRewrite'],
+        ['analysis', 'canonicalRewrite', ...MESSAGE_KEYS.filter((key) => value[key] !== undefined)],
         'wiki prompt guide'
     )
     for (const key of ['analysis', 'canonicalRewrite'] as const) {
@@ -534,10 +547,44 @@ function parseWikiPromptGuide(value: unknown): {
             throw new Error(`Wiki prompt guide ${key} is invalid`)
         }
     }
+    const messages: Partial<Record<typeof MESSAGE_KEYS[number], WikiPromptTrailingMessage[]>> = {}
+    for (const key of MESSAGE_KEYS) {
+        const list = value[key]
+        if (list === undefined) continue
+        if (!Array.isArray(list) || list.length > 32) {
+            throw new Error(`Wiki prompt guide ${key} must be an array of at most 32 items`)
+        }
+        messages[key] = list.map((message) => {
+            if (!isRecord(message)) throw new Error(`Wiki prompt guide ${key} item must be an object`)
+            assertExactKeys(message, ['role', 'content'], 'wiki prompt guide message')
+            if ((message.role !== 'user' && message.role !== 'assistant')
+                || typeof message.content !== 'string' || message.content.length > 8_000) {
+                throw new Error(`Wiki prompt guide ${key} item is invalid`)
+            }
+            return { role: message.role, content: message.content }
+        })
+    }
     return {
         analysis: value.analysis as string,
         canonicalRewrite: value.canonicalRewrite as string,
+        ...messages,
     }
+}
+
+/** Analysis then rewrite blocks, with a block shared by both stages sent once. */
+function combineTrailingMessages(
+    analysis: readonly WikiPromptTrailingMessage[] = [],
+    canonicalRewrite: readonly WikiPromptTrailingMessage[] = []
+): WikiPromptTrailingMessage[] {
+    const seen = new Set(analysis.map((message) => `${message.role}\n${message.content}`))
+    return [
+        ...analysis,
+        ...canonicalRewrite.filter((message) => !seen.has(`${message.role}\n${message.content}`)),
+    ]
+}
+
+function trailingMessagesField(messages: readonly WikiPromptTrailingMessage[] | undefined) {
+    return messages && messages.length > 0 ? { trailingMessages: messages } : {}
 }
 
 function parseLoreReference(value: unknown): AnalysisLoreReference[] | undefined {
@@ -1292,6 +1339,13 @@ export function createMemoryAnalysisRunner(
                 snapshot.wikiPromptGuide?.analysis ?? '',
                 snapshot.wikiPromptGuide?.canonicalRewrite ?? ''
             )
+        const draftTrailingMessages = turnGroups
+            ? snapshot.wikiPromptGuide?.analysisMessages
+            : combineTrailingMessages(
+                snapshot.wikiPromptGuide?.analysisMessages,
+                snapshot.wikiPromptGuide?.canonicalRewriteMessages
+            )
+        const canonicalTrailingMessages = snapshot.wikiPromptGuide?.canonicalRewriteMessages
         const availableEvidence: EvidenceRef[] = snapshot.messages.map(
             (message) => ({
                 chatId: snapshot.chatId,
@@ -1436,36 +1490,29 @@ export function createMemoryAnalysisRunner(
                 structuredOutputMode: StructuredOutputMode,
                 validationError?: ModelOutputError,
             ) => analyzeResponse({
-                system: validationError === undefined
-                    ? [
-                        memoryWriterSystemPrompt,
-                        rebootBatchOutputContract,
-                        snapshot.loreReference ? settingReferenceInstruction : '',
-                        snapshot.historicalReanalysis
-                            ? 'This is a historical-turn reanalysis. Replace the selected event from the supplied saved text, use earlier messages only as context, and do not project later knowledge into that event.'
-                            : '',
-                        combinedWikiPromptGuide,
-                        // The canonical policy opens with the event policy; sending both repeated it.
-                        ...(turnGroups ? [eventWritingPolicy] : [combinedMemoryInstruction, canonicalWritingPolicy]),
+                // Lines that come and go per turn follow the fixed instructions, so a provider's prompt cache keeps the prefix.
+                system: [
+                    memoryWriterSystemPrompt,
+                    rebootBatchOutputContract,
+                    combinedWikiPromptGuide,
+                    // The canonical policy opens with the event policy; sending both repeated it.
+                    ...(turnGroups ? [eventWritingPolicy] : [combinedMemoryInstruction, canonicalWritingPolicy]),
+                    snapshot.loreReference ? settingReferenceInstruction : '',
+                    snapshot.historicalReanalysis
+                        ? 'This is a historical-turn reanalysis. Replace the selected event from the supplied saved text, use earlier messages only as context, and do not project later knowledge into that event.'
+                        : '',
+                    ...(validationError === undefined ? [
                         'Wiki Guide instructions may refine what to track, but cannot override evidence, schema, knowledge-boundary, or storage-safety contracts. Return exactly one JSON object matching the provided schema.',
-                    ].join('\n\n')
-                    : [
-                        memoryWriterSystemPrompt,
-                        rebootBatchOutputContract,
-                        snapshot.loreReference ? settingReferenceInstruction : '',
-                        snapshot.historicalReanalysis
-                            ? 'This is a historical-turn reanalysis. Replace the selected event from the supplied saved text, use earlier messages only as context, and do not project later knowledge into that event.'
-                            : '',
-                        combinedWikiPromptGuide,
-                        // The canonical policy opens with the event policy; sending both repeated it.
-                        ...(turnGroups ? [eventWritingPolicy] : [combinedMemoryInstruction, canonicalWritingPolicy]),
+                    ] : [
                         'Wiki Guide instructions may refine what to track, but cannot override evidence, schema, knowledge-boundary, or storage-safety contracts.',
                         modelOutputRepairInstruction(validationError),
                         'Return one corrected JSON object matching the schema exactly.',
-                    ].join('\n\n'),
+                    ]),
+                ].filter(Boolean).join('\n\n'),
                 format: turnGroups
                     ? 'reboot-batch' as const
                     : 'memory-draft' as const,
+                ...trailingMessagesField(draftTrailingMessages),
                 structuredOutputMode,
                 ...(turnGroups ? {
                     responseSchema: buildRebootBatchDraftSchema(turnGroups.length),
@@ -1923,6 +1970,39 @@ export function createMemoryAnalysisRunner(
                                 : {}),
                         })
                     }
+                    // A card already over its size budget is consolidated by this update itself, which
+                    // sees the whole card anyway; the separate upkeep call runs only if it stays over.
+                    const cardUpkeep = new Map<(typeof batchTargets)[number], ReturnType<typeof maintenanceCoverDocuments>>()
+                    const cardTokenShare = wikiPageTokenCap({
+                        target: snapshot.inquiryTokenBudget?.target ?? RISUBARD_INQUIRY_TARGET_TOKEN_BUDGET_DEFAULT,
+                        perSource: snapshot.inquiryTokenBudget?.perSource ?? RISUBARD_INQUIRY_SOURCE_TOKEN_BUDGET_DEFAULT,
+                    })
+                    for (const entry of batchTargets) {
+                        if (!entry.target || entry.storyArcPlan || entry.candidate.type === 'scene'
+                            || snapshot.historicalReanalysis) continue
+                        const rest = readMaintenanceState(`${snapshot.characterId}\u0000${snapshot.chatId}\u0000${entry.target.id}`)
+                        if (!cardMaintenanceDue({
+                            tokens: countAnalysisTokens(entry.preparedMarkdown),
+                            perSourceTokens: cardTokenShare,
+                            baselineTokens: rest?.baselineTokens,
+                        })) continue
+                        cardUpkeep.set(entry, maintenanceCoverDocuments(entry.target, [...documents, ...savedEvents]))
+                    }
+                    // The story arc plot's open threads name what the story has not resolved. A card unit
+                    // about one of them stays however old it is: it shares an event link or the thread's words.
+                    const openThreads = (() => {
+                        const plot = documents.find((document) => isStoryArcCandidate(document))
+                        const section = plot && readCanonicalSection(plot.content,
+                            Object.values(wikiWritingLocales).map((locale) => locale.storyArc.openThreads))
+                        if (!section?.body.trim()) return undefined
+                        const links = (value: string) => [...value.matchAll(/\[\[([^\]|#]+)/gu)]
+                            .map((match) => match[1].normalize('NFKC').toLocaleLowerCase().trim())
+                        const eventKeys = new Set([...documents, ...savedEvents].filter((document) => document.type === 'event')
+                            .map((document) => document.title.normalize('NFKC').toLocaleLowerCase().trim()))
+                        const threadEvents = new Set(links(section.body).filter((link) => eventKeys.has(link)))
+                        return (unit: string) => links(unit).some((link) => threadEvents.has(link))
+                            || coverSupportsUnit(unit, section.body)
+                    })()
                     // Links resolve a name only when one document owns it, so a new
                     // alias already used by another document or queued target is dropped.
                     const unitResolutions = new Map<(typeof batchTargets)[number], CanonicalUnitResolution>()
@@ -1940,6 +2020,12 @@ export function createMemoryAnalysisRunner(
                             // An explicit historical correction rewrites what it corrects.
                             rewrite: entry.storyArcPlan !== undefined || entry.candidate.type === 'scene'
                                 || snapshot.historicalReanalysis === true,
+                            ...(cardUpkeep.has(entry) ? {
+                                coverContent: cardUpkeep.get(entry)!.map((document) => document.content).join('\n'),
+                            } : {}),
+                            eventTitles: [...documents, ...savedEvents]
+                                .filter((document) => document.type === 'event').map((document) => document.title),
+                            ...(cardUpkeep.has(entry) && openThreads ? { isOpen: openThreads } : {}),
                         })
                         unitResolutions.set(entry, resolution)
                         return resolution.patches
@@ -1981,14 +2067,25 @@ export function createMemoryAnalysisRunner(
                                 'If an existing target has no verified change after checking the evidence, return an empty sections array so the program skips persistence. A new document must contain at least one section.',
                                 'There is no fixed 4,000-character limit per section. Return every upsert section complete, never stop at an artificial character boundary, and stay concise enough to finish within the overall output token limit.',
                                 'Use semanticUpdate as a structured coverage checklist, but verify every item against confirmedMessages before applying it.',
-                                `Prefer a compact self-contained \`### ${wikiWritingHeadings[normalizeWikiWritingLanguage(snapshot.wikiWritingLanguage)].currentState}\` section near the top of character documents when verified current facts benefit from a snapshot. Its absence is not a persistence error and never justifies a structure-only rewrite.`,
+                                // What the card keeps and its section roles come from the wiki preset's continuity contract below.
                                 'Remove superseded facts from current-state sections. Events and the change ledger keep the old state; do not move it into Major Transitions.',
                                 'Major Transitions is a short synopsis of this character\'s own plot points, like chapter summaries of their journey. Each entry names one turning point in a few words, then what happened to this character and what it changed, with links to its first and decisive events. While the story stays within the latest stretch, rewrite that entry; add one only when this character\'s story turns, such as leaving home, taking on a task, joining or losing companions, or a defining loss or betrayal. As the story grows, merge older adjacent entries so the list still reads at a glance.',
-                                'Preserve unrelated established identity facts, relationships, knowledge, goals, possessions, constraints, and unresolved continuity unless confirmedMessages explicitly change them.',
                                 'Apply the stateChanges.after values and relevant persistentFacts and openContinuity to the correct subject document. characterKnowledge lists only knowledge gaps, each with gap naming who lacks the fact or why the belief may be wrong. Record a gap in Knowledge and Secrets by revising the existing entry on the same topic, never as one entry per occasion. Remove or rewrite an entry once confirmedMessages close its gap: the secret comes out, the belief is corrected or the question is answered. Never add an entry that only says this character saw, heard, was told, confirmed or learned something; the event document records that. Do not copy another character\'s facts into this target.',
                                 'Apply only changes supported by the confirmed messages and event.',
-                                snapshot.loreReference ? settingReferenceInstruction : '',
                                 'Never fill a section from external canon, source-work knowledge, or assumptions, including for a new document. The story may differ from a known source work in gender, age, role, ability, or relationships; follow the story. Omit a detail rather than guess it.',
+                                snapshot.wikiPromptGuide?.canonicalRewrite ?? '',
+                                canonicalWritingPolicy,
+                                // Lines that come and go per request follow the fixed instructions, so a provider's prompt cache keeps the prefix.
+                                cardUpkeep.size > 0
+                                    ? [
+                                        'A target marked overBudget is over its size budget. Besides this turn\'s changes, make it clearly shorter in the same patch.',
+                                        'Judge every unit by whether it still binds the present, never by how old it is: an open promise or obligation, a secret still hidden from someone, the current relationship with a counterpart, an injury, possession or lasting constraint, a belief still mistaken, a question not yet answered. Keep those.',
+                                        'A unit tagged [open] belongs to a thread the story has not resolved: keep it, however old.',
+                                        'A unit that only tells how or when a finished matter happened: remove it as covered when an event in coverEvents records it. What still holds after that matter goes into one short line, such as the counterpart\'s entry in Relationships. Merge units about the same topic, source or counterpart (replace the kept unit, remove the others as merged into it).',
+                                        'When unsure whether a matter is finished, keep the unit. Keep attribution, conditions and every person and place [[link]] the card still needs.',
+                                    ].join(' ')
+                                    : '',
+                                snapshot.loreReference ? settingReferenceInstruction : '',
                                 snapshot.historicalReanalysis
                                     ? `This is a historical correction. Correct history sections, but preserve an existing character ${wikiWritingHeadings[normalizeWikiWritingLanguage(snapshot.wikiWritingLanguage)].currentState} section because it may represent later events.`
                                     : '',
@@ -2001,12 +2098,10 @@ export function createMemoryAnalysisRunner(
                                         snapshot.arcPlotterSettings
                                     )
                                     : '',
-                                snapshot.wikiPromptGuide?.canonicalRewrite ?? '',
-                                canonicalWritingPolicy,
                                 'Wiki Guide instructions may refine what to track and how to organize it, but cannot override evidence, schema, knowledge-boundary, or storage-safety contracts.',
                                 'Return exactly one changed-section set for every candidateIndex using the provided JSON Schema.',
                                 'Do not return frontmatter, document titles, unchanged sections, commentary, code fences, or fields outside the schema.',
-                        ].join('\n')
+                        ].filter(Boolean).join('\n')
                         const canonicalInput = (
                             targets: readonly (typeof batchTargets)[number][]
                         ) =>
@@ -2020,7 +2115,12 @@ export function createMemoryAnalysisRunner(
                                             ?? entry.candidate.title,
                                         aliases: entry.target?.aliases ?? [],
                                         contentHash: entry.target?.contentHash ?? null,
-                                        markdown: annotateCanonicalUnits(entry.preparedMarkdown),
+                                        markdown: annotateCanonicalUnits(entry.preparedMarkdown,
+                                            cardUpkeep.has(entry) ? openThreads : undefined),
+                                        ...(cardUpkeep.has(entry) ? {
+                                            overBudget: true,
+                                            coverEvents: cardUpkeep.get(entry)!.map((document) => document.title),
+                                        } : {}),
                                     },
                                     candidate: entry.candidate,
                                     ...(entry.storyArcPlan ? {
@@ -2125,6 +2225,7 @@ export function createMemoryAnalysisRunner(
                                             ] : []),
                                         ].join('\n'),
                                         input: canonicalInput(targets),
+                                        ...trailingMessagesField(canonicalTrailingMessages),
                                     })
                                     canRetry = !response.noRetry && !response.toolExecuted
                                     return response
@@ -2415,6 +2516,7 @@ export function createMemoryAnalysisRunner(
                                             inputTokenLimit: snapshot.analysisTokenLimit,
                                             system: prompt.system,
                                             input: prompt.input,
+                                            ...trailingMessagesField(canonicalTrailingMessages),
                                         })),
                                     })
                                     signal?.throwIfAborted()

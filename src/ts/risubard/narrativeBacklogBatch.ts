@@ -9,6 +9,7 @@ const NARRATIVE_BATCH_INPUT_SHARE = 0.5
 export function groupNarrativeBacklog<T extends { messages: readonly { content: string }[] }>(
     turns: readonly T[],
     analysisTokenLimit: number,
+    turnsPerCall = NARRATIVE_BACKLOG_TURNS_PER_RUN,
 ): T[][] {
     const budget = analysisTokenLimit * NARRATIVE_BATCH_INPUT_SHARE
     const size = (turn: T) => turn.messages.reduce((sum, message) => sum + message.content.length, 0)
@@ -16,7 +17,7 @@ export function groupNarrativeBacklog<T extends { messages: readonly { content: 
     let used = 0
     for (const turn of turns) {
         const current = batches.at(-1)
-        if (current && current.length < NARRATIVE_BACKLOG_TURNS_PER_RUN && used + size(turn) <= budget) {
+        if (current && current.length < turnsPerCall && used + size(turn) <= budget) {
             current.push(turn)
             used += size(turn)
             continue
@@ -34,6 +35,15 @@ export function groupNarrativeBacklog<T extends { messages: readonly { content: 
  */
 export function narrativeAnalysisDue(waitingTurns: number, interval: number): boolean {
     return waitingTurns >= Math.max(1, Math.min(NARRATIVE_BACKLOG_TURNS_PER_RUN, interval))
+}
+
+/**
+ * Turns per call when a backlog is caught up. An interval above one is the
+ * user's chosen batch, so a catch-up keeps it (52-53, then 54-55); at one,
+ * waiting turns share calls up to the cap to save requests.
+ */
+export function narrativeTurnsPerCall(interval: number): number {
+    return interval > 1 ? Math.min(NARRATIVE_BACKLOG_TURNS_PER_RUN, interval) : NARRATIVE_BACKLOG_TURNS_PER_RUN
 }
 
 /** Turns without a user reply in between share one user message; keep it once. */

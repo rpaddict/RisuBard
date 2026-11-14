@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { applyCanonicalSectionPatches } from './risubard-markdown-section-patch'
-import { annotateCanonicalUnits, resolveCanonicalUnitPatches, stripUnitMarkers } from './risubard-canonical-unit-edit'
+import { annotateCanonicalUnits, resolveCanonicalUnitPatches, stampUnit, stripUnitMarkers } from './risubard-canonical-unit-edit'
 import type { CanonicalSectionPatch } from './risubard-memory-writer'
 
 const doc = [
@@ -62,6 +62,70 @@ describe('canonical unit edits', () => {
         const outOfRange = apply([edit({ remove: [{ index: 9, reason: 'corrected', mergedInto: null }] })])
         expect(outOfRange).toMatchObject({ rejected: 1, removed: 0 })
         expect(outOfRange.markdown).toBe(doc)
+    })
+
+    test('drops a unit as covered only when an over-budget card\'s cover events hold its words', () => {
+        const covered = edit({ remove: [{ index: 1, reason: 'covered', mergedInto: null }] })
+        const resolve = (coverContent?: string) => {
+            const resolution = resolveCanonicalUnitPatches({
+                markdown: doc, title: 'Alice', patches: [covered], allowSupersede: false,
+                ...(coverContent === undefined ? {} : { coverContent }),
+            })
+            return { ...resolution, markdown: applyCanonicalSectionPatches({ markdown: doc, title: 'Alice', patches: resolution.patches }) }
+        }
+        // Not over budget: no cover events were offered.
+        expect(resolve()).toMatchObject({ rejected: 1, removed: 0 })
+        // The event says something else.
+        expect(resolve('Alice bought bread at the market.').markdown).toContain('cellar key')
+        const supported = resolve('Bob told Alice the cellar key is under the stone by the well.')
+        expect(supported.markdown).not.toContain('cellar key')
+        expect(supported.removed).toBe(1)
+    })
+
+    test('lets a unit go when another section still names its person, or when its link is only an event', () => {
+        const card = [
+            '## Alice', '',
+            '### Relationships', '', '- Trusts [[Bob]].', '',
+            '### Knowledge', '', '- Learned the code from [[Bob]].', '- Saw the fire at [[The Night Market]].',
+        ].join('\n')
+        const removeBoth = edit({ remove: [
+            { index: 0, reason: 'corrected', mergedInto: null },
+            { index: 1, reason: 'corrected', mergedInto: null },
+        ] })
+        const resolve = (eventTitles?: string[]) => resolveCanonicalUnitPatches({
+            markdown: card, title: 'Alice', patches: [removeBoth], allowSupersede: false,
+            ...(eventTitles ? { eventTitles } : {}),
+        })
+        // Bob stays in Relationships, so his link survives; the market is an event.
+        expect(resolve(['The Night Market'])).toMatchObject({ removed: 2, restored: 0 })
+        // Without knowing it is an event, the market line keeps the only link to it.
+        expect(resolve()).toMatchObject({ removed: 1, restored: 1 })
+    })
+
+    test('never drops an open-thread unit as covered, and strips the tag the model copies back', () => {
+        const isOpen = (unit: string) => unit.includes('cellar key')
+        expect(annotateCanonicalUnits(doc, isOpen)).toContain('- [1] [open] Knows the cellar key is under the stone.')
+        const resolution = resolveCanonicalUnitPatches({
+            markdown: doc, title: 'Alice', allowSupersede: false, isOpen,
+            coverContent: 'Bob told Alice the cellar key is under the stone by the well.',
+            patches: [edit({
+                replace: [{ index: 0, text: '[0] [open] Knows the new gate code.' }],
+                remove: [{ index: 1, reason: 'covered', mergedInto: null }],
+            })],
+        })
+        const markdown = applyCanonicalSectionPatches({ markdown: doc, title: 'Alice', patches: resolution.patches })
+        expect(markdown).toContain('cellar key')
+        expect(markdown).toContain('- Knows the new gate code.')
+        expect(markdown).not.toContain('[open]')
+        expect(resolution).toMatchObject({ rejected: 1, removed: 0 })
+    })
+
+    test('extends a merged range instead of adding a second mark', () => {
+        expect(stampUnit('Quit the night job. (#17–#19)', 19)).toBe('Quit the night job. (#17–#19)')
+        expect(stampUnit('Quit the night job. (#17–#19)', 30)).toBe('Quit the night job. (#17–#30)')
+        expect(stampUnit('Quit the night job. (#17–#19) (#19)', 19)).toBe('Quit the night job. (#17–#19)')
+        expect(stampUnit('Knows the code. (#4)', 9)).toBe('Knows the code. (#9)')
+        expect(stampUnit('Knows the code.', 9)).toBe('Knows the code. (#9)')
     })
 
     test('keeps a removed unit whose link would disappear', () => {

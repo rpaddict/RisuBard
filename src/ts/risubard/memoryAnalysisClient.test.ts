@@ -1975,6 +1975,61 @@ describe('stored response memory analysis', () => {
             `분석 입력 조정: 분석 토큰 상한에 맞추려고 로어 참고 ${loreReference.length - kept.length}개를 뺐습니다.`)
     })
 
+    test('sends wiki preset user and character blocks after the analysis input in preset order', async () => {
+        const requestModel = vi.fn(async (_request: MemoryAnalysisModelCall) => ({
+            type: 'success' as const,
+            result: JSON.stringify({
+                schemaVersion: 1, title: '도착', establishedEvents: ['사만다가 도착했다.'],
+                stateChanges: [], characterKnowledge: [], persistentFacts: [], openContinuity: [],
+                canonicalUpdateCandidates: [],
+            }),
+        }))
+        const analysis = createStoredResponseMemoryAnalysis({
+            requestModel,
+            fetchImpl: vi.fn(async (input) => {
+                const url = String(input)
+                if (url.endsWith('/view')) {
+                    return new Response(JSON.stringify({
+                        mode: 'markdown', wikiPath: 'wiki', documents: [],
+                        health: { danglingLinks: [], unlinkedDocumentIds: [] },
+                    }))
+                }
+                if (url.endsWith('/inquiry')) {
+                    return new Response(JSON.stringify({
+                        mode: 'v2-current', graphRevision: 0, indexRevision: 0,
+                        cacheStatus: 'current', sources: [], metrics: {
+                            candidateCount: 0, inspectedNodeCount: 0, inspectedEdgeCount: 0,
+                            selectedNodeCount: 0, selectedTokens: 0, hopCount: 0, auxiliaryModelCalls: 0,
+                        },
+                    }))
+                }
+                return new Response(JSON.stringify({ id: 'event-1', title: '도착', retrievalMetadata: {} }))
+            }) as unknown as typeof fetch,
+            createAuth: async () => 'test-jwt',
+            onError: vi.fn(),
+            nativeV2Analysis: true,
+        })
+        const checklist = { role: 'assistant' as const, content: '장면 점검을 마쳤습니다.' }
+        const stopper = { role: 'user' as const, content: 'OOC: 이제 JSON만 출력하세요.' }
+
+        await analysis.confirm({
+            characterId: 'character', chatId: 'chat',
+            messages: [{ messageId: 'assistant-1', role: 'assistant', content: '사만다가 도착했다.' }],
+            wikiPromptGuide: {
+                analysis: '## Guide\nTrack arrivals.',
+                canonicalRewrite: '## Guide\nTrack arrivals.',
+                analysisMessages: [checklist, stopper],
+                canonicalRewriteMessages: [checklist, stopper],
+            },
+        })
+
+        const formated = requestModel.mock.calls[0][0].formated
+        expect(formated.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user'])
+        expect(JSON.parse(formated[1].content).confirmedMessages[0].content).toBe('사만다가 도착했다.')
+        expect(formated.slice(2)).toEqual([checklist, stopper])
+        expect(formated[0].content).not.toContain('장면 점검을 마쳤습니다.')
+    })
+
     test.each([
         { analysisTokenLimit: 12_000, longEvidence: false },
         { analysisTokenLimit: 12_000, longEvidence: true },

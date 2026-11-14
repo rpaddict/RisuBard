@@ -45,6 +45,28 @@ describe('progressive Markdown inquiry', () => {
         const optional = inquireMarkdownDocuments({ documents: [pinned, hidden], currentInput: '계획', contextSelection: 'auto' })
         expect(optional.sources).toEqual([])
     })
+    test('finds an old event by its [사건N] number or by the in-story date it recorded', () => {
+        // Three hundred later events all mention the gun, so wording alone ranks the first one last.
+        const events = Array.from({ length: 300 }, (_, index) => document({
+            id: `event-${index + 1}`, type: 'event', title: `총을 닦은 밤 ${index + 1}`,
+            relativePath: `events/${index + 1}.md`, content: `## 총을 닦은 밤 ${index + 1}\n\n- 총을 손질했다.`,
+            sequence: index + 1,
+            updated: new Date(Date.UTC(2026, 7, 16) + index * 60_000).toISOString(),
+            retrievalMetadata: { keywords: ['총'], storyTime: index === 0
+                ? { day: 0, evidence: '', precision: 'origin', calendar: '11월 5일 목요일 밤 10시 25분' }
+                : { day: index, evidence: '', precision: 'explicit', calendar: `12월 ${(index % 28) + 1}일` } },
+        }))
+        const budget = { target: 1024, events: 1024, perSource: 256, maximum: 2048 }
+        const selected = (currentInput: string) => inquireMarkdownDocuments({ documents: events, currentInput, tokenBudget: budget })
+            .sources.map((source) => source.content)
+        const first = '## 총을 닦은 밤 1\n'
+        expect(selected('선반 위의 총을 집어든다').some((content) => content.includes(first))).toBe(false)
+        expect(selected('[사건1]로 돌아가 선반 위의 총을 집어든다').some((content) => content.includes(first))).toBe(true)
+        expect(selected('[사건 1] 다시 보기').some((content) => content.includes(first))).toBe(true)
+        expect(selected('11월 5일로 시간을 되돌려 총을 집어든다').some((content) => content.includes(first))).toBe(true)
+        expect(selected('Back to November 5th, I take the gun.').some((content) => content.includes(first))).toBe(true)
+    })
+
     test('includes verified semantic original evidence without an explicit history keyword', () => {
         const result = inquireMarkdownDocuments({documents:[],currentInput:'그는 손가락을 만지작거린다.',
             sourceMatches:[{messageId:'old',role:'assistant',content:'그가 전달했던 은빛 반지에는 비밀 장부의 위치가 새겨져 있다.',score:0.8,occurredAt:2,retrieval:'semantic'}],

@@ -4,6 +4,8 @@
     import CollectionOrganizerList from 'src/lib/UI/CollectionOrganizerList.svelte'
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte'
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
+    import SettingsSectionTabs from 'src/lib/UI/GUI/SettingsSectionTabs.svelte'
+    import CharacterAppSkinPicker from 'src/lib/Setting/Pages/Display/CharacterAppSkinPicker.svelte'
     import { DBState, ReloadGUIPointer, openModuleEditId, selectedCharID } from 'src/ts/stores.svelte'
     import { alertConfirm, notifySuccess } from 'src/ts/alert'
     import { removeModules } from 'src/ts/process/moduleRemoval'
@@ -18,6 +20,7 @@
 
     let { close = () => {}, alertMode = false }: Props = $props()
     let open = $state(true)
+    let view = $state<'modules' | 'skins'>('modules')
     const copy = $derived(language.chatModuleActivation)
     const presetModuleIds = $derived(new Set((DBState.db.moduleIntergration ?? '').split(',').map((id) => id.trim()).filter(Boolean)))
     const character = $derived(DBState.db.characters[$selectedCharID])
@@ -68,8 +71,21 @@
     contentStyle="width: min(72rem, calc(100vw - 2rem)); max-width: calc(100vw - 2rem); height: min(52rem, calc(100dvh - 2rem)); max-height: calc(100dvh - 2rem);"
 >
     {#snippet title()}{language.modules}{/snippet}
-    {#snippet description()}{alertMode ? copy.selectDescription : copy.description}{/snippet}
+    {#snippet description()}{alertMode ? copy.selectDescription : view === 'skins' ? language.appSkin.botDescription : copy.description}{/snippet}
 
+    {#if !alertMode}
+        <SettingsSectionTabs
+            class="chat-module-tabs"
+            ariaLabel={language.modules}
+            tabs={[{ label: language.modules, value: 0 }, { label: language.appSkin.botTab, value: 1 }]}
+            selected={view === 'skins' ? 1 : 0}
+            onSelect={(value) => { view = value === 1 ? 'skins' : 'modules' }}
+        />
+    {/if}
+
+    {#if view === 'skins' && !alertMode}
+        <CharacterAppSkinPicker />
+    {:else}
     <CollectionOrganizerList managerLayout kind="modules" {items} collectionLabel={language.modules}>
         {#snippet itemContent(moduleId)}
             {@const module = DBState.db.modules.find((item) => item.id === moduleId)}
@@ -125,9 +141,11 @@
             {/if}
         {/snippet}
     </CollectionOrganizerList>
+    {/if}
 </ShDialog>
 
 <style>
+    :global(.chat-module-tabs.settings-section-tabs) { flex: 0 0 auto; margin-bottom: .75rem; }
     .chat-module-row { display: flex; flex-wrap: nowrap; align-items: center; gap: .75rem; min-width: 0; height: 100%; }
     .chat-module-copy { flex: 1 1 6rem; min-width: 0; overflow-wrap: anywhere; }
     .chat-module-name { display: flex; align-items: center; gap: .4rem; min-width: 0; }

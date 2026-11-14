@@ -31,6 +31,11 @@
         onToggle?: () => void
     } = $props()
 
+    function setRole(value: string) {
+        if (value === 'user' || value === 'bot') block.role = value
+        else delete block.role
+    }
+
     $effect(() => {
         if (block.type === 'text' && typeof block.content !== 'string') {
             block.content = ''
@@ -107,8 +112,23 @@
                     <OptionInput value="canonical-rewrite">{language.risuBardWikiPrompt.stageCanonicalRewrite}</OptionInput>
                     <OptionInput value="response">{language.risuBardWikiPrompt.stageResponse}</OptionInput>
                 </SelectInput>
+                {#if block.target !== 'response'}
+                    <SelectInput
+                        value={block.role ?? 'system'}
+                        size="sm"
+                        ariaLabel={language.role}
+                        onchange={(event) => setRole(event.currentTarget.value)}
+                    >
+                        <OptionInput value="system">{language.systemPrompt}</OptionInput>
+                        <OptionInput value="user">{language.user}</OptionInput>
+                        <OptionInput value="bot">{language.character}</OptionInput>
+                    </SelectInput>
+                {/if}
             </div>
         </div>
+        {#if block.target !== 'response' && (block.role === 'user' || block.role === 'bot')}
+            <p class="role-hint">{language.risuBardWikiPrompt.roleMessageHint}</p>
+        {/if}
         <TextAreaInput
             bind:value={block.content}
             fullwidth
@@ -179,6 +199,13 @@
         justify-content: space-between;
         gap: .8rem;
         margin: .8rem 0;
+    }
+
+    .role-hint {
+        margin: -.35rem 0 .7rem;
+        color: var(--risu-theme-textcolor2);
+        font-size: .75rem;
+        line-height: 1.45;
     }
 
     .locked-copy {

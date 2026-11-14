@@ -3,11 +3,11 @@
 
 import { get } from 'svelte/store'
 import { language } from 'src/lang'
-import { getDatabase } from '../storage/database.svelte'
+import { getDatabase, type Database } from '../storage/database.svelte'
 import { downloadFile, loadAsset, saveAsset } from '../globalApi.svelte'
 import { BufferToText, selectSingleFile } from '../util'
 import { alertConfirm, notifyError, notifySuccess, notifyWarning } from '../alert'
-import { SafeModeStore } from '../stores.svelte'
+import { SafeModeStore, selectedCharID } from '../stores.svelte'
 import { compileAppSkinCss, validateAppSkin, type AppSkin, type AppSkinFont } from './appSkin'
 import { detectInstalledFont, fontBytesToDataUrl, fontDataUrlToBytes, sniffFontFormat } from './appSkinFonts'
 import { BUILTIN_APP_SKINS } from './builtinSkins'
@@ -119,9 +119,44 @@ export function findAppSkin(id: string, db = getDatabase()): AppSkin | undefined
     return db.appSkins?.find((skin) => skin?.id === id) ?? BUILTIN_APP_SKINS.find((skin) => skin.id === id)
 }
 
+function currentCharacterKey(db: Database, charIndex = get(selectedCharID)): string {
+    const character = charIndex >= 0 ? db.characters?.[charIndex] : undefined
+    return character?.chaId ?? ''
+}
+
+/** Stored link for the default look; skin ids cannot start with '@'. */
+const DEFAULT_SKIN_LINK = '@default'
+
+/** The skin linked to the open bot ('' is the default look), or null when the bot follows the app-wide skin. */
+export function characterAppSkinId(db = getDatabase(), charIndex = get(selectedCharID)): string | null {
+    const key = currentCharacterKey(db, charIndex)
+    const id = key ? db.characterAppSkins?.[key] : undefined
+    if (!id) return null
+    if (id === DEFAULT_SKIN_LINK) return ''
+    return findAppSkin(id, db) ? id : null
+}
+
+/** The skin shown now: the open bot's linked skin, otherwise the app-wide choice. */
+export function effectiveAppSkinId(db = getDatabase(), charIndex = get(selectedCharID)): string {
+    return characterAppSkinId(db, charIndex) ?? (db.appSkinId ?? '')
+}
+
+/** Links a skin ('' for the default look) to the open bot, or unlinks it when it is already linked. */
+export function toggleCharacterAppSkin(skinId: string) {
+    const db = getDatabase()
+    const key = currentCharacterKey(db)
+    if (!key) return
+    const stored = skinId || DEFAULT_SKIN_LINK
+    const links = { ...(db.characterAppSkins ?? {}) }
+    if (links[key] === stored) delete links[key]
+    else links[key] = stored
+    db.characterAppSkins = links
+    applyAppSkin(db)
+}
+
 export function applyAppSkin(db = getDatabase()) {
     if (typeof document === 'undefined') return
-    const id = db.appSkinId ?? ''
+    const id = effectiveAppSkinId(db)
     const stored = id && !isAppSkinSuppressed() ? findAppSkin(id, db) : undefined
     if (!stored) {
         clearAppliedSkin()
@@ -201,7 +236,7 @@ export async function installAppSkinFromText(text: string): Promise<AppSkin | nu
     if (index >= 0) skins[index] = skin
     else skins.push(skin)
     db.appSkins = skins
-    if (db.appSkinId === skin.id) applyAppSkin(db)
+    if (effectiveAppSkinId(db) === skin.id) applyAppSkin(db)
     notifySuccess(language.appSkin.installed.replace('{}', skin.name))
     return skin
 }
@@ -241,5 +276,9 @@ export async function removeAppSkin(id: string) {
     if (!skin || !await alertConfirm(language.appSkin.removeConfirm.replace('{}', skin.name))) return
     db.appSkins = (db.appSkins ?? []).filter((entry) => entry.id !== id)
     if (db.appSkinId === id) db.appSkinId = ''
+    const links = db.characterAppSkins ?? {}
+    if (Object.values(links).includes(id)) {
+        db.characterAppSkins = Object.fromEntries(Object.entries(links).filter(([, skinId]) => skinId !== id))
+    }
     applyAppSkin(db)
 }

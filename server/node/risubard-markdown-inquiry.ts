@@ -242,8 +242,41 @@ function queryTerms(value: string): string[] {
         .slice(0, 32)
 }
 
+// [사건12] or [event 12] names an event by its story-order number, the #12 shown in the wiki
+// editor and on canon lines. It is how a user who knows the exact event points at it.
+const EVENT_REFERENCE = /\[(?:사건|event|事件|イベント)\s*#?(\d{1,6})\]/giu
+const EXPLICIT_EVENT_SCORE = 100
+// A date the user writes matches the in-story date an event recorded, such as a status line's.
+const CALENDAR_DATE_SCORE = 12
+const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+// Only a whole month name or its usual abbreviation counts, so "decided 5" is not December 5.
+const monthOf = (word: string): number => {
+    const index = MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september'))
+    return index < 0 ? -1 : index + 1
+}
+
+/** Month-day keys in a text, whatever the writing: 11월 5일, 11月5日, 11/5, November 5, 5 Nov. */
+function calendarDateKeys(value: string): Set<string> {
+    const text = value.normalize('NFKC').toLocaleLowerCase()
+    const keys = new Set<string>()
+    const add = (month: number, day: number) => {
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) keys.add(`${month}-${day}`)
+    }
+    for (const match of text.matchAll(/(\d{1,2})\s*[월月]\s*(\d{1,2})\s*[일日]/gu)) add(Number(match[1]), Number(match[2]))
+    for (const match of text.matchAll(/(?<![\d/.:])(\d{1,2})\s*[/.]\s*(\d{1,2})(?![\d/.:])/gu)) add(Number(match[1]), Number(match[2]))
+    for (const match of text.matchAll(/\b([a-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/gu)) {
+        const month = monthOf(match[1])
+        if (month > 0) add(month, Number(match[2]))
+    }
+    for (const match of text.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]+)\b/gu)) {
+        const month = monthOf(match[2])
+        if (month > 0) add(month, Number(match[1]))
+    }
+    return keys
+}
+
 function hasPastIntent(value: string): boolean {
-    return /(?:과거|예전|이전|당시|전날|어제|지난|그때|앞서|전에|처음|초반|원래|회상|떠올리|기억|past|previous|before|earlier|formerly|used to|昔|以前|当時|過去|过去|之前|當時|曾经|曾經|回忆|回憶|记得|記得)/i
+    return /(?:과거|예전|이전|당시|전날|어제|지난|그때|앞서|전에|처음|초반|원래|회상|떠올리|기억|되돌|past|previous|before|earlier|formerly|used to|昔|以前|当時|過去|过去|之前|當時|曾经|曾經|回忆|回憶|记得|記得)/i
         .test(value)
 }
 
@@ -529,6 +562,17 @@ export function inquireMarkdownDocuments(
     const byId = new Map(eligibleDocuments.map((document) =>
         [document.id, document]))
 
+    const explicitEvents = new Set([...input.currentInput.slice(0, 4_096).matchAll(EVENT_REFERENCE)]
+        .map((match) => Number(match[1])))
+    const queryDates = calendarDateKeys(input.currentInput.slice(0, 4_096))
+    const anchorScore = (document: MarkdownWikiDocument): number => {
+        if (document.type !== 'event') return 0
+        const sequence = sequences.get(document.id)
+        const calendar = document.retrievalMetadata?.storyTime?.calendar
+        return (sequence !== undefined && explicitEvents.has(sequence) ? EXPLICIT_EVENT_SCORE : 0)
+            + (calendar && queryDates.size > 0 && [...calendarDateKeys(calendar)].some((key) => queryDates.has(key))
+                ? CALENDAR_DATE_SCORE : 0)
+    }
     let direct = eligibleDocuments.map((document) => ({
         document,
         directScore: lexicalScore(
@@ -537,7 +581,7 @@ export function inquireMarkdownDocuments(
             terms,
             characterAnchorTerms,
             termWeights
-        ),
+        ) + anchorScore(document),
     })).filter(({ directScore }) => directScore > 0)
         .sort((left, right) =>
             right.directScore - left.directScore

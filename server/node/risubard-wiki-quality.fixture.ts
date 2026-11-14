@@ -124,7 +124,7 @@ const KNOWLEDGE = '지식과 비밀'
 
 type Section = { heading: string; operation: 'upsert' | 'edit'; content: string;
     add: string[]; replace: Array<{ index: number; text: string }>;
-    remove: Array<{ index: number; reason: 'superseded' | 'merged' | 'corrected'; mergedInto: number | null }> }
+    remove: Array<{ index: number; reason: 'superseded' | 'merged' | 'corrected' | 'covered'; mergedInto: number | null }> }
 
 function readUnits(markdown: string, heading: string): string[] {
     const lines = markdown.split('\n')

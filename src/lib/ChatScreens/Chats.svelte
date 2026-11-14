@@ -156,6 +156,10 @@
                 // leaves the text out (streaming, preserved reading position), this
                 // read is what makes the effect re-run as a new reply streams in.
                 const messageData = message.data;
+                // Same for the wiki result: with a preserved reading position the hash leaves it out, so
+                // a receipt set later (additional analysis, no new message) never re-ran this effect.
+                const memoryConfirmed = message.risubardMemoryConfirmed === true;
+                const canonicalReceipt = message.risubardCanonicalReceipt;
                 // Mounting inside this $effect would make the message a child of it. When the effect
                 // re-runs, Svelte detaches it while an update may still be pending, and the message
                 // stops reacting (the edit button did nothing until the bot was reopened).
@@ -175,9 +179,8 @@
                         onDeleteSwipe: i === lastRealCharIdx ? onDeleteSwipe : () => {},
                         onConfirmMemory,
                         onReanalyzeMemory,
-                        memoryConfirmed:
-                            message.risubardMemoryConfirmed === true,
-                        canonicalReceipt: message.risubardCanonicalReceipt,
+                        memoryConfirmed,
+                        canonicalReceipt,
                         rerollIcon: i === lastRealCharIdx ? 'force' : false,
                         character: simpleChar,
                         largePortrait: message.role === 'user' ? (userIconPortrait ?? false) : ((currentCharacter as character).largePortrait ?? false),
