@@ -91,6 +91,7 @@
     import { normalizeArcPlotterRuntimeSettings } from 'src/ts/risubard/arcPlotterSettings'
     import { isWikiGenerating, beginWikiGeneration, endWikiGeneration } from 'src/ts/risubard/wikiGenerationState'
     import { isAnyGenerating } from 'src/ts/process/generationState'
+    import { registerAppBack } from 'src/ts/mobileBack'
 
     interface Props {
         open?: boolean
@@ -152,6 +153,15 @@
         onPrepareStoryTimeBackfill,
         onRunStoryTimeBackfill,
     }: Props = $props()
+
+    // The Android back button closes the dock (see src/ts/mobileBack.ts).
+    $effect(() => {
+        if (!open) return
+        return registerAppBack(() => {
+            open = false
+            return true
+        })
+    })
     // The dock loads a table of contents; page bodies, story summaries and
     // export data are fetched only when a view needs them.
     let wiki = $state<NarrativeMemoryWikiCatalog | null>(null)

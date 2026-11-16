@@ -2351,6 +2351,7 @@ export const languageEnglish = {
     modelPresetCreate: "Create new model preset",
     basicSettings: "Basic Settings",
     backToList: "Back to list",
+    pressBackAgainToExit: "Press back again to exit",
     selectProfile: "Select Profile",
     searchProfiles: "Search profiles",
     noProfileMatch: "No matching profile",
