@@ -432,6 +432,17 @@ function fillPartialMessage(loc: LocatedChat, index: number, text: string, job: 
 // an existing message with this generationId is never duplicated — it is either
 // left alone or filled in from the journal (see fillPartialMessage).
 export async function recoverTerminalJob(job: ModelJobRecord): Promise<void> {
+    // This tab's live send still owns the generation: the server finished it
+    // while the tab was in the background, and a return-to-tab discovery pass
+    // ran before the live send pushed its message. Slotting it in here would
+    // leave two messages with one chatId. The live path claims the job itself;
+    // if it dies first, the next pass (generation ended) recovers as usual.
+    // ('background' is attachRunningJob's own poll, which slots in through here.)
+    const owner = get(generationStates).get(chatGenKey(job.chatId))
+    if (job.generationId && owner?.kind === 'live' && owner.generationId === job.generationId) {
+        diag(`recover ${job.id.slice(0, 8)}: live send still owns it -> skip`)
+        return
+    }
     const loc = await locateChat(job.chatId)
     if (!loc) {
         // Chat was deleted while the job ran — nothing to slot into.
