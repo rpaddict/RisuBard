@@ -11,10 +11,8 @@ describe('lorebook sidebar layout', () => {
     const app = source('src/App.svelte')
     const analysisPanel = source('src/lib/SideBars/LoreBook/BardLoreAnalysisPanel.svelte')
 
-    test('uses the same compact section header hierarchy as the chat sidebar', () => {
-        expect(chatSidebar).toContain(
-            'data-current-chat-section class="border-b border-darkborderc pb-2"',
-        )
+    test('uses a compact section header in the lorebook sidebar', () => {
+        expect(chatSidebar).toContain('data-chat-list-disclosure')
         expect(characterConfig).toContain(
             'data-lorebook-sidebar-header class="border-b border-darkborderc pb-2"',
         )

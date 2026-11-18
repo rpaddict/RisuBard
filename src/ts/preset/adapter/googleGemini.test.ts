@@ -1346,3 +1346,32 @@ describe('context caching wiring', () => {
         expect(result.reasoning).toBeUndefined()
     })
 })
+
+describe('keepLaterSystemInPlace', () => {
+    const messages: AdapterChatMessage[] = [
+        { role: 'system', content: 'preset' },
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: 'yo' },
+        { role: 'system', content: 'keyword lore' },
+        { role: 'user', content: 'next' },
+    ]
+    const ok = () => jsonResponse({ candidates: [{ content: { parts: [{ text: 'ok' }], role: 'model' }, finishReason: 'STOP' }] })
+
+    test('off: every system message is hoisted into systemInstruction', async () => {
+        const { fetchImpl, calls } = captureFetch(ok())
+        await sendGoogleChatRequest(makePreset(), { messages, fetchImpl }, { apiKey: 'k' })
+        expect(calls[0].body.systemInstruction).toEqual({ parts: [{ text: 'preset\n\nkeyword lore' }] })
+    })
+
+    test('on: only the leading system run is hoisted; later ones stay in place as user turns', async () => {
+        const { fetchImpl, calls } = captureFetch(ok())
+        await sendGoogleChatRequest(makePreset(), { messages, fetchImpl, keepLaterSystemInPlace: true }, { apiKey: 'k' })
+        expect(calls[0].body.systemInstruction).toEqual({ parts: [{ text: 'preset' }] })
+        expect(calls[0].body.contents).toEqual([
+            { role: 'user', parts: [{ text: 'hi' }] },
+            { role: 'model', parts: [{ text: 'yo' }] },
+            { role: 'user', parts: [{ text: 'System: keyword lore' }] },
+            { role: 'user', parts: [{ text: 'next' }] },
+        ])
+    })
+})

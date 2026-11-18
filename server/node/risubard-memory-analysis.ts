@@ -1743,6 +1743,26 @@ export function createMemoryAnalysisRunner(
                         ?? retrievalMetadata?.storyTime ?? { day: null, precision: 'unknown' })
                 }
             }
+            // A re-analysed turn renames its event, and saving it rewrites the links in the cards
+            // that named the old title. Read those cards again so their update builds on that rewrite.
+            if (documentsLoaded && options.markdownWikiService.loadDocuments
+                && savedEvents.some((saved) => documents.some((document) =>
+                    document.id === saved.id && document.title !== saved.title))) {
+                try {
+                    const fresh = new Map((await options.markdownWikiService.loadDocuments(
+                        snapshot.characterId,
+                        snapshot.chatId,
+                        ...optionalSignalArgument(signal)
+                    )).map((document) => [document.id, document]))
+                    documents = documents.map((document) => document.type === 'event'
+                        ? document
+                        : fresh.get(document.id) ?? document)
+                }
+                catch (error) {
+                    signal?.throwIfAborted()
+                    await reportError(error)
+                }
+            }
             const receiptWarningsBeforeCanon: string[] = []
             const chapterNotes: string[] = []
             const chapterChanges: Array<{ documentId: string; title: string; relativePath: string; afterHash: string }> = []

@@ -23,6 +23,7 @@ import type {
 import { resolveWireModelId } from './wireInvariants'
 import { capModelOutputTokens } from './outputTokens'
 import { toGeminiResponseSchema } from './geminiResponseSchema'
+import { inlineLaterSystemMessages } from './systemPlacement'
 
 interface GeminiPart {
     text?: string
@@ -227,7 +228,9 @@ async function prepareGeminiBody(
     const modelId = resolveWireModelId(preset, { vendorName: 'Google Gemini' })
     delete prepared.body.model
 
-    const { system, chat, systemCachePoint } = collectSystemAndChat(options.messages)
+    const { system, chat, systemCachePoint } = collectSystemAndChat(options.keepLaterSystemInPlace
+        ? inlineLaterSystemMessages(options.messages)
+        : options.messages)
     const { contents, cacheBoundary } = toGeminiContents(chat)
     // A cachePoint carried only by system messages (cache prompt card /
     // automaticCachePoint landing on the system role) used to be dropped when

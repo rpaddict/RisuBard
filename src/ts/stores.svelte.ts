@@ -50,7 +50,8 @@ export const modelProfileReplaceTarget = writable<string | null>(null)
 // Set to a newly-created preset id so the ModelPreset settings page opens it
 // for editing immediately. Consumed (cleared) by ModelPresetSettings.
 export const openModelPresetEditId = writable<string | null>(null)
-export const openModuleListStore = writable(false)
+/** Opens the chat module window; 'skins' opens it on the bot skin tab. */
+export const openModuleListStore = writable<boolean | 'modules' | 'skins'>(false)
 // Set to a module id so the Module settings page opens its editor. Consumed (cleared) by ModuleSettings.
 export const openModuleEditId = writable<string | null>(null)
 export const risuBardGalleryOpen = writable(false)

@@ -20,9 +20,11 @@
         label?: string
         disabled?: boolean
         blankLabel?: string
+        /** Compact button tooltip prefix; the tooltip then shows "prefix: full model name". */
+        titleLabel?: string
     }
 
-    let { value = $bindable(""), onChange = (v) => {}, onclick, blankable, excludesPrefix, compact, label, disabled = false, blankLabel }: Props = $props();
+    let { value = $bindable(""), onChange = (v) => {}, onclick, blankable, excludesPrefix, compact, label, disabled = false, blankLabel, titleLabel }: Props = $props();
     let openOptions = $state(false)
     let showUnrec = $state(false)
     const TAB_KEY = 'risubard.modelList.lastTab'
@@ -185,7 +187,10 @@
 {/if}
 
 {#if compact}
-    <ShButton className={`w-full min-w-0 justify-start${disabled ? ' opacity-50 pointer-events-none' : ''}`} onclick={() => { if(!disabled){ openOptions = true } }}>
+    <ShButton
+        className={`w-full min-w-0 justify-start${disabled ? ' opacity-50 pointer-events-none' : ''}`}
+        title={titleLabel ? `${titleLabel}: ${(blankable && !value && blankLabel) ? blankLabel : (getModelInfo(value)?.fullName || getModelInfo(value)?.name || language.none)}` : undefined}
+        onclick={() => { if(!disabled){ openOptions = true } }}>
         <span class="truncate">{(blankable && !value && blankLabel) ? blankLabel : (getModelInfo(value)?.shortName || getModelInfo(value)?.name || language.none)}</span>
     </ShButton>
 {:else}

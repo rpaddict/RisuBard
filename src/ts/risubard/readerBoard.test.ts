@@ -35,6 +35,7 @@ import {
     summarizeReaderBoard,
     workScore,
     toMessageView,
+    trimTheories,
     type ChatMessageView,
     type ReaderBoard,
 } from './readerBoard'
@@ -186,6 +187,24 @@ describe('applyGenerationResult', () => {
         expect(plan.board.readers[0].theories[0]).toMatchObject({ status: 'confirmed', note: '맞았다' })
     })
 
+    it('keeps only the newest six open and two resolved theories of each work', () => {
+        const theory = (n: number, status: 'open' | 'confirmed' | 'refuted', workId = 'w1') =>
+            ({ id: `t${n}`, workId, text: `추측 ${n}`, status, postNo: n })
+        const list = [
+            ...Array.from({ length: 8 }, (_, i) => theory(i + 1, 'open')),
+            theory(9, 'confirmed'), theory(10, 'refuted'), theory(11, 'confirmed'),
+            theory(12, 'open', 'w0'),
+        ]
+        expect(trimTheories(list).map((item) => item.id))
+            .toEqual(['t3', 't4', 't5', 't6', 't7', 't8', 't10', 't11', 't12'])
+
+        const board = boardWithReaders()
+        board.readers[0].theories = list.map((item) => ({ ...item, workId: board.currentWorkId }))
+        const loaded = normalizeReaderBoard(JSON.parse(JSON.stringify(board)))!
+        expect(loaded.readers[0].theories).toHaveLength(8)
+        expect(loaded.nextTheoryNo).toBeGreaterThan(12)
+    })
+
     it('fails without any comment so the board is not saved half done', () => {
         const plan = prepareGeneration({ board: boardWithReaders(), chatKey: CHAT, views: views(2), range: { start: 0, end: 1 } })!
         expect(() => applyGenerationResult(plan, { comments: [] }, { createId })).toThrow()
@@ -261,6 +280,19 @@ describe('user turns', () => {
     it('publishes nothing when the range holds only user messages', () => {
         const chat = views(1)
         expect(prepareGeneration({ board: boardWithReaders(), chatKey: CHAT, views: chat, range: { start: 0, end: 0 } })).toBeNull()
+    })
+
+    it('leaves OOC turns out of the episode, the counts and the split', () => {
+        const chat = views(6)
+        chat[3] = toMessageView({ role: 'char', data: '<!-- OOC_turn --> 작가와 상담', chatId: 'm3' }, '앨리스')
+        expect(chat[3].ooc).toBe(true)
+        expect(analyzeChat(boardWithReaders(), CHAT, chat).pending).toBe(2)
+        expect(splitRange(chat, 0, 5, 1)).toEqual([{ start: 0, end: 1 }, { start: 2, end: 5 }])
+        const plan = prepareGeneration({ board: boardWithReaders(), chatKey: CHAT, views: chat, range: { start: 0, end: 5 }, random: () => 0 })!
+        expect(plan.episode?.messageKeys).toEqual(['m1', 'm5'])
+        expect(plan.episodeText).not.toContain('작가와 상담')
+        const onlyOoc = [chat[2], chat[3]]
+        expect(prepareGeneration({ board: boardWithReaders(), chatKey: CHAT, views: onlyOoc, range: { start: 0, end: 1 } })).toBeNull()
     })
 })
 

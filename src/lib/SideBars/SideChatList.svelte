@@ -12,6 +12,8 @@
 
     import CheckInput from "../UI/GUI/CheckInput.svelte";
     import ShAccordion from "../UI/GUI/ShAccordion.svelte";
+    import { isSidebarSectionOpen, setSidebarSectionOpen } from "src/ts/gui/sidebarSectionState.svelte";
+    import { characterAppSkinId, findAppSkin } from "src/ts/gui/appSkinRuntime";
     import ShButton from "../UI/GUI/ShButton.svelte";
 
     import { exportChat, importChat, exportAllChats } from "src/ts/characters";
@@ -90,9 +92,18 @@
     let listEle: HTMLDivElement = $state()
     let sorted = $state(0)
     let opened = 0
-    let chatListExpanded = $state(false)
+    const chatListExpanded = $derived(isSidebarSectionOpen(chara?.chaId, 'chatList'))
+    function setChatListExpanded(open: boolean) {
+        setSidebarSectionOpen(chara?.chaId, 'chatList', open)
+    }
     const chatListHeight = $derived(normalizeChatListHeight(DBState.db.chatListHeight, $SizeStore.h))
     const activeChat = $derived(chara.chats[chara.chatPage])
+    // Name of the skin pinned to this bot, or null when it follows the app-wide skin.
+    const linkedSkinName = $derived.by(() => {
+        const id = characterAppSkinId(DBState.db, $selectedCharID)
+        if (id === null) return null
+        return id === '' ? language.appSkin.defaultSkin : (findAppSkin(id, DBState.db)?.name ?? id)
+    })
     let mergeOpen = $state(false)
     let managerOpen = $state(false)
 
@@ -674,16 +685,13 @@
     <ChatManagerDialog open={managerOpen} bind:chara onOpenChange={(open) => { managerOpen = open }} />
 {/if}
 <div class="flex flex-col w-full" bind:this={rootEle}>
-    <section data-current-chat-section class="border-b border-darkborderc pb-2">
-        <div data-chat-file-header class="flex min-h-10 items-center gap-1">
-            <div data-current-chat-title class="flex min-w-0 grow items-center px-1.5 py-2 text-textcolor">
-                <span class="truncate font-semibold">{activeChat?.name ?? language.newChat}</span>
-            </div>
-        </div>
-    </section>
-
-    <div data-chat-list-disclosure class="mt-2">
-    <ShAccordion bind:open={chatListExpanded} name={language.sidebarChatListLabel} class="w-full">
+    <div data-chat-list-disclosure>
+    <ShAccordion bind:open={() => chatListExpanded, setChatListExpanded} class="w-full">
+        {#snippet trigger()}
+            <span data-current-chat-title class="min-w-0 truncate font-semibold text-primary"
+                title={activeChat?.name ?? language.newChat}>{activeChat?.name ?? language.newChat}</span>
+            <span data-chat-list-hint class="ml-auto shrink-0 text-xs font-normal text-textcolor2">{language.sidebarChatListLabel}</span>
+        {/snippet}
         <span class="sr-only" aria-live="polite">{selectedChatIds.length > 0 ? `챗 ${selectedChatIds.length}개 선택됨` : ''}</span>
         {#if selectedChatIds.length > 0}
         <div data-chat-selection-bar role="toolbar" aria-label="선택한 챗 작업" class="grid grid-cols-8 items-center gap-0.5 border-b border-darkborderc py-1.5">
@@ -919,14 +927,25 @@
                 {/if}
                 <Toggles bind:chara={chara} noContainer />
             {/if}
-            <ShButton className="w-full mt-2" onclick={() => {
-                const char = DBState.db.characters[$selectedCharID]
-                if (!char) return
-                openModuleListStore.set(true)
-            }}>
-                <PackageIcon size={16} class="shrink-0" />
-                <span class="truncate">{language.modules}</span>
-            </ShButton>
+            <div data-sidebar-module-skin-row class="mt-2 grid grid-cols-2 gap-1">
+                <ShButton data-sidebar-open-modules className="w-full min-w-0" onclick={() => {
+                    if (!DBState.db.characters[$selectedCharID]) return
+                    openModuleListStore.set('modules')
+                }}>
+                    <PackageIcon size={16} class="shrink-0" />
+                    <span class="truncate">{language.modules}</span>
+                </ShButton>
+                <ShButton data-sidebar-open-skins variant={linkedSkinName !== null ? 'binding' : 'default'} className="w-full min-w-0"
+                    aria-pressed={linkedSkinName !== null}
+                    title={linkedSkinName !== null ? `${language.appSkin.botActive}: ${linkedSkinName}` : language.appSkin.botTab}
+                    onclick={() => {
+                        if (!DBState.db.characters[$selectedCharID]) return
+                        openModuleListStore.set('skins')
+                    }}>
+                    <PaletteIcon size={16} class="shrink-0" />
+                    <span class="truncate">{language.appSkin.botTab}</span>
+                </ShButton>
+            </div>
         {/if}
     </div>
 </div>

@@ -50,7 +50,6 @@ describe('chat file save slot connections', () => {
     })
 
     test('removes save and load actions from the character sidebar', () => {
-        expect(source).toContain('data-chat-file-header')
         expect(source).not.toContain('data-chat-file-toolbar')
         expect(source).not.toContain('data-risubard-save-chat')
         expect(source).not.toContain('data-risubard-load-chat')
@@ -185,20 +184,18 @@ describe('chat file save slot connections', () => {
         expect(charactersSource).toContain('resetImportedBardWikiState')
     })
 
-    test('shows the current chat as a plain title above a separate chat-list disclosure', () => {
-        const currentStart = source.indexOf('data-current-chat-section')
+    test('uses the current chat title as the chat-list disclosure header', () => {
         const disclosureStart = source.indexOf('data-chat-list-disclosure')
-        const currentSection = source.slice(currentStart, disclosureStart)
+        const header = source.slice(disclosureStart, source.indexOf('{/snippet}', disclosureStart))
 
-        expect(currentSection).not.toContain('data-current-chat-label')
-        expect(currentSection).not.toContain('language.currentChatLabel')
-        expect(currentSection).toContain('data-current-chat-title')
-        expect(currentSection).toContain('activeChat?.name ?? language.newChat')
-        expect(currentSection).not.toContain('data-chat-list-toggle')
-        expect(currentSection).not.toContain('ChevronRightIcon')
-        expect(source).toContain('data-chat-list-disclosure')
-        expect(source).toContain('bind:open={chatListExpanded}')
-        expect(source).toContain('name={language.sidebarChatListLabel}')
+        expect(source).not.toContain('data-current-chat-section')
+        expect(header).toContain('bind:open={() => chatListExpanded, setChatListExpanded}')
+        expect(header).toContain('data-current-chat-title')
+        expect(header).toContain('text-primary')
+        expect(header).toContain('activeChat?.name ?? language.newChat')
+        expect(header).toContain('data-chat-list-hint')
+        expect(header).toContain('{language.sidebarChatListLabel}')
+        expect(source).toContain("isSidebarSectionOpen(chara?.chaId, 'chatList')")
     })
 
     test('places the chat management toolbar and clean chat rows inside the disclosure', () => {

@@ -48,12 +48,12 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-async function openMenu(alertMode = false) {
+async function openMenu(alertMode = false, initialView: 'modules' | 'skins' = 'modules') {
     const host = document.createElement('div')
     host.style.transform = 'translateX(300px)'
     document.body.append(host)
     const close = vi.fn()
-    component = mount(ModuleChatMenu, { target: host, props: { close, alertMode } })
+    component = mount(ModuleChatMenu, { target: host, props: { close, alertMode, initialView } })
     await tick()
     return { host, close }
 }
@@ -273,6 +273,25 @@ describe('chat module manager', () => {
         expect(document.querySelector('[data-character-app-skin="hero-comic"]')!.getAttribute('aria-pressed')).toBe('true')
         expect(document.querySelector('[data-character-app-skin="rounded"]')!.getAttribute('aria-pressed')).toBe('false')
         expect(document.querySelector('[data-character-app-skin="rounded"]')!.textContent).toContain(language.appSkin.botGlobal)
+    })
+
+    test('opens straight on the skins tab from the sidebar skin button', async () => {
+        DBState.db.characters[0].chaId = 'bot-a'
+        DBState.db.appSkins = []
+        DBState.db.characterAppSkins = {}
+        DBState.db.colorScheme = {} as typeof DBState.db.colorScheme
+        await openMenu(false, 'skins')
+        expect(document.querySelector('[data-character-app-skins]')).not.toBeNull()
+        expect(document.querySelector('[data-collection-organizer-list="modules"]')).toBeNull()
+    })
+
+    test('puts module and skin buttons in one sidebar row, highlighting a pinned skin', () => {
+        const sidebar = readFileSync('src/lib/SideBars/SideChatList.svelte', 'utf8')
+        const row = sidebar.slice(sidebar.indexOf('data-sidebar-module-skin-row'))
+        expect(row).toContain("openModuleListStore.set('modules')")
+        expect(row).toContain("openModuleListStore.set('skins')")
+        expect(row).toContain("variant={linkedSkinName !== null ? 'binding' : 'default'}")
+        expect(sidebar).toContain('characterAppSkinId(DBState.db, $selectedCharID)')
     })
 
     test('hides the skins tab in the module picker', async () => {

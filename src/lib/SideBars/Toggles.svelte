@@ -24,6 +24,7 @@
     import ShDropdownMenuItem from "../UI/GUI/ShDropdownMenuItem.svelte";
     import ShDropdownMenuSeparator from "../UI/GUI/ShDropdownMenuSeparator.svelte";
     import type { Snippet } from "svelte";
+    import { isSidebarSectionOpen, setSidebarSectionOpen } from "src/ts/gui/sidebarSectionState.svelte";
 
     interface Props {
         chara?: character
@@ -34,6 +35,8 @@
     }
 
     let { chara = $bindable(), noContainer, minimal = false, leading }: Props = $props();
+
+    let sectionBotId = $derived(DBState.db.characters[$selectedCharID]?.chaId)
 
     let currentChat = $derived(DBState.db.characters[$selectedCharID]?.chats?.[DBState.db.characters[$selectedCharID]?.chatPage])
     let isPinned = $derived(!DBState.db.disableToggleBinding && !!currentChat?.useLocallySetGlobalVariables)
@@ -298,8 +301,9 @@
     {:else}
         {@const toggle = cell.toggle}
         {#if toggle.type === 'select'}
-            <div class="relative flex min-w-0 flex-col gap-0.5" data-toggle-cell="select">
-                <span class="truncate px-1 text-[11px] text-textcolor2" title={toggle.value}>{toggle.value}</span>
+            <div class="relative flex min-w-0 flex-col gap-0.5" data-toggle-cell="select"
+                title={`${toggle.value}: ${toggle.options[Number(toggleVariableTarget[`toggle_${toggle.key}`] || '0')] ?? ''}`}>
+                <span class="truncate px-1 text-[11px] text-textcolor2">{toggle.value}</span>
                 <SelectInput className="w-full" ariaLabel={toggle.value} bind:value={
                     () => toggleVariableTarget[`toggle_${toggle.key}`] || '0',
                     (value) => toggleVariableTarget[`toggle_${toggle.key}`] = value
@@ -311,8 +315,9 @@
                 {@render dirtyDot(isToggleDirty(toggle))}
             </div>
         {:else if toggle.type === 'text'}
-            <div class="relative flex min-w-0 flex-col gap-0.5" data-toggle-cell="text">
-                <span class="truncate px-1 text-[11px] text-textcolor2" title={toggle.value}>{toggle.value}</span>
+            <div class="relative flex min-w-0 flex-col gap-0.5" data-toggle-cell="text"
+                title={`${toggle.value}: ${toggleVariableTarget[`toggle_${toggle.key}`] ?? ''}`}>
+                <span class="truncate px-1 text-[11px] text-textcolor2">{toggle.value}</span>
                 <TextInput className="w-full min-w-0" bind:value={toggleVariableTarget[`toggle_${toggle.key}`]} />
                 {@render dirtyDot(isToggleDirty(toggle))}
             </div>
@@ -339,7 +344,10 @@
             {@const toggle = segment.toggle}
             {#if toggle.type === 'group'}
                 <div data-skin-part="toggle-group" class="w-full mt-2">
-                    <ShAccordion variant="group" class="w-full" name={toggle.value}>
+                    <ShAccordion variant="group" class="w-full" name={toggle.value} bind:open={
+                        () => isSidebarSectionOpen(sectionBotId, `group:${toggle.value}`),
+                        (open) => setSidebarSectionOpen(sectionBotId, `group:${toggle.value}`, open)
+                    }>
                         {@render minimalToggles(segmentToggles((toggle as sidebarToggleGroup).children))}
                     </ShAccordion>
                 </div>
@@ -379,7 +387,10 @@
         {/if}
         {#if toggle.type === 'group' && toggle.children.length > 0}
             <div data-skin-part="toggle-group" class="w-full mt-1">
-                <ShAccordion variant="group" class="w-full" name={toggle.value}>
+                <ShAccordion variant="group" class="w-full" name={toggle.value} bind:open={
+                        () => isSidebarSectionOpen(sectionBotId, `group:${toggle.value}`),
+                        (open) => setSidebarSectionOpen(sectionBotId, `group:${toggle.value}`, open)
+                    }>
                     {@render toggles((toggle as sidebarToggleGroup).children, reverse)}
                 </ShAccordion>
             </div>

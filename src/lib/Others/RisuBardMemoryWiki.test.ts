@@ -436,6 +436,16 @@ describe('RisuBardMemoryWiki', () => {
         expect(dock.dataset.memoryLayout).not.toBe(previousLayout)
         expect(dock.parentElement).toBe(workspace)
 
+        dock.querySelector<HTMLButtonElement>('[data-memory-collapse]')!.click()
+        await tick()
+        expect(dock.dataset.memoryCollapsed).toBe('true')
+        expect(dock.dataset.open).toBe('true')
+        expect(dock.style.flexBasis).toBe('')
+        dock.querySelector<HTMLButtonElement>('[data-memory-expand]')!.click()
+        await tick()
+        expect(dock.dataset.memoryCollapsed).toBe('false')
+        expect(dock.style.flexBasis).toBe('40%')
+
         dock.querySelector<HTMLButtonElement>('[aria-label="BardWiki 닫기"]')!.click()
         await tick()
         expect(dock.dataset.open).toBe('false')

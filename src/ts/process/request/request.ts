@@ -1042,6 +1042,7 @@ async function requestModelPreset(arg:RequestDataArgumentExtended, preset:ModelP
             const prepared = await previewModelPreset(kind, preset, {
                 messages, tools, fetchImpl,
                 anthropicCache1h: getDatabase().claude1HourCaching === true,
+                keepLaterSystemInPlace: getDatabase().keepLaterSystemInPlace === true,
             }, credential)
             return {
                 type: 'success',
@@ -1082,6 +1083,7 @@ async function requestModelPreset(arg:RequestDataArgumentExtended, preset:ModelP
             // Prompt-cache breakpoints ride on message.cachePoint; this only picks
             // the TTL, matching the classic Anthropic path.
             anthropicCache1h: getDatabase().claude1HourCaching === true,
+            keepLaterSystemInPlace: getDatabase().keepLaterSystemInPlace === true,
         }
         if (reportStatus) {
             safeStatus(() => startStatus(genId, {
@@ -1293,6 +1295,7 @@ async function runModelPresetToolLoop(
                 // Tool turns are ordinary billed requests: without this the cache
                 // TTL silently drops back to 5 minutes for the whole tool loop.
                 anthropicCache1h: getDatabase().claude1HourCaching === true,
+                keepLaterSystemInPlace: getDatabase().keepLaterSystemInPlace === true,
             },
             credential,
         ),

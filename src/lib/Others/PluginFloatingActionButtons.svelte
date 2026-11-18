@@ -43,12 +43,23 @@
     let drag = $state<DragState | null>(null)
     let suppressClickKey = ''
 
+    // The chat pane is the containing block for these fixed buttons (layout containment),
+    // so positions are relative to the pane, which shrinks when side panels open.
     function readViewport() {
+        const pane = document.querySelector<HTMLElement>('[data-chat-pane]')
         return {
-            width: Math.max(1, window.innerWidth),
-            height: Math.max(1, window.innerHeight),
+            width: Math.max(1, pane?.clientWidth || window.innerWidth),
+            height: Math.max(1, pane?.clientHeight || window.innerHeight),
         }
     }
+
+    $effect(() => {
+        const pane = document.querySelector<HTMLElement>('[data-chat-pane]')
+        if (!pane || typeof ResizeObserver === 'undefined') return
+        const observer = new ResizeObserver(() => viewport = readViewport())
+        observer.observe(pane)
+        return () => observer.disconnect()
+    })
 
     function buttonLayoutKey(button: MenuDef): string {
         return button.layoutKey ?? makeFabLayoutKey(

@@ -101,6 +101,23 @@ describe('asset store', () => {
         expect(fs.existsSync(storeFile(dataRoot, one.key))).toBe(false)
     })
 
+    it('serves a file another program added to the store while open, but not a corrupt one', () => {
+        const dataRoot = root()
+        const kv = createFileKv({ dataRoot })
+        kv.kvSet('database/database.bin', Buffer.from('db'))
+        const added = asset('added later')
+        expect(kv.kvGet(added.key)).toBeNull()
+        fs.mkdirSync(path.dirname(storeFile(dataRoot, added.key)), { recursive: true })
+        fs.writeFileSync(storeFile(dataRoot, added.key), added.value)
+        expect(kv.kvGet(added.key)?.equals(added.value)).toBe(true)
+        expect(kv.kvSize(added.key)).toBe(added.value.length)
+
+        const corrupt = asset('corrupt')
+        fs.mkdirSync(path.dirname(storeFile(dataRoot, corrupt.key)), { recursive: true })
+        fs.writeFileSync(storeFile(dataRoot, corrupt.key), Buffer.from('tampered'))
+        expect(() => kv.kvGet(corrupt.key)).toThrow(/checksum mismatch/)
+    })
+
     it('copies a stored value to another key', () => {
         const dataRoot = root()
         const kv = createFileKv({ dataRoot })

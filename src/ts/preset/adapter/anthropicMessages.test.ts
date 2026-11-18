@@ -1056,3 +1056,32 @@ describe('streaming usage across events', () => {
         expect(parseAnthropicStreamDelta('message_start', { message: {} })).toBeNull()
     })
 })
+
+describe('keepLaterSystemInPlace', () => {
+    const messages: AdapterChatMessage[] = [
+        { role: 'system', content: 'preset' },
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: 'yo' },
+        { role: 'system', content: 'keyword lore' },
+        { role: 'user', content: 'next' },
+    ]
+
+    test('off: every system message is hoisted into the system field', async () => {
+        const { fetchImpl, calls } = captureFetch(jsonResponse({ content: [{ type: 'text', text: 'ok' }] }))
+        await sendAnthropicChatRequest(makePreset(), { messages, fetchImpl }, { apiKey: 'k' })
+        expect(calls[0].body.system).toBe('preset\n\nkeyword lore')
+    })
+
+    test('on: only the leading system run is hoisted; later ones stay in place as user turns', async () => {
+        const { fetchImpl, calls } = captureFetch(jsonResponse({ content: [{ type: 'text', text: 'ok' }] }))
+        await sendAnthropicChatRequest(makePreset(), { messages, fetchImpl, keepLaterSystemInPlace: true }, { apiKey: 'k' })
+        expect(calls[0].body.system).toBe('preset')
+        expect((calls[0].body.messages as { role: string, content: { text: string }[] }[])
+            .map((message) => [message.role, message.content[0].text])).toEqual([
+            ['user', 'hi'],
+            ['assistant', 'yo'],
+            ['user', 'System: keyword lore'],
+            ['user', 'next'],
+        ])
+    })
+})

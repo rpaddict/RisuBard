@@ -374,25 +374,15 @@ export async function tryUpdateExistingModule(incoming: RisuModule, transaction?
     if (!result) return null
     const { index, current, merged } = result
 
-    // Keep one copy of the module as it was, replacing the copy of an earlier update.
+    // No copy of the old module is kept; a copy left by an older version is removed.
     const previous = db.modules.findIndex(module => module?.updateBackupOf === current.id)
     const replaced = previous >= 0 ? db.modules[previous] : undefined
-    const backup: RisuModule = {
-        ...safeStructuredClone(current),
-        id: v4(),
-        name: `${current.name ?? ''} ${language.characterUpdate.backupSuffix}`,
-        updateBase: undefined,
-        updateBackupOf: current.id,
-    }
     db.modules[index] = merged
     if (previous >= 0) db.modules.splice(previous, 1)
-    db.modules.push(backup)
     transaction?.onRollback(() => {
         const list = getDatabase().modules
         const at = list.findIndex(module => module?.id === current.id)
         if (at >= 0) list[at] = current
-        const copy = list.findIndex(module => module?.id === backup.id)
-        if (copy >= 0) list.splice(copy, 1)
         if (replaced) list.push(replaced)
     })
     return db.modules.findIndex(module => module?.id === current.id)

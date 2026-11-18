@@ -91,6 +91,7 @@ import { isMobile } from 'src/ts/platform'
 
     import Chats from './Chats.svelte';
     import Button from '../UI/GUI/Button.svelte';
+    import SideBarArrow from '../UI/GUI/SideBarArrow.svelte';
     import PluginDefinedIcon from '../Others/PluginDefinedIcon.svelte';
     import PluginFloatingActionButtons from '../Others/PluginFloatingActionButtons.svelte';
     import SolarAssetIcon from '../UI/Icons/SolarAssetIcon.svelte';
@@ -1303,8 +1304,12 @@ import { isMobile } from 'src/ts/platform'
 
 
 <div class="w-full h-full relative flex overflow-hidden" data-chat-wiki-workspace style={customStyle}>
-    <main class="relative z-0 h-full min-w-0 flex-1" data-chat-pane use:trackNavigatorViewport>
-    
+    <!-- Layout containment makes the pane the containing block for position:fixed, so bot FABs
+         and panels follow the pane edge (like the scroll navigator) instead of sliding under side panels. -->
+    <main class="relative z-0 h-full min-w-0 flex-1 [contain:layout]" data-chat-pane use:trackNavigatorViewport>
+    <!-- Inside the chat pane's z-0 stacking context so bot UI (FAB panels) can cover it. -->
+    <SideBarArrow />
+
     {#if DBState.db.nodeOnlyScrollButtonType !== 'off' && currentChat.length > 0}
         <div
             data-chat-scroll-navigator

@@ -27,6 +27,7 @@
         PinIcon,
         CircleOffIcon,
         CheckIcon,
+        InfoIcon,
     } from '@lucide/svelte'
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
     import { canCompressCanonDocument } from 'src/ts/risubard/canonCompression'
@@ -485,6 +486,26 @@
         const updated = relativeTime(selected.updated)
         if (updated) parts.push(`${updated} 수정`)
         return parts
+    })
+
+    let hasDocumentInfo = $derived(sourceMeta.length > 0
+        || !!selected?.retrievalMetadata?.keywords.length
+        || !!selected?.retrievalMetadata?.storyTime)
+    // Hover opens a transient tooltip; a click pins it until clicked again, Escape or an outside click.
+    let infoPinned = $state(false)
+    let infoHovered = $state(false)
+    let infoElement = $state<HTMLElement | null>(null)
+    let infoOpen = $derived(hasDocumentInfo && (infoPinned || infoHovered))
+
+    $effect(() => {
+        if (!infoPinned) return
+        const closeOutside = (event: PointerEvent) => {
+            const target = event.target as Node | null
+            if (target && infoElement?.contains(target)) return
+            infoPinned = false
+        }
+        document.addEventListener('pointerdown', closeOutside, true)
+        return () => document.removeEventListener('pointerdown', closeOutside, true)
     })
 
     $effect(() => {
@@ -1247,7 +1268,51 @@
         <header class="editor-header">
             {#if showFields}
             <div class="editor-title-row" data-wiki-title-row>
-                <label>
+                {#if hasDocumentInfo}
+                <div
+                    class="document-info"
+                    role="presentation"
+                    bind:this={infoElement}
+                    onmouseenter={() => { infoHovered = true }}
+                    onmouseleave={() => { infoHovered = false }}
+                    onfocusin={() => { infoHovered = true }}
+                    onfocusout={() => { infoHovered = false }}
+                    onkeydown={(event) => { if (event.key === 'Escape' && infoOpen) { event.stopPropagation(); infoPinned = false; infoHovered = false } }}
+                >
+                    <button
+                        type="button"
+                        class="document-info-button"
+                        aria-label="문서 정보"
+                        aria-expanded={infoOpen}
+                        aria-controls="risubard-wiki-document-info"
+                        aria-pressed={infoPinned}
+                        title={infoPinned ? '문서 정보 고정 해제' : '문서 정보 (클릭하면 고정)'}
+                        data-wiki-info-toggle
+                        onclick={() => { infoPinned = !infoPinned }}
+                    >
+                        <InfoIcon size={15} />
+                    </button>
+                    <div id="risubard-wiki-document-info" class="document-info-popover" class:pinned={infoPinned} role="tooltip" hidden={!infoOpen} data-wiki-document-info>
+                        {#if selected?.retrievalMetadata}
+                            <div class="retrieval-metadata" data-wiki-retrieval-metadata>
+                                {#if selected.retrievalMetadata.keywords.length}
+                                    <span>검색어: {selected.retrievalMetadata.keywords.join(', ')}</span>
+                                {/if}
+                                {#if selected.retrievalMetadata.storyTime}
+                                    {@const time = selected.retrievalMetadata.storyTime}
+                                    <span title={time.evidence} data-wiki-story-time>작중 시간: {formatStoryTimeLabel(time)}</span>
+                                {/if}
+                            </div>
+                        {/if}
+                        {#if sourceMeta.length}
+                            <div class="source-meta" data-wiki-source-meta>
+                                {#each sourceMeta as part (part)}<span>{part}</span>{/each}
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+                {/if}
+                <label class="type-field">
                     <span>타입</span>
                     <select aria-label="항목 유형" bind:value={type} disabled={readOnly || selected?.type === 'event'}>
                         {#if selected?.type === 'event'}<option value="event">사건</option>{/if}
@@ -1270,22 +1335,6 @@
                     <input aria-label="별칭" bind:value={aliasesText} maxlength="3000" readonly={readOnly} placeholder="쉼표로 구분" />
                 </label>
             </div>
-            {/if}
-            {#if showFields && selected?.retrievalMetadata}
-                <div class="retrieval-metadata" data-wiki-retrieval-metadata>
-                    {#if selected.retrievalMetadata.keywords.length}
-                        <span>검색어: {selected.retrievalMetadata.keywords.join(', ')}</span>
-                    {/if}
-                    {#if selected.retrievalMetadata.storyTime}
-                        {@const time = selected.retrievalMetadata.storyTime}
-                        <span title={time.evidence} data-wiki-story-time>작중 시간: {formatStoryTimeLabel(time)}</span>
-                    {/if}
-                </div>
-            {/if}
-            {#if showFields && sourceMeta.length}
-                <div class="source-meta" data-wiki-source-meta>
-                    {#each sourceMeta as part (part)}<span>{part}</span>{/each}
-                </div>
             {/if}
             <div class="editor-actions" data-wiki-action-toolbar>
                 {#if compact}
@@ -1571,11 +1620,19 @@
     .editor-header { min-width: 0; border-bottom: 1px solid var(--risu-theme-darkborderc); }
     .editor-title-row { min-width: 0; padding: .65rem .75rem; }
     .editor-title-row label { display: grid; min-width: 0; gap: .2rem; color: var(--risu-theme-textcolor2); font-size: .62rem; font-weight: 700; }
-    .editor-title-row label:first-child { flex: 0 0 5.5rem; }
+    .editor-title-row .type-field { flex: 0 0 5.5rem; }
+    .document-info { position: relative; flex: 0 0 auto; align-self: flex-end; }
+    .document-info-button { display: grid; place-items: center; box-sizing: border-box; width: 2rem; height: 2rem; padding: 0; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.28); color: var(--risu-theme-textcolor2); background: transparent; cursor: pointer; }
+    .document-info-button:hover { color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-textcolor) 7%, transparent); }
+    .document-info-button[aria-pressed="true"] { color: var(--risu-theme-primary); border-color: color-mix(in srgb, var(--risu-theme-primary) 55%, var(--risu-theme-darkborderc)); background: color-mix(in srgb, var(--risu-theme-primary) 12%, transparent); }
+    .document-info-button:focus-visible { outline: 2px solid color-mix(in srgb, var(--risu-theme-primary) 70%, transparent); outline-offset: 1px; }
+    .document-info-popover { position: absolute; top: calc(100% + .35rem); left: 0; z-index: 30; display: grid; gap: .4rem; box-sizing: border-box; width: max-content; max-width: min(24rem, calc(100cqw - 1.5rem)); padding: .6rem .75rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.6); background: var(--risu-theme-bgcolor); box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / .35); }
+    .document-info-popover.pinned { border-color: color-mix(in srgb, var(--risu-theme-primary) 45%, var(--risu-theme-darkborderc)); }
+    .document-info-popover[hidden] { display: none; }
     .editor-title-row select, .editor-title-row input { box-sizing: border-box; width: 100%; min-height: 2rem; padding: .3rem .45rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.28); color: var(--risu-theme-textcolor); background: var(--risu-theme-darkbg); }
     .title-field { flex: 1 1 12rem; }
     .aliases-field { flex: 1 1 12rem; }
-    .source-meta { display: flex; flex-wrap: wrap; gap: .15rem .75rem; padding: 0 .75rem .4rem; color: var(--risu-theme-textcolor2); font-size: .68rem; font-variant-numeric: tabular-nums; }
+    .source-meta { display: flex; flex-wrap: wrap; gap: .15rem .75rem; color: var(--risu-theme-textcolor2); font-size: .68rem; font-variant-numeric: tabular-nums; }
     .context-segments { display: inline-flex; flex: 0 0 auto; overflow: hidden; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.36); }
     .context-segments button { min-height: 2rem; padding: 0 .55rem; border: 0; color: var(--risu-theme-textcolor2); background: transparent; font-size: .7rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
     .context-segments button + button { border-left: 1px solid var(--risu-theme-darkborderc); }
@@ -1585,7 +1642,7 @@
     .conflict-banner span { margin-right: auto; font-weight: 700; }
     .wiki-empty-state { display: grid; flex: 1; align-content: center; justify-items: center; gap: .85rem; padding: 2rem 1.25rem; text-align: center; }
     .wiki-empty-state p { max-width: 26rem; margin: 0; color: var(--risu-theme-textcolor2); font-size: .8rem; line-height: 1.7; word-break: keep-all; }
-    .retrieval-metadata { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; padding: 0 .75rem .2rem; font-size: 0.75rem; color: var(--risu-theme-textcolor2); overflow-wrap: anywhere; }
+    .retrieval-metadata { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.75rem; color: var(--risu-theme-textcolor2); overflow-wrap: anywhere; }
     .fields-toggle {
         display: inline-flex;
         flex: 0 1 auto;
@@ -1610,10 +1667,8 @@
     .fields-toggle:focus-visible { outline: 2px solid color-mix(in srgb, var(--risu-theme-primary) 70%, transparent); outline-offset: 1px; }
     .fields-toggle:disabled { cursor: default; }
     .wiki-editor.compact .editor-actions { border-top: 0; padding-block: .3rem; }
-    .wiki-editor.compact .editor-title-row + .editor-actions,
-    .wiki-editor.compact .retrieval-metadata + .editor-actions,
-    .wiki-editor.compact .source-meta + .editor-actions { border-top: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 60%, transparent); }
-    .editor-actions { display: flex; min-width: 0; flex-wrap: nowrap; align-items: center; justify-content: safe flex-end; gap: .25rem; overflow-x: auto; padding: .45rem .75rem; border-top: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 60%, transparent); }
+    .wiki-editor.compact .editor-title-row + .editor-actions { border-top: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 60%, transparent); }
+    .editor-actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .25rem; padding: .45rem .75rem; border-top: 1px solid color-mix(in srgb, var(--risu-theme-darkborderc) 60%, transparent); }
     .editor-source-action { display: inline-flex; flex: 0 0 auto; margin-right: auto; }
     .markdown-preview-toggle { display: inline-flex; flex: 0 0 auto; min-height: 2rem; align-items: center; gap: .32rem; padding: 0 .45rem; border: 1px solid var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-sm) * 1.36); color: var(--risu-theme-textcolor2); font: 700 .67rem/1 ui-monospace, monospace; cursor: pointer; user-select: none; }
     .markdown-preview-toggle:hover { border-color: color-mix(in srgb, var(--risu-theme-primary) 55%, var(--risu-theme-darkborderc)); color: var(--risu-theme-textcolor); }
@@ -1794,6 +1849,8 @@
             padding: .5rem .6rem;
         }
         .wiki-editor.mobile-layout .editor-title-row .aliases-field { grid-column: 1 / -1; }
+        .wiki-editor.mobile-layout .editor-title-row:has(> .document-info) { grid-template-columns: auto minmax(6.5rem, .72fr) minmax(0, 1.28fr); }
+        .wiki-editor.mobile-layout .document-info-button { width: 2.75rem; height: 2.75rem; }
         .wiki-editor.mobile-layout .editor-title-row select,
         .wiki-editor.mobile-layout .editor-title-row input {
             min-height: 2.75rem;

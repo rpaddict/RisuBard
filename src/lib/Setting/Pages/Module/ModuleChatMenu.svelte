@@ -16,11 +16,13 @@
     interface Props {
         close?: (moduleId: string) => void
         alertMode?: boolean
+        initialView?: 'modules' | 'skins'
     }
 
-    let { close = () => {}, alertMode = false }: Props = $props()
+    let { close = () => {}, alertMode = false, initialView = 'modules' }: Props = $props()
     let open = $state(true)
-    let view = $state<'modules' | 'skins'>('modules')
+    // svelte-ignore state_referenced_locally
+    let view = $state<'modules' | 'skins'>(initialView)
     const copy = $derived(language.chatModuleActivation)
     const presetModuleIds = $derived(new Set((DBState.db.moduleIntergration ?? '').split(',').map((id) => id.trim()).filter(Boolean)))
     const character = $derived(DBState.db.characters[$selectedCharID])

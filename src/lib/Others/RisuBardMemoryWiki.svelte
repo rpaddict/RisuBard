@@ -10,6 +10,7 @@
         LoaderCircleIcon,
         LogsIcon,
         PanelRightCloseIcon,
+        PanelRightOpenIcon,
         NetworkIcon,
         RefreshCwIcon,
         ChevronDownIcon,
@@ -341,6 +342,20 @@
     // 집중 보기는 데스크톱 전용이다. 모바일은 자체 접기 레이아웃을 쓴다.
     let compactActive = $derived(compactView && layoutMode === 'desktop')
     let editorFocus = $state(false)
+    // 접기는 레일만 남기고 상태를 유지한다. 닫기(open = false)와 별개로 기기별로 기억한다.
+    const COLLAPSED_KEY = 'risubard-memory-wiki-collapsed'
+    let collapsed = $state(readCollapsed())
+    function readCollapsed(): boolean {
+        try { return localStorage.getItem(COLLAPSED_KEY) === '1' }
+        catch { return false }
+    }
+    function setCollapsed(value: boolean) {
+        collapsed = value
+        try { localStorage.setItem(COLLAPSED_KEY, value ? '1' : '0') } catch {}
+    }
+    $effect(() => {
+        if (open) untrack(() => { if (collapsed) setCollapsed(false) })
+    })
     let helpOpen = $state(false)
     let selectedMarkdownId = $state('')
     let bardChatUpdatedIds = $state<string[] | null>(null)
@@ -1106,6 +1121,7 @@
     use:dockOutsideTheme
     class="memory-wiki-dock"
     class:closed={!open}
+    class:collapsed
     class:editor-focus={editorFocus}
     class:compact-view={compactActive}
     class:settings-open={settingsOpen}
@@ -1114,16 +1130,21 @@
     data-memory-wiki-dock
     data-memory-layout={layoutMode}
     data-open={open}
+    data-memory-collapsed={collapsed}
     data-editor-focus={editorFocus}
     data-memory-compact-view={compactActive}
     bind:this={dockElement}
-    style:flex-basis={`${dockRatio * 100}%`}
+    style:flex-basis={collapsed ? null : `${dockRatio * 100}%`}
     aria-label={language.risuBardMemoryWiki}
     aria-hidden={!open}
     inert={!open}
     ondragover={(event) => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = transferBlocked ? 'none' : 'copy' } }}
     ondrop={(event) => { if (!event.dataTransfer?.files.length) return; event.preventDefault(); event.stopPropagation(); if (event.dataTransfer.files.length !== 1) { alertError('위키 파일을 하나씩 들여와 주세요.'); return }; void importFile(event.dataTransfer.files[0]) }}
 >
+    <button type="button" class="dock-rail" aria-label="BardWiki 펼치기" title="펼치기" data-memory-expand onclick={() => setCollapsed(false)}>
+        <PanelRightOpenIcon size={18} />
+        <span class="dock-rail-title">BardWiki</span>
+    </button>
     <button
         type="button"
         class="dock-resizer"
@@ -1761,8 +1782,11 @@
             {#if compactActive}<Minimize2Icon size={17} />{:else}<Maximize2Icon size={17} />{/if}
         </button>
     {/if}
-    <button class="dock-close" type="button" aria-label="BardWiki 닫기" onclick={() => open = false}>
+    <button class="dock-close" type="button" aria-label="BardWiki 접기" title="접기" data-memory-collapse onclick={() => setCollapsed(true)}>
         <PanelRightCloseIcon size={18} />
+    </button>
+    <button class="dock-close" type="button" aria-label="BardWiki 닫기" title="닫기" onclick={() => open = false}>
+        <XIcon size={18} />
     </button>
 {/snippet}
 
@@ -1789,6 +1813,24 @@
         container-type: inline-size;
     }
     .memory-wiki-dock.closed { display: none; }
+    .memory-wiki-dock.collapsed { width: 2.75rem; min-width: 2.75rem; max-width: 2.75rem; }
+    .memory-wiki-dock.collapsed > :not(.dock-rail) { display: none; }
+    .dock-rail { display: none; }
+    .memory-wiki-dock.collapsed .dock-rail {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: center;
+        gap: .75rem;
+        width: 100%;
+        padding: .7rem 0;
+        border: 0;
+        color: var(--risu-theme-textcolor2);
+        background: color-mix(in srgb, var(--risu-theme-darkbg) 91%, var(--color-bgcolor));
+        cursor: pointer;
+    }
+    .memory-wiki-dock.collapsed .dock-rail:hover, .memory-wiki-dock.collapsed .dock-rail:focus-visible { color: var(--risu-theme-primary); outline: 0; }
+    .dock-rail-title { color: var(--risu-theme-textcolor); font-size: .78rem; font-weight: 700; letter-spacing: .06em; writing-mode: vertical-rl; white-space: nowrap; }
     .memory-wiki-dock.settings-open { overflow: visible; }
     .memory-wiki-dock.editor-focus > .dock-header, .memory-wiki-dock.editor-focus .force-update-status { display: none; }
     .dock-resizer {
@@ -2463,6 +2505,7 @@
         max-width: none;
         min-width: 0;
     }
+    .memory-wiki-dock.mobile-layout.collapsed { left: auto; width: 2.75rem !important; }
     .memory-wiki-dock.mobile-layout .dock-resizer { display: none; }
     .memory-wiki-dock.mobile-layout .dock-identity { min-width: 0; }
 

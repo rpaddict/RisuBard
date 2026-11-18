@@ -4,12 +4,17 @@
 //
 // This module is pure (no storage, no requests) so the data rules are testable.
 
+import { isOocAssistantTurn } from './oocTurns'
+
 export const READER_BOARD_VERSION = 1
 export const AUTHOR_HANDLE_DEFAULT = '작가'
 /** Episode text past this many characters is trimmed in the middle for the request. */
 export const EPISODE_TEXT_LIMIT = 60_000
 /** Earlier-work verdicts each reader keeps. */
 const PAST_OPINION_LIMIT = 3
+/** Theories a reader keeps per work; the model sees exactly these, so older ones could never be resolved. */
+const OPEN_THEORY_LIMIT = 6
+const RESOLVED_THEORY_LIMIT = 2
 
 export type ReaderBoardModel = 'model' | 'otherAx'
 
@@ -434,6 +439,23 @@ function normalizeTheory(value: unknown, workId: string): ReaderTheory | null {
     }
 }
 
+/** Keeps the newest open and resolved theories of each work, in their original order. */
+export function trimTheories(theories: ReaderTheory[]): ReaderTheory[] {
+    const keep = new Set<ReaderTheory>()
+    const counts = new Map<string, number>()
+    for (let i = theories.length - 1; i >= 0; i--) {
+        const theory = theories[i]
+        const open = theory.status === 'open'
+        const key = `${theory.workId}
+${open ? 'open' : 'resolved'}`
+        const count = counts.get(key) ?? 0
+        if (count >= (open ? OPEN_THEORY_LIMIT : RESOLVED_THEORY_LIMIT)) continue
+        counts.set(key, count + 1)
+        keep.add(theory)
+    }
+    return theories.filter((theory) => keep.has(theory))
+}
+
 function normalizeReader(value: unknown, workId = FIRST_WORK_ID): ReaderBoardReader | null {
     if (!isRecord(value) || typeof value.id !== 'string' || typeof value.handle !== 'string' || !value.handle.trim()) return null
     const activity = Number(value.activity)
@@ -453,7 +475,7 @@ function normalizeReader(value: unknown, workId = FIRST_WORK_ID): ReaderBoardRea
         activity: Number.isFinite(activity) ? Math.min(1, Math.max(0.05, activity)) : 0.6,
         opinion: text(value.opinion, 800),
         pastOpinions,
-        theories: Array.isArray(value.theories) ? value.theories.map((item) => normalizeTheory(item, workId)).filter((item): item is ReaderTheory => !!item) : [],
+        theories: Array.isArray(value.theories) ? trimTheories(value.theories.map((item) => normalizeTheory(item, workId)).filter((item): item is ReaderTheory => !!item)) : [],
         subscribed: value.subscribed !== false,
         ...(value.banned === true ? { banned: true } : {}),
         joinedPostNo: clampInt(value.joinedPostNo, 0, 1e9, 0),
@@ -969,6 +991,13 @@ export interface ChatMessageView {
     role: 'user' | 'char'
     name: string
     text: string
+    /** An OOC turn (`<!-- OOC_turn -->`) talks to the author, so it never becomes the novel. */
+    ooc?: boolean
+}
+
+/** Character messages that become the novel. */
+export function isStoryView(view: ChatMessageView): boolean {
+    return view.role === 'char' && !view.ooc
 }
 
 /** FNV-1a, enough to notice an edited message. */
@@ -984,7 +1013,9 @@ export function hashText(value: string): string {
 export function toMessageView(message: { role: 'user' | 'char'; data: string; chatId?: string }, name: string): ChatMessageView {
     const hash = hashText(`${message.role}\n${message.data}`)
     const id = typeof message.chatId === 'string' && message.chatId.trim() ? message.chatId.trim() : ''
-    return { key: id || `h:${hash}`, hash, role: message.role, name, text: message.data }
+    const view: ChatMessageView = { key: id || `h:${hash}`, hash, role: message.role, name, text: message.data }
+    if (isOocAssistantTurn(message)) view.ooc = true
+    return view
 }
 
 export interface ChatAnalysis {
@@ -1076,7 +1107,7 @@ function analyzeLine(board: ReaderBoard, chatKey: string, views: ChatMessageView
 /** Character messages in an inclusive index range; only these become the novel. */
 export function countStory(views: ChatMessageView[], start: number, end: number): number {
     let count = 0
-    for (let i = Math.max(0, start); i <= Math.min(views.length - 1, end); i++) if (views[i].role === 'char') count++
+    for (let i = Math.max(0, start); i <= Math.min(views.length - 1, end); i++) if (isStoryView(views[i])) count++
     return count
 }
 
@@ -1092,7 +1123,7 @@ export function splitRange(views: ChatMessageView[], start: number, end: number,
     let from = Math.max(0, start)
     let count = 0
     for (let i = from; i <= last; i++) {
-        if (views[i].role !== 'char') continue
+        if (!isStoryView(views[i])) continue
         count++
         if (count === size) {
             ranges.push({ start: from, end: i })
@@ -1437,7 +1468,7 @@ export function prepareGeneration(input: {
         const start = Math.max(analysis.nextStart, input.range.start)
         const end = Math.min(input.views.length - 1, input.range.end)
         // The user's own turns are the author's prompts, not the novel.
-        slice = end >= start ? input.views.slice(start, end + 1).filter((view) => view.role === 'char') : []
+        slice = end >= start ? input.views.slice(start, end + 1).filter(isStoryView) : []
     }
     const opening = !!series && slice.length > 0 && !board.episodes.some((item) => item.seriesId === series.id)
     if (series && opening) {
@@ -1575,8 +1606,8 @@ export function buildRosterRequest(board: ReaderBoard, storyName: string): Gener
 function describeReader(board: ReaderBoard, reader: ReaderBoardReader, full: boolean): string {
     if (!full) return `- ${reader.handle}${reader.subscribed ? '' : ' (구독 취소함)'}`
     const own = reader.theories.filter((theory) => theory.workId === board.currentWorkId)
-    const theories = own.filter((theory) => theory.status === 'open').slice(-6)
-    const resolved = own.filter((theory) => theory.status !== 'open').slice(-2)
+    const theories = own.filter((theory) => theory.status === 'open').slice(-OPEN_THEORY_LIMIT)
+    const resolved = own.filter((theory) => theory.status !== 'open').slice(-RESOLVED_THEORY_LIMIT)
     const previous = previousWork(board)
     const verdict = previous ? reader.pastOpinions.find((item) => item.workId === previous.id)?.opinion : undefined
     return [
@@ -2002,6 +2033,7 @@ export function applyGenerationResult(
                     if (note) theory.note = note
                 }
             }
+            reader.theories = trimTheories(reader.theories)
             if (typeof item.subscribed === 'boolean' && item.subscribed !== reader.subscribed) {
                 reader.subscribed = item.subscribed
                 ;(item.subscribed ? result.returned : result.dropped).push(reader.handle)

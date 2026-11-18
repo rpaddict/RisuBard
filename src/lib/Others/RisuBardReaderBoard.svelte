@@ -1528,7 +1528,7 @@
                             {@const theories = reader.theories.filter((theory) => theory.workId === board.currentWorkId)}
                             {#if theories.length > 0}
                                 <ul class="theories">
-                                    {#each theories.slice(-6) as theory (theory.id)}
+                                    {#each theories as theory (theory.id)}
                                         <li class="theory-{theory.status}">
                                             <span class="tag subtle">{theory.status === 'open' ? '추측' : theory.status === 'confirmed' ? '맞음' : '틀림'}</span>
                                             {theory.text}{theory.note ? ` (${theory.note})` : ''}

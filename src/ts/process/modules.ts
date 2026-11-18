@@ -43,7 +43,7 @@ export interface RisuModule{
     realmId?:string
     /** Asset key of the module as last installed, the base for merging the next update. */
     updateBase?:string
-    /** Set on the copy kept before an update: the id of the module that was updated. */
+    /** Set on the pre-update copy older versions kept: the id of the module that was updated. Removed on its next update. */
     updateBackupOf?:string
 }
 

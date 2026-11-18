@@ -192,6 +192,27 @@ describe('RisuBardWikiEditor', () => {
         expect(metadata.textContent).toContain('춤, 왈츠')
         expect(metadata.textContent).toContain('작중 시간: 0일 (시작)')
         expect(metadata.querySelector('input, textarea')).toBeNull()
+
+        const info = document.querySelector<HTMLElement>('[data-wiki-title-row] .document-info')!
+        const toggle = info.querySelector<HTMLButtonElement>('[data-wiki-info-toggle]')!
+        const popover = document.querySelector<HTMLElement>('[data-wiki-document-info]')!
+        expect(popover.contains(metadata)).toBe(true)
+        expect(popover.hidden).toBe(true)
+        info.dispatchEvent(new MouseEvent('mouseenter'))
+        await tick()
+        expect(popover.hidden).toBe(false)
+        info.dispatchEvent(new MouseEvent('mouseleave'))
+        await tick()
+        expect(popover.hidden).toBe(true)
+        toggle.click()
+        await tick()
+        info.dispatchEvent(new MouseEvent('mouseleave'))
+        await tick()
+        expect(popover.hidden).toBe(false)
+        expect(toggle.getAttribute('aria-pressed')).toBe('true')
+        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+        await tick()
+        expect(popover.hidden).toBe(true)
     })
     it('filters the file tree on submit and selects the first matching text in the editor', async () => {
         mounted = mount(RisuBardWikiEditor, {
@@ -316,7 +337,7 @@ describe('RisuBardWikiEditor', () => {
         )
         expect(source).toContain('container-name: wiki-editor-pane')
         expect(source).toContain('@container wiki-editor-pane (max-width: 32rem)')
-        expect(source).toMatch(/\.editor-actions\s*\{[^}]*flex-wrap:\s*nowrap/s)
+        expect(source).toMatch(/\.editor-actions\s*\{[^}]*flex-wrap:\s*wrap/s)
         expect(document.body.textContent).not.toContain('characters/라비안.md')
         expect(document.body.textContent).not.toContain('context: auto')
     })

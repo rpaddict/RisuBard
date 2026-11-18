@@ -126,19 +126,19 @@
 
 {#snippet mainModel()}
     {#if mainPreset && target?.modelBinding}
-        <ModelPresetList warnIfEmpty bind:value={target.modelBinding.main} onChange={onBindingChange} />
+        <ModelPresetList warnIfEmpty titleLabel={language.modelModeMain} bind:value={target.modelBinding.main} onChange={onBindingChange} />
     {:else if !mainPreset}
-        <ModelList compact bind:value={DBState.db.aiModel} />
+        <ModelList compact titleLabel={language.modelModeMain} bind:value={DBState.db.aiModel} />
     {/if}
 {/snippet}
 
 {#snippet subModel()}
     {#if !subPreset}
         <!-- Classic sub/aux: global model selection, untouched. -->
-        <ModelList compact bind:value={DBState.db.subModel} />
+        <ModelList compact titleLabel={language.modelModeSub} bind:value={DBState.db.subModel} />
     {:else if target?.modelBinding}
         <!-- Binding regime: per-chat ModelPreset bundle. -->
-        <ModelPresetList warnIfEmpty bind:value={target.modelBinding.sub} onChange={onBindingChange} />
+        <ModelPresetList warnIfEmpty titleLabel={language.modelModeSub} bind:value={target.modelBinding.sub} onChange={onBindingChange} />
     {/if}
 {/snippet}
 
@@ -199,8 +199,8 @@
         {/if}
         {#if !subPreset || target?.modelBinding}
             <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-stretch gap-1">
-                <div class="min-w-0" title={language.model}>{@render mainModel()}</div>
-                <div class="min-w-0" title={language.submodel}>{@render subModel()}</div>
+                <div class="min-w-0">{@render mainModel()}</div>
+                <div class="min-w-0">{@render subModel()}</div>
                 {@render auxButton()}
             </div>
         {/if}

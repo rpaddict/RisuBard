@@ -2174,7 +2174,10 @@ export interface Database{
         model: string,       
     },
     localActivationInGlobalLorebook: boolean
+    /** Experimental: Anthropic/Gemini adapters hoist only leading system messages; later ones stay in place. */
+    keepLaterSystemInPlace?: boolean
     /** Experimental: emit always-active lore before the chat history so prompt caching covers it. */
+    loreAlwaysActiveBeforeChat?: boolean
     showFolderName: boolean
     automaticCachePoint: boolean
     // Show the floating request-status toast (phase / thinking+response tokens /

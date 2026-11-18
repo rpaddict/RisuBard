@@ -207,6 +207,10 @@ export interface AdapterChatOptions {
      *  (`db.claude1HourCaching`); passed in because adapters never touch the
      *  database. Ignored by every other adapter. */
     anthropicCache1h?: boolean
+    /** Hoist only the leading system messages into the system field and send later
+     *  ones in place as user turns (db.keepLaterSystemInPlace). Read by the
+     *  Anthropic and Gemini adapters, which have a single system field. */
+    keepLaterSystemInPlace?: boolean
     // Per-request identifier (= the message generationId issued in sendChat).
     // Threaded through so request-status / context-cache consumers can key
     // status and badges to this exact request. Optional and side-effect free:

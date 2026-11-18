@@ -12,6 +12,7 @@
         blankLabel?: string;
         warnIfEmpty?: boolean;     // main/sub slots: empty = block, show warning
         disabled?: boolean;
+        titleLabel?: string;       // tooltip prefix: "prefix: preset name"
     }
 
     let {
@@ -21,6 +22,7 @@
         blankLabel,
         warnIfEmpty = false,
         disabled = false,
+        titleLabel,
     }: Props = $props();
 
     let openOptions = $state(false);
@@ -104,6 +106,7 @@
         : (dangling || (warnIfEmpty && !value)) ? 'border-warning-border text-warning'
         : 'text-textcolor2 opacity-75 hover:opacity-100'
     }`}
+    title={titleLabel ? `${titleLabel}: ${label}` : undefined}
     onclick={() => { if (!disabled) { openOptions = true } }}
 >
     {#if bound}

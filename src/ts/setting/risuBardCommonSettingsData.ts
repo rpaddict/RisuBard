@@ -123,6 +123,22 @@ export const risuBardCommonSettingsItems: SettingItem[] = [
         keywords: ['cache', 'prompt caching', 'wiki memory', '캐시', '캐싱', '위키 기억', '프롬프트 순서'],
     },
     {
+        id: 'risubard.chat.keepLaterSystemInPlace',
+        type: 'check',
+        labelKey: 'keepLaterSystemInPlace',
+        helpKey: 'keepLaterSystemInPlace',
+        bindKey: 'keepLaterSystemInPlace',
+        keywords: ['cache', 'prompt caching', 'system prompt', 'Claude', 'Gemini', '캐시', '캐싱', '시스템 프롬프트', '프롬프트 순서'],
+    },
+    {
+        id: 'risubard.chat.loreAlwaysActiveBeforeChat',
+        type: 'check',
+        labelKey: 'loreAlwaysActiveBeforeChat',
+        helpKey: 'loreAlwaysActiveBeforeChat',
+        bindKey: 'loreAlwaysActiveBeforeChat',
+        keywords: ['cache', 'prompt caching', 'lorebook', 'always active', '캐시', '캐싱', '로어북', '항상 활성화', '프롬프트 순서'],
+    },
+    {
         id: 'risubard.common.wikiAnalysis',
         type: 'header',
         labelKey: 'risuBardWikiAnalysisSettings',

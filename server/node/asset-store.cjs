@@ -72,8 +72,15 @@ function createAssetStore({ dataRoot, digest }) {
         index = next;
     }
 
+    // A file another program put in the store after the scan (a tool that
+    // installs a module while the app runs) is picked up on first use instead
+    // of after a restart. read() still checks its bytes against the digest.
     function has(key) {
-        return index.has(key);
+        if (index.has(key)) return true;
+        const file = pathOf(key);
+        if (!file || !fs.existsSync(file)) return false;
+        index.set(key, null);
+        return true;
     }
 
     function stat(key) {
@@ -119,7 +126,7 @@ function createAssetStore({ dataRoot, digest }) {
 
     function read(key) {
         const parsed = parseStoreKey(key);
-        if (!parsed || !index.has(key)) return null;
+        if (!parsed || !has(key)) return null;
         let value;
         try { value = fs.readFileSync(fileOf(parsed)); }
         catch (error) {

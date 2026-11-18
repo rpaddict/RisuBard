@@ -21,6 +21,7 @@ import type {
 } from './types'
 import { resolveWireModelId } from './wireInvariants'
 import { capModelOutputTokens } from './outputTokens'
+import { inlineLaterSystemMessages } from './systemPlacement'
 
 // `anthropic` base provider v2+ supplies `max_tokens: 4096` via `defaultBody`,
 // so freshly-resolved snapshots already carry the value. But presets persisted
@@ -176,7 +177,9 @@ async function prepareAnthropicBody(
     //   - model              → adapter selects the wire model id
     //   - stream             → adapter controls the transport mode
     const modelId = resolveWireModelId(preset, { vendorName: 'Anthropic' })
-    const { system, systemCachePoint, chat } = collectSystemAndChat(options.messages)
+    const { system, systemCachePoint, chat } = collectSystemAndChat(options.keepLaterSystemInPlace
+        ? inlineLaterSystemMessages(options.messages)
+        : options.messages)
     const cacheControl: AnthropicCacheControl = options.anthropicCache1h
         ? { type: 'ephemeral', ttl: '1h' }
         : { type: 'ephemeral' }
