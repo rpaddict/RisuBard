@@ -1842,32 +1842,43 @@
         .wiki-editor.mobile-layout .tree-width-resizer,
         .wiki-editor.mobile-layout .editor-panel-header { display: none; }
         .wiki-editor.mobile-layout .editor-pane { display: flex; grid-row: 2; min-height: 0; overflow: hidden; }
+        /* Labels sit beside their inputs, so the three fields take two short rows
+           and leave the height to the document body. */
         .wiki-editor.mobile-layout .editor-title-row {
             display: grid;
-            grid-template-columns: minmax(6.5rem, .72fr) minmax(0, 1.28fr);
-            gap: .45rem;
-            padding: .5rem .6rem;
+            grid-template-columns: minmax(7.5rem, .8fr) minmax(0, 1.6fr);
+            gap: .3rem .45rem;
+            padding: .35rem .6rem;
         }
         .wiki-editor.mobile-layout .editor-title-row .aliases-field { grid-column: 1 / -1; }
-        .wiki-editor.mobile-layout .editor-title-row:has(> .document-info) { grid-template-columns: auto minmax(6.5rem, .72fr) minmax(0, 1.28fr); }
-        .wiki-editor.mobile-layout .document-info-button { width: 2.75rem; height: 2.75rem; }
+        .wiki-editor.mobile-layout .editor-title-row:has(> .document-info) { grid-template-columns: auto minmax(7.5rem, .8fr) minmax(0, 1.6fr); }
+        .wiki-editor.mobile-layout .editor-title-row label { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .4rem; }
+        .wiki-editor.mobile-layout .document-info { align-self: center; }
+        .wiki-editor.mobile-layout .document-info-button { width: 2rem; height: 2rem; }
         .wiki-editor.mobile-layout .editor-title-row select,
         .wiki-editor.mobile-layout .editor-title-row input {
-            min-height: 2.75rem;
+            height: 2rem;
+            min-height: 2rem;
+            padding-block: 0;
+            /* 16px keeps mobile browsers from zooming into the field on focus. */
             font-size: 1rem;
+            line-height: 1.2;
         }
         .wiki-editor.mobile-layout .editor-actions {
             width: 100%;
-            flex-wrap: wrap;
-            overflow-x: visible;
+            flex-wrap: nowrap;
+            overflow-x: auto;
             align-items: center;
-            justify-content: flex-end;
-            gap: .35rem;
+            justify-content: safe flex-end;
+            gap: .2rem;
             margin-left: 0;
-            padding: .4rem .6rem;
+            padding: .25rem .5rem;
             scrollbar-width: thin;
         }
-        .wiki-editor.mobile-layout .editor-actions :global(button) { min-height: 2.75rem; }
+        .wiki-editor.mobile-layout .editor-actions :global(button) { height: 2rem; min-height: 2rem; }
+        /* Icon only on phones; the button keeps its aria-label and title. */
+        .wiki-editor.mobile-layout .editor-actions .editor-source-action :global(button) { width: 2rem; padding-inline: .35rem; }
+        .wiki-editor.mobile-layout .editor-actions :global([data-wiki-source-label]) { display: none; }
         .wiki-editor.mobile-layout .document-meta { flex-wrap: wrap; gap: .35rem .6rem; }
         .wiki-editor.mobile-layout .markdown-editor,
         .wiki-editor.mobile-layout .markdown-preview {
