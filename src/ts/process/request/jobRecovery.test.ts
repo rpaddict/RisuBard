@@ -332,6 +332,41 @@ describe('recoverTerminalJob', () => {
         expect(claims()).toEqual(['/api/model-jobs/job-1/claim'])
     })
 
+    test('a done job that this tab is still receiving live is left to the live send', async () => {
+        const { recovery, genState } = await loadModules()
+        const chat = makeChat()
+        mocks.db.characters = [makeChar(chat)]
+        const { claims } = setupServer({ journals: { 'job-1': OPENAI_SSE } })
+
+        // Back from the background: the server finished the job, but this tab's
+        // live send has not pushed its message yet. Slotting it in here would
+        // leave two messages with one chatId once the live send lands.
+        genState.startGeneration('chat-1', 'gen-1', 'live')
+        await recovery.recoverTerminalJob(makeJob() as any)
+
+        expect(chat.message).toHaveLength(0)
+        expect(claims()).toEqual([])
+
+        // If the live send dies without saving, a later pass still recovers it.
+        genState.endGeneration('chat-1')
+        await recovery.recoverTerminalJob(makeJob() as any)
+        expect(chat.message).toHaveLength(1)
+        expect(claims()).toEqual(['/api/model-jobs/job-1/claim'])
+    })
+
+    test('a live send of another generation does not hold back an older job', async () => {
+        const { recovery, genState } = await loadModules()
+        const chat = makeChat()
+        mocks.db.characters = [makeChar(chat)]
+        const { claims } = setupServer({ journals: { 'job-1': OPENAI_SSE } })
+
+        genState.startGeneration('chat-1', 'gen-2', 'live')
+        await recovery.recoverTerminalJob(makeJob() as any)
+
+        expect(chat.message).toHaveLength(1)
+        expect(claims()).toEqual(['/api/model-jobs/job-1/claim'])
+    })
+
     test('missing chat claims and skips without touching anything', async () => {
         const { recovery } = await loadModules()
         mocks.db.characters = [makeChar(makeChat({ id: 'other-chat' }))]
