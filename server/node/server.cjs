@@ -3175,7 +3175,10 @@ app.get('/', async (req, res, next) => {
         const root = htmlparser.parse(mainIndex)
         const head = root.querySelector('head')
         head.innerHTML = `<script>globalThis.__NODE__ = true; globalThis.__PATCH_SYNC__ = ${enablePatchSync}</script>` + head.innerHTML
-        
+
+        // index.html은 해시 없는 진입점이다. 캐시되면 업데이트 후에도 예전 번들을 불러
+        // 이미 지워진 해시 자산을 요청하게 되므로(404), 매번 ETag로 재검증하게 한다.
+        res.set('Cache-Control', 'no-cache')
         res.send(root.toString())
     } catch (error) {
         console.log(error)
