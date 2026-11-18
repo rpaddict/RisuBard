@@ -30,6 +30,12 @@ const MODEL_JOB_MAX_RETAINED_TERMINAL = 50;
 const MODEL_JOB_MAX_RETAINED_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const TERMINAL_STATUSES = ['done', 'failed', 'aborted'];
+// An aux job (BardWiki analysis, translation, …) that finished but was never
+// claimed lost its client mid-pipeline — on mobile the OS closes a backgrounded
+// app. The client re-runs the same step later and sends a byte-identical
+// request, so a fresh identical aux request is answered with that finished
+// journal instead of a second upstream call.
+const MODEL_JOB_AUX_REUSE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function normalizeTimeoutMs(timeoutMs) {
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -161,13 +167,16 @@ function createModelJobs(opts = {}) {
         try { fs.writeSync(fd, `${JSON.stringify({ at: Date.now(), event, status: row.status, bytes: row.bytes })}\n`, null, 'utf8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     }
     const db = { close() {} };
-    const stmtInsert = { run(id, chat_id, generation_id, adapter_kind, model, target_origin, kind, streaming, created_at) { persistRow({ id, chat_id, generation_id, adapter_kind, model, target_origin, kind, streaming, status: 'running', upstream_status: null, content_type: null, error: null, created_at, ended_at: null, bytes: 0, claimed: 0 }, 'created'); } };
+    const stmtInsert = { run(id, chat_id, generation_id, adapter_kind, model, target_origin, kind, streaming, created_at, request_hash = null) { persistRow({ id, chat_id, generation_id, adapter_kind, model, target_origin, kind, streaming, status: 'running', upstream_status: null, content_type: null, error: null, created_at, ended_at: null, bytes: 0, claimed: 0, request_hash }, 'created'); } };
     const stmtGet = { get(id) { return jobs.get(id); } };
     const stmtRunningForChat = { get(chatId) { return [...jobs.values()].find(row => row.chat_id === chatId && row.status === 'running' && row.kind === 'main'); } };
     const stmtSetUpstream = { run(status, contentType, id) { const row = jobs.get(id); if (row) { row.upstream_status = status; row.content_type = contentType; persistRow(row, 'upstream'); } } };
     const stmtFinalize = { run(status, error, endedAt, bytes, id) { const row = jobs.get(id); if (row) { Object.assign(row, { status, error, ended_at: endedAt, bytes }); persistRow(row, 'finalized'); } } };
     const stmtClaim = { run(id) { const row = jobs.get(id); if (row) { row.claimed = 1; persistRow(row, 'claimed'); } } };
     const stmtDelete = { run(id) { jobs.delete(id); } };
+    // Only a finished, successful, never-claimed aux job is reusable. A claimed
+    // one was delivered, so a repeat of its request is a deliberate retry.
+    const stmtReusableAux = { get(hash, cutoff) { let best; for (const row of jobs.values()) { if (row.request_hash !== hash || row.kind !== 'aux' || row.status !== 'done' || row.claimed || !(row.upstream_status >= 200 && row.upstream_status < 300) || row.created_at < cutoff) continue; if (!best || row.created_at > best.created_at) best = row; } return best; } };
     const stmtListActive = { all() { return [...jobs.values()].filter(row => row.status === 'running' && row.kind === 'main').sort((a, b) => b.created_at - a.created_at); } };
     const stmtListUnclaimed = { all() { return [...jobs.values()].filter(row => ['done', 'failed'].includes(row.status) && !row.claimed && row.kind === 'main').sort((a, b) => a.created_at - b.created_at); } };
     const stmtMarkRunningFailed = { run(reason, endedAt) { for (const row of jobs.values()) if (row.status === 'running') { Object.assign(row, { status: 'failed', error: reason, ended_at: endedAt }); persistRow(row, 'restart-failed'); } } };
@@ -408,6 +417,20 @@ function createModelJobs(opts = {}) {
         if (typeof arg.body === 'string') {
             bodyBuffer = Buffer.from(arg.body, 'utf-8');
         }
+        // Hash only; the URL may carry a key and is never stored raw.
+        const requestHash = kind === 'aux' && bodyBuffer
+            ? nodeCrypto.createHash('sha256')
+                .update(`${targetUrl}\n${arg.streaming ? 'stream' : 'once'}\n`)
+                .update(bodyBuffer)
+                .digest('hex')
+            : null;
+        if (requestHash) {
+            const reusable = stmtReusableAux.get(requestHash, Date.now() - MODEL_JOB_AUX_REUSE_MAX_AGE_MS);
+            if (reusable) {
+                opts.logger?.info?.(`[model-jobs] aux request matches unclaimed job ${reusable.id}; reusing its result`);
+                return { jobId: reusable.id, reused: true };
+            }
+        }
 
         const jobId = nodeCrypto.randomUUID();
         const job = {
@@ -425,7 +448,8 @@ function createModelJobs(opts = {}) {
             parsedTarget.origin + parsedTarget.pathname,
             kind,
             arg.streaming ? 1 : 0,
-            Date.now()
+            Date.now(),
+            requestHash
         );
         activeJobs.set(jobId, job);
         // Touch the journal synchronously so a stream reader attaching right
