@@ -594,7 +594,7 @@ describe('RisuBardMemoryWiki', () => {
 
         expect(dockLayer).toBeGreaterThan(0)
         const chatPaneStart = chatSource.indexOf(
-            '<main class="relative z-0 h-full min-w-0 flex-1"'
+            '<main class="relative z-0 h-full min-w-0 flex-1 [contain:layout]"'
         )
         const chatPaneEnd = chatSource.indexOf('</main>', chatPaneStart)
         const pluginFabs = chatSource.indexOf(
