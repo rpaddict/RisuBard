@@ -71,6 +71,7 @@ describe('model-jobs', () => {
         lastReq: http.IncomingMessage | null
         lastBody: Buffer | null
         closed: boolean
+        hits: number
     } = {
         chunks: [],
         delayMs: 20,
@@ -80,6 +81,7 @@ describe('model-jobs', () => {
         lastReq: null,
         lastBody: null,
         closed: false,
+        hits: 0,
     }
 
     beforeAll(async () => {
@@ -94,6 +96,7 @@ describe('model-jobs', () => {
 
         upstreamServer = http.createServer((req, res) => {
             upstream.lastReq = req
+            upstream.hits += 1
             upstream.closed = false
             const bodyParts: Buffer[] = []
             req.on('data', (c) => bodyParts.push(c))
@@ -554,6 +557,95 @@ describe('model-jobs', () => {
         })
         const unclaimedJobs = (await unclaimedRes.json()).jobs as { id: string }[]
         expect(unclaimedJobs.some((j) => j.id === aux.json.jobId)).toBe(false)
+    })
+    describe('unclaimed aux job reuse', () => {
+        const auxBody = (tag: string) => JSON.stringify({ messages: [{ role: 'user', content: `wiki-analysis-${tag}` }] })
+        const stream = async (jobId: string) => (await readAll(await fetch(`${base}/api/model-jobs/${jobId}/stream`, {
+            headers: { 'risu-auth': AUTH_TOKEN },
+        }))).toString('utf-8')
+        const claim = (jobId: string) => fetch(`${base}/api/model-jobs/${jobId}/claim`, {
+            method: 'POST', headers: { 'risu-auth': AUTH_TOKEN },
+        })
+
+        it('answers an identical aux request with the finished unclaimed job, once', async () => {
+            upstream.chunks = ['data: first-analysis\n\n']
+            upstream.delayMs = 0
+            upstream.hang = false
+            const body = auxBody('reuse')
+            const first = await createJob({ kind: 'aux', body, generationId: 'aux-a' })
+            await waitForStatus(base, first.json.jobId, ['done'])
+            const hits = upstream.hits
+
+            // The client that sent `first` vanished (app closed). Its re-run is byte-identical.
+            upstream.chunks = ['data: second-analysis\n\n']
+            const again = await createJob({ kind: 'aux', body, generationId: 'aux-b' })
+            expect(again.json.jobId).toBe(first.json.jobId)
+            expect(upstream.hits).toBe(hits)
+            expect(await stream(again.json.jobId)).toBe('data: first-analysis\n\n')
+
+            // Once delivered (claimed) it is never handed out again: a repeat is a real retry.
+            await claim(again.json.jobId)
+            const retry = await createJob({ kind: 'aux', body, generationId: 'aux-c' })
+            expect(retry.json.jobId).not.toBe(first.json.jobId)
+            await waitForStatus(base, retry.json.jobId, ['done'])
+            expect(upstream.hits).toBe(hits + 1)
+            expect(await stream(retry.json.jobId)).toBe('data: second-analysis\n\n')
+            await claim(retry.json.jobId)
+        })
+
+        it('never reuses across a different body, streaming mode, main jobs or a failed upstream', async () => {
+            upstream.chunks = ['data: x\n\n']
+            upstream.delayMs = 0
+            upstream.hang = false
+            const body = auxBody('strict')
+            const base1 = await createJob({ kind: 'aux', body })
+            await waitForStatus(base, base1.json.jobId, ['done'])
+
+            const otherBody = await createJob({ kind: 'aux', body: auxBody('strict-2') })
+            const otherMode = await createJob({ kind: 'aux', body, streaming: false })
+            const main = await createJob({ body })
+            for (const job of [otherBody, otherMode, main]) {
+                expect(job.json.jobId).not.toBe(base1.json.jobId)
+                await waitForStatus(base, job.json.jobId, ['done'])
+            }
+
+            upstream.status = 500
+            const failedBody = auxBody('upstream-500')
+            const failed = await createJob({ kind: 'aux', body: failedBody })
+            await waitForStatus(base, failed.json.jobId, ['done', 'failed'])
+            upstream.status = 200
+            const afterFailure = await createJob({ kind: 'aux', body: failedBody })
+            expect(afterFailure.json.jobId).not.toBe(failed.json.jobId)
+            await waitForStatus(base, afterFailure.json.jobId, ['done'])
+        })
+
+        it('finds a reusable job after a server restart', async () => {
+            upstream.chunks = ['data: before-restart\n\n']
+            upstream.delayMs = 0
+            upstream.hang = false
+            const body = auxBody('restart')
+            const first = await createJob({ kind: 'aux', body })
+            await waitForStatus(base, first.json.jobId, ['done'])
+
+            const restarted = createModelJobs({ saveDir })
+            try {
+                const app = express()
+                app.use(express.json({ limit: '10mb' }))
+                restarted.registerRoutes(app, { auth: stubAuth })
+                const server = http.createServer(app)
+                const restartedBase = `http://127.0.0.1:${await listen(server)}`
+                const res = await fetch(`${restartedBase}/api/model-jobs`, {
+                    method: 'POST',
+                    headers: { 'risu-auth': AUTH_TOKEN, 'content-type': 'application/json' },
+                    body: JSON.stringify({ targetUrl: upstreamUrl, method: 'POST', headers: {}, body,
+                        chatId: 'chat-restart', generationId: 'gen-restart', adapterKind: 'openai', streaming: true, kind: 'aux' }),
+                })
+                expect((await res.json()).jobId).toBe(first.json.jobId)
+                server.close()
+            } finally {
+                restarted.close()
+            }
+        })
     })
 })
 
