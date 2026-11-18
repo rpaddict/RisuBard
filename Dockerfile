@@ -4,6 +4,8 @@ FROM node:24-slim AS base
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+# onnxruntime-node 1.21.0's Linux CUDA download now returns 404; the app uses the CPU build.
+ENV ONNXRUNTIME_NODE_INSTALL_CUDA=skip
 # Copy dependency-related file
 COPY package.json .
 COPY pnpm-lock.yaml .

@@ -26,6 +26,10 @@ permissions:
   actions: write
   contents: write
 
+env:
+  # onnxruntime-node 1.21.0's Linux CUDA download now returns 404; the app uses the CPU build.
+  ONNXRUNTIME_NODE_INSTALL_CUDA: skip
+
 jobs:
   build:
     runs-on: ubuntu-latest

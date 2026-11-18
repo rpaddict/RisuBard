@@ -8,6 +8,10 @@ concurrency:
   group: pr-check-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # onnxruntime-node 1.21.0's Linux CUDA download now returns 404; the app uses the CPU build.
+  ONNXRUNTIME_NODE_INSTALL_CUDA: skip
+
 jobs:
   typecheck:
     name: Linux / Test
