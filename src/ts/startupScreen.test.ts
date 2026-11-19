@@ -58,11 +58,36 @@ describe('first startup screen', () => {
             expect(document.getElementById('preloading-error')!.hidden).toBe(true)
         })
 
+        it('reloads once when the server no longer has the asset (stale cached build)', async () => {
+            setRetryLoads(false)
+            sessionStorage.clear()
+            vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404, headers: { 'content-type': 'text/html' } })))
+            const reload = vi.fn()
+            await startWithBranding(async () => { throw cssError() }, reload)
+            expect(reload).toHaveBeenCalledOnce()
+            expect(document.getElementById('preloading-error')!.hidden).toBe(true)
+            vi.unstubAllGlobals()
+        })
+
+        it('does not reload for a non-404 failure', async () => {
+            setRetryLoads(false)
+            sessionStorage.clear()
+            vi.stubGlobal('fetch', vi.fn(async () => new Response('down', { status: 502, headers: { 'content-type': 'text/html' } })))
+            const reload = vi.fn()
+            await startWithBranding(async () => { throw cssError() }, reload)
+            expect(reload).not.toHaveBeenCalled()
+            expect(document.getElementById('preloading-error')!.textContent).toContain('HTTP 502')
+            vi.unstubAllGlobals()
+        })
+
         it('shows the server response when the retry also fails', async () => {
             setRetryLoads(false)
+            sessionStorage.setItem('risubard-stale-build-reload', String(Date.now()))
             vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404, headers: { 'content-type': 'text/html' } })))
             const loadApp = vi.fn(async () => { throw cssError() })
-            await startWithBranding(loadApp)
+            const reload = vi.fn()
+            await startWithBranding(loadApp, reload)
+            expect(reload).not.toHaveBeenCalled()
             expect(loadApp).toHaveBeenCalledOnce()
             const error = document.getElementById('preloading-error')!
             expect(error.hidden).toBe(false)
