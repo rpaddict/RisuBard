@@ -60,6 +60,7 @@
     import { copyWikiDocumentToLorebook } from 'src/ts/risubard/wikiLorebookCopy'
     import { normalizeMemoryWikiTreeHeight, normalizeMemoryWikiTreeWidth } from 'src/ts/risubard/memoryWikiLayout'
     import { rankWikiLinkCandidates, relinkWikiLink } from 'src/ts/risubard/wikiLinkRepair'
+    import { eventSequences as eventSequenceMap } from '../../../server/node/risubard-event-sequence'
     import { formatStoryTimeLabel } from '../../../server/node/risubard-memory-metadata'
     import type { StorySourceRef } from 'src/ts/risubard/storySoFar'
     import { createEventOrder, type EventOrderMessage } from 'src/ts/risubard/eventOrder'
@@ -305,6 +306,7 @@
         })
         renderer.use(wikiLinkPlugin, {
             resolve: wikiLinkPresentation,
+            eventMarkTarget: (sequence) => eventIdsBySequence.get(sequence) ?? undefined,
         })
         if (searchQuery) {
             renderer.renderer.rules.text = (tokens, index) =>
@@ -338,9 +340,20 @@
         }
     }
 
-    let eventSequences = $derived(new Map(documents
-        .filter((document) => document.type === 'event' && document.sequence !== undefined)
-        .map((document) => [document.id, document.sequence!])))
+    // Same numbering the analysis prompts use, so older events without a stored number match their (#N) marks.
+    // Retracted events are left out of it but keep their stored number in the tree.
+    let activeEventSequences = $derived(eventSequenceMap(documents))
+    let eventSequences = $derived(new Map([
+        ...documents
+            .filter((document) => document.type === 'event' && document.sequence !== undefined)
+            .map((document) => [document.id, document.sequence!] as const),
+        ...activeEventSequences,
+    ]))
+    let eventIdsBySequence = $derived.by(() => {
+        const ids = new Map<number, string | null>()
+        for (const [id, sequence] of activeEventSequences) ids.set(sequence, ids.has(sequence) ? null : id)
+        return ids
+    })
     let repairCandidates = $derived(linkRepair
         ? rankWikiLinkCandidates(linkRepair.target,
             documents.filter((document) => document.id !== linkRepair!.sourceId), 4)

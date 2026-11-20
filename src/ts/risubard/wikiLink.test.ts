@@ -204,3 +204,37 @@ describe('countWikiBacklinks', () => {
         expect(countWikiBacklinks(target, documents)).toBe(3)
     })
 })
+
+describe('evidence marks (#N)', () => {
+    const events = new Map([[4, 'event.a'], [9, 'event.b'], [10, 'event.c']])
+    function renderMarks(source: string, typographer = true) {
+        const md = markdownit({ html: false, breaks: false, linkify: false, typographer })
+        md.use(wikiLinkPlugin, { eventMarkTarget: (sequence: number) => events.get(sequence) })
+        return md.render(source).trim()
+    }
+    const link = (id: string, label: string) =>
+        `<a data-wikilink="${id}" class="wikilink wikilink-event-mark" data-wikilink-status="resolved" role="link" tabindex="0">${label}</a>`
+
+    test('links a single mark to its event', () => {
+        expect(renderMarks('검을 잃었다. (#10)'))
+            .toBe(`<p>검을 잃었다. (${link('event.c', '#10')})</p>`)
+    })
+
+    test('links both ends of a range and each listed number', () => {
+        expect(renderMarks('사이가 나빠졌다 (#4–#9)'))
+            .toBe(`<p>사이가 나빠졌다 (${link('event.a', '#4')}–${link('event.b', '#9')})</p>`)
+        expect(renderMarks('(#4, #10)'))
+            .toBe(`<p>(${link('event.a', '#4')}, ${link('event.c', '#10')})</p>`)
+    })
+
+    test('leaves unknown numbers, stray hashes and code alone', () => {
+        expect(renderMarks('(#4–#77)'))
+            .toBe(`<p>(${link('event.a', '#4')}–#77)</p>`)
+        expect(renderMarks('#10 번째, (메모 #10), (#10 참고)')).toBe('<p>#10 번째, (메모 #10), (#10 참고)</p>')
+        expect(renderMarks('`(#10)`')).toBe('<p><code>(#10)</code></p>')
+    })
+
+    test('stays plain text without an event lookup', () => {
+        expect(render('(#10)')).toBe('<p>(#10)</p>')
+    })
+})
