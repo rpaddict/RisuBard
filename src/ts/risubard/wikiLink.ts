@@ -74,7 +74,17 @@ export interface WikiLinkPluginOptions {
     resolves?: (target: string) => boolean
     /** Reports the reason a target does not resolve and its accessible description. */
     resolve?: (target: string) => WikiLinkRenderResolution
+    /**
+     * Names the event document behind an evidence mark `(#N)`, or nothing when
+     * no single event has that number. Without it the marks stay plain text.
+     */
+    eventMarkTarget?: (sequence: number) => string | undefined
 }
+
+/** Matches a whole evidence mark such as `(#12)`, `(#4–#9)` or `(#3, #7)` starting at its `(`. */
+const EVENT_MARK = /^\(#\d{1,6}(?:\s*[–—~,-]\s*#\d{1,6})*\)/
+/** What may precede a `#N` inside a mark: the `(` and any earlier numbers with their separators. */
+const EVENT_MARK_PREFIX = /^\((?:#\d{1,6}\s*[–—~,-]\s*)*$/
 
 /**
  * markdown-it plugin rendering Obsidian-style `[[Target]]` and
@@ -146,6 +156,36 @@ export function wikiLinkPlugin(
         text.content = label
         state.push('wikilink_close', 'a', -1)
         state.pos = close + 2
+        return true
+    })
+
+    // Each `#N` inside an evidence mark becomes a link to that event, so a
+    // range links both ends. The rule fires on `#` because markdown-it's text
+    // rule stops there; it checks that the `#` sits inside a whole mark.
+    md.inline.ruler.before('link', 'wiki_event_mark', (state, silent) => {
+        const eventMarkTarget = options.eventMarkTarget
+        if (!eventMarkTarget || silent) return false
+        const start = state.pos
+        const source = state.src
+        if (source.charCodeAt(start) !== 0x23 /* # */) return false
+        if ((state as typeof state & { linkLevel: number }).linkLevel > 0) return false
+        const digits = /^#(\d{1,6})(?!\d)/.exec(source.slice(start))
+        if (!digits) return false
+        const open = source.lastIndexOf('(', start)
+        if (open < 0 || !EVENT_MARK_PREFIX.test(source.slice(open, start))
+            || !EVENT_MARK.test(source.slice(open))) return false
+        const target = eventMarkTarget(Number(digits[1]))
+        if (!target) return false
+        const anchor = state.push('wikilink_open', 'a', 1)
+        anchor.attrSet('data-wikilink', target)
+        anchor.attrSet('class', 'wikilink wikilink-event-mark')
+        anchor.attrSet('data-wikilink-status', 'resolved')
+        anchor.attrSet('role', 'link')
+        anchor.attrSet('tabindex', '0')
+        const text = state.push('text', '', 0)
+        text.content = digits[0]
+        state.push('wikilink_close', 'a', -1)
+        state.pos = start + digits[0].length
         return true
     })
 }
