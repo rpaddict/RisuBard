@@ -50,7 +50,7 @@ import {
 } from "../risubard/memoryAnalysisClient";
 import { enqueueNarrativeConfirmation, narrativeConfirmationsSettled } from '../risubard/narrativeConfirmationQueue';
 import { groupNarrativeBacklog, NARRATIVE_BACKLOG_TURNS_PER_RUN, narrativeAnalysisDue, narrativeTurnsPerCall, withoutRepeatedMessages } from '../risubard/narrativeBacklogBatch';
-import { summarizeWikiAnalysisGap, wikiBacklogMessages } from '../risubard/wikiBacklog';
+import { summarizeWikiAnalysisGap, wikiBacklogInterrupted, wikiBacklogMessages } from '../risubard/wikiBacklog';
 import { projectActiveNarrativeSources } from "../risubard/sourceProjection";
 import {
     createNarrativeSourcesPrompt,
@@ -749,6 +749,48 @@ export async function retryNarrativeBacklog(): Promise<void> {
         characterId: character.chaId,
         chatId,
     })
+}
+
+/** When the app last went out of view; analysis failing after it was likely cut off. */
+let narrativeHiddenSince: string | undefined
+
+/**
+ * Resumes the current chat's wiki analysis that came due but was cut off, such
+ * as when a mobile app went to the background mid-analysis or was closed. The
+ * model job still finishes on the server, but nothing else would run those
+ * turns again until the next reply. Waits for an analysis still running, and
+ * does nothing with automatic analysis off, before the turn interval is
+ * reached, or when a turn failed while the app was in view.
+ */
+export async function resumeNarrativeBacklog(): Promise<void> {
+    if (!shouldAutomaticallyConfirmNarrativeTurn(DBState.db.risuBardAutoWikiEnabled)) return
+    const character = DBState.db.characters[get(selectedCharID)]
+    const chat = character?.chats[character.chatPage]
+    if (!character || !chat) return
+    if (wikiBacklogMessages(chat.message, undefined, true).length === 0) return
+    const chatId = ensureNarrativeSessionChatId(chat, v4)
+    await narrativeBacklogRuns.get(JSON.stringify([character.chaId, chatId]))
+    const queued = wikiBacklogMessages(chat.message, undefined, true)
+    if (!narrativeAnalysisDue(queued.length, resolvedRisuBardSettings(chat).risuBardAnalysisTurnInterval)
+        || !wikiBacklogInterrupted(queued, narrativeHiddenSince)) return
+    await drainNarrativeBacklog(character.chaId, chatId)
+}
+
+let narrativeResumeInstalled = false
+
+/** Resumes cut-off wiki analysis when the app returns to view or another chat is opened. */
+export function initNarrativeBacklogResume(): void {
+    if (narrativeResumeInstalled) return
+    narrativeResumeInstalled = true
+    const resume = () => {
+        void resumeNarrativeBacklog().catch((error) => console.warn('[RisuBard memory resume]', error))
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') narrativeHiddenSince = new Date().toISOString()
+        else resume()
+    })
+    // Runs now for the chat open at boot, and again whenever another character is opened.
+    selectedCharID.subscribe(resume)
 }
 
 /** Leaves one waiting turn out of the wiki so that the turns after it can proceed. */
