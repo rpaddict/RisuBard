@@ -15,7 +15,8 @@ vi.mock(import('./stores.svelte'), () => ({
 }) as never)
 
 const stores = await import('./stores.svelte')
-const { closeTopScreen, registerAppBack } = await import('./mobileBack')
+const { closeTopScreen, registerAppBack, fillBackGuards, initMobileBack } = await import('./mobileBack')
+const { registerFullscreenPluginFrame } = await import('./plugins/apiV3/pluginFrameLayer')
 const { registerSettingsBack } = await import('./setting/settingsBack')
 
 const releases: Array<() => void> = []
@@ -110,5 +111,58 @@ describe('closeTopScreen', () => {
         dialog.getClientRects = () => [{}] as unknown as DOMRectList
         document.body.appendChild(dialog)
         expect(await closeTopScreen()).toBe(false)
+    })
+})
+
+describe('fullscreen plugin frames', () => {
+    test('hides the shown plugin frame before closing settings', async () => {
+        const frame = document.createElement('iframe')
+        frame.style.setProperty('display', 'block', 'important')
+        document.body.appendChild(frame)
+        registerFullscreenPluginFrame(frame)
+        stores.settingsOpen.set(true)
+        expect(await closeTopScreen()).toBe(true)
+        expect(frame.style.display).toBe('none')
+        expect(get(stores.settingsOpen)).toBe(true)
+        expect(await closeTopScreen()).toBe(true)
+        expect(get(stores.settingsOpen)).toBe(false)
+    })
+})
+
+describe('back guards', () => {
+    test('fills two guard entries and stops there', () => {
+        history.replaceState(null, '')
+        const push = vi.spyOn(history, 'pushState')
+        try {
+            fillBackGuards()
+            expect(push.mock.calls.map((call) => call[0])).toEqual([{ risuBack: 1 }, { risuBack: 2 }])
+            fillBackGuards()
+            expect(push).toHaveBeenCalledTimes(2)
+        } finally {
+            push.mockRestore()
+        }
+    })
+
+    test('pushes nothing until a user gesture and drops the guards when nothing is open', async () => {
+        const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) =>
+            ({ matches: query === '(pointer: coarse)' }) as MediaQueryList)
+        const push = vi.spyOn(history, 'pushState')
+        const go = vi.spyOn(history, 'go').mockImplementation(() => {})
+        const onExitHint = vi.fn()
+        try {
+            initMobileBack(onExitHint)
+            // A script-dispatched click carries no user activation.
+            document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+            expect(push).not.toHaveBeenCalled()
+
+            window.dispatchEvent(new PopStateEvent('popstate', { state: { risuBack: 1 } }))
+            await vi.waitFor(() => expect(onExitHint).toHaveBeenCalledOnce())
+            expect(go).toHaveBeenCalledWith(-1)
+            expect(push).not.toHaveBeenCalled()
+        } finally {
+            matchMedia.mockRestore()
+            push.mockRestore()
+            go.mockRestore()
+        }
     })
 })

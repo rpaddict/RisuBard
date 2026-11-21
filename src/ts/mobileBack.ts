@@ -12,16 +12,22 @@ import {
     sideBarStore,
 } from './stores.svelte'
 import { goBackInSettings } from './setting/settingsBack'
+import { hideTopFullscreenPluginFrame } from './plugins/apiV3/pluginFrameLayer'
 
 // Android back button / back gesture. The app never pushes history entries,
 // so in an installed PWA the back button closes the app even while settings,
-// a panel or a dialog is open. While enabled, one guard entry is kept on the
-// history stack; each back press pops it, closes the topmost screen, and puts
-// the guard back. With nothing left to close the first press shows a hint and
-// leaves the guard off briefly, so a second press exits as before.
+// a panel or a dialog is open. While enabled, guard entries are kept on the
+// history stack; each back press pops one and closes the topmost screen.
+// With nothing left to close the press shows a hint and drops the remaining
+// guards, so the next press exits as before.
+//
+// Guards are only pushed while handling a user gesture. Chrome marks the
+// entry before a pushState made without user activation as skipped by the
+// back button, so such a guard would send the back button straight out of
+// the app ("Leave site?"). Two guards let two presses in a row (a settings
+// sub-page, then settings) close screens before the next tap refills them.
 
-const GUARD_STATE = { risuBack: true }
-const EXIT_WINDOW_MS = 2500
+const GUARD_DEPTH = 2
 const DIALOG_SELECTOR = '[aria-modal="true"][data-state="open"],[role="dialog"][data-state="open"]'
 // Escape-driven closes (bits-ui dialogs, AlertComp) settle asynchronously.
 const ESCAPE_SETTLE_MS = 150
@@ -80,6 +86,7 @@ export async function closeTopScreen(): Promise<boolean> {
         await new Promise((resolve) => setTimeout(resolve, ESCAPE_SETTLE_MS))
         return openDialogCount() < dialogs || (alerting && !isAlerting())
     }
+    if (hideTopFullscreenPluginFrame()) return true
     if (get(settingsOpen)) {
         if (!goBackInSettings()) settingsOpen.set(false)
         return true
@@ -105,35 +112,43 @@ export function shouldHandleBackButton() {
         || window.matchMedia('(pointer: coarse)').matches
 }
 
+const guardLevel = (state: unknown) => Number((state as { risuBack?: unknown } | null)?.risuBack) || 0
+
+/** Tops the guard entries up to GUARD_DEPTH; call only during a user gesture. */
+export function fillBackGuards() {
+    for (let level = guardLevel(history.state) + 1; level <= GUARD_DEPTH; level++) {
+        history.pushState({ risuBack: level }, '')
+    }
+}
+
 export function initMobileBack(onExitHint: () => void) {
     if (!shouldHandleBackButton()) return
-    const isGuard = (state: unknown) => !!(state as typeof GUARD_STATE | null)?.risuBack
-    const pushGuard = () => {
-        if (!isGuard(history.state)) history.pushState(GUARD_STATE, '')
+    for (const type of ['click', 'pointerup', 'touchend', 'keydown']) {
+        // Script-dispatched events (such as the Escape sent above) carry no activation.
+        window.addEventListener(type, (event) => {
+            if (event.isTrusted) fillBackGuards()
+        }, true)
     }
-    let exitTimer: ReturnType<typeof setTimeout> | null = null
+    let skipPop = false
     window.addEventListener('popstate', (event) => {
-        if (isGuard(event.state)) return
-        if (exitTimer) {
-            clearTimeout(exitTimer)
-            exitTimer = null
+        if (skipPop) {
+            skipPop = false
+            return
         }
+        // Not refilled here: a back press is not a user activation.
+        const level = guardLevel(event.state)
         void closeTopScreen()
             .catch((error) => {
                 console.warn('[mobile back]', error)
                 return true
             })
             .then((closed) => {
-                if (closed) {
-                    pushGuard()
-                    return
-                }
+                if (closed) return
                 onExitHint()
-                exitTimer = setTimeout(() => {
-                    exitTimer = null
-                    pushGuard()
-                }, EXIT_WINDOW_MS)
+                if (level > 0) {
+                    skipPop = true
+                    history.go(-level)
+                }
             })
     })
-    pushGuard()
 }
