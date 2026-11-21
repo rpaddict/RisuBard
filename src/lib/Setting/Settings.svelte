@@ -1,5 +1,7 @@
 <script lang="ts">
     import { MediaQuery } from 'svelte/reactivity'
+    import { onDestroy } from 'svelte'
+    import { registerSettingsBack } from 'src/ts/setting/settingsBack'
     import AdvancedSettings from './Pages/AdvancedSettings.svelte'
     import FilesSettings from './Pages/FilesSettings.svelte'
     import GlobalLoreBookSettings from './Pages/GlobalLoreBookSettings.svelte'
@@ -68,6 +70,15 @@
     function backToNavigation() {
         $SettingsMenuIndex = SettingsRoute.None
     }
+
+    // Registered during init, before any page mounts, so it is tried last:
+    // page-level handlers (e.g. module editor) step back first, then the
+    // mobile page returns to the list, then Escape/back closes settings.
+    onDestroy(registerSettingsBack(() => {
+        if (isDesktop || $SettingsMenuIndex === SettingsRoute.None) return false
+        backToNavigation()
+        return true
+    }))
 
     function handleSettingsShortcut(event: KeyboardEvent) {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {

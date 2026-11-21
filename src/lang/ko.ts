@@ -2459,6 +2459,7 @@ export const languageKorean = {
   modelPresetCreate: "새 모델 프리셋 만들기",
   basicSettings: "기본 설정",
   backToList: "목록으로",
+  pressBackAgainToExit: "한 번 더 누르면 종료됩니다",
   selectProfile: "프로필 선택",
   searchProfiles: "프로필 검색",
   noProfileMatch: "일치하는 프로필이 없습니다",
