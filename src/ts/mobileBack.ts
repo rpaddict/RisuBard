@@ -21,13 +21,20 @@ import { hideTopFullscreenPluginFrame } from './plugins/apiV3/pluginFrameLayer'
 // With nothing left to close the press shows a hint and drops the remaining
 // guards, so the next press exits as before.
 //
-// Guards are only pushed while handling a user gesture. Chrome marks the
-// entry before a pushState made without user activation as skipped by the
-// back button, so such a guard would send the back button straight out of
-// the app ("Leave site?"). Two guards let two presses in a row (a settings
-// sub-page, then settings) close screens before the next tap refills them.
+// Guards are only pushed while handling a user gesture, one per gesture.
+// Chrome marks the entry before a pushState made without user activation as
+// skipped by the back button, so such a guard would send the back button
+// straight out of the app ("Leave site?").
+//
+// On an Android PWA one back press delivers popstate twice, 20-40 ms apart,
+// even with a single guard. A popstate that follows another within
+// DUPLICATE_POP_MS is the same press and is ignored, so one press closes one
+// screen and does not run past the guard.
 
 const GUARD_DEPTH = 2
+/** One tap fires pointerup, touchend and click; it adds one guard. */
+const GUARD_GESTURE_MS = 500
+const DUPLICATE_POP_MS = 150
 const DIALOG_SELECTOR = '[aria-modal="true"][data-state="open"],[role="dialog"][data-state="open"]'
 // Escape-driven closes (bits-ui dialogs, AlertComp) settle asynchronously.
 const ESCAPE_SETTLE_MS = 150
@@ -114,11 +121,14 @@ export function shouldHandleBackButton() {
 
 const guardLevel = (state: unknown) => Number((state as { risuBack?: unknown } | null)?.risuBack) || 0
 
-/** Tops the guard entries up to GUARD_DEPTH; call only during a user gesture. */
-export function fillBackGuards() {
-    for (let level = guardLevel(history.state) + 1; level <= GUARD_DEPTH; level++) {
-        history.pushState({ risuBack: level }, '')
-    }
+let lastGuardAt = Number.NEGATIVE_INFINITY
+
+/** Adds one guard entry, up to GUARD_DEPTH; call only during a user gesture. */
+export function fillBackGuards(now = Date.now()) {
+    const level = guardLevel(history.state)
+    if (level >= GUARD_DEPTH || now - lastGuardAt < GUARD_GESTURE_MS) return
+    lastGuardAt = now
+    history.pushState({ risuBack: level + 1 }, '')
 }
 
 export function initMobileBack(onExitHint: () => void) {
@@ -130,11 +140,15 @@ export function initMobileBack(onExitHint: () => void) {
         }, true)
     }
     let skipPop = false
+    let lastPopAt = Number.NEGATIVE_INFINITY
     window.addEventListener('popstate', (event) => {
         if (skipPop) {
             skipPop = false
             return
         }
+        const now = Date.now()
+        if (now - lastPopAt < DUPLICATE_POP_MS) return
+        lastPopAt = now
         // Not refilled here: a back press is not a user activation.
         const level = guardLevel(event.state)
         void closeTopScreen()

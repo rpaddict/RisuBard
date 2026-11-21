@@ -130,16 +130,21 @@ describe('fullscreen plugin frames', () => {
 })
 
 describe('back guards', () => {
-    test('fills two guard entries and stops there', () => {
+    test('adds one guard per gesture, up to two', () => {
         history.replaceState(null, '')
         const push = vi.spyOn(history, 'pushState')
         try {
-            fillBackGuards()
+            fillBackGuards(10_000)
+            fillBackGuards(10_100) // the same tap's touchend and click
+            expect(push.mock.calls.map((call) => call[0])).toEqual([{ risuBack: 1 }])
+            history.replaceState({ risuBack: 1 }, '')
+            fillBackGuards(11_000)
+            history.replaceState({ risuBack: 2 }, '')
+            fillBackGuards(12_000)
             expect(push.mock.calls.map((call) => call[0])).toEqual([{ risuBack: 1 }, { risuBack: 2 }])
-            fillBackGuards()
-            expect(push).toHaveBeenCalledTimes(2)
         } finally {
             push.mockRestore()
+            history.replaceState(null, '')
         }
     })
 
@@ -156,7 +161,11 @@ describe('back guards', () => {
             expect(push).not.toHaveBeenCalled()
 
             window.dispatchEvent(new PopStateEvent('popstate', { state: { risuBack: 1 } }))
+            // Android delivers one press twice; the second is ignored.
+            window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
             await vi.waitFor(() => expect(onExitHint).toHaveBeenCalledOnce())
+            await new Promise((resolve) => setTimeout(resolve, 200))
+            expect(onExitHint).toHaveBeenCalledOnce()
             expect(go).toHaveBeenCalledWith(-1)
             expect(push).not.toHaveBeenCalled()
         } finally {
