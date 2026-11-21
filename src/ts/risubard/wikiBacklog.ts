@@ -100,3 +100,20 @@ export function summarizeWikiBacklog(messages: readonly WikiBacklogMessage[]): {
         },
     }
 }
+
+/**
+ * Whether queued turns were cut off rather than refused: each one is either
+ * still waiting or failed after `hiddenSince`, while the app was out of view
+ * and losing the connection is expected. Turns that failed in view keep
+ * waiting for the next reply, so a real error is not retried on every return.
+ */
+export function wikiBacklogInterrupted(
+    queued: readonly WikiBacklogMessage[],
+    hiddenSince?: string,
+): boolean {
+    return queued.length > 0 && queued.every((message) => {
+        const pending = message.risubardWikiPending
+        if (!pending?.reason) return true
+        return hiddenSince !== undefined && (pending.failedAt ?? '') >= hiddenSince
+    })
+}

@@ -198,6 +198,8 @@ export async function loadData() {
             // Installs the return triggers (visibility / online) and runs the
             // first pass. Fire-and-forget — never throws, no-op without jobs.
             initModelJobRecovery()
+            // BardWiki analysis cut off the same way resumes on return (index.svelte.ts).
+            void import("./process/index.svelte").then((module) => module.initNarrativeBacklogResume())
             if (import.meta.env.VITE_RISU_TOS === 'TRUE') {
                 alertTOS().then((a) => {
                     if (a === false) {
