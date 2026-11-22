@@ -10,8 +10,11 @@ import { endAllGenerations } from "./process/generationState"
 import { RISU_SIDEBAR_DRAG_TYPE } from "./dragTypes"
 import { openSettings, SettingsRoute, SystemTab } from "./routing"
 import { goBackInSettings } from './setting/settingsBack'
+import { initMobileBack } from './mobileBack'
+import { toast } from 'svelte-sonner'
 
 export function initHotkey(){
+    initMobileBack(() => toast(language.pressBackAgainToExit, { duration: 2000 }))
     document.addEventListener('keydown', async (ev) => {
         if(
             ev.key !== 'Escape' &&

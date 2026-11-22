@@ -24,6 +24,17 @@ function applyZIndex() {
     }
 }
 
+/** Hides the last shown fullscreen plugin frame, as its hideContainer() would. */
+export function hideTopFullscreenPluginFrame(): boolean {
+    const top = [...fullscreenFrames]
+        .filter((frame) => frame.isConnected && frame.style.display !== 'none')
+        .at(-1)
+    if (!top) return false
+    top.style.setProperty('display', 'none', 'important')
+    fullscreenFrames.delete(top)
+    return true
+}
+
 export function registerFullscreenPluginFrame(frame: HTMLElement) {
     fullscreenFrames.add(frame)
     frame.style.zIndex = currentZIndex()
