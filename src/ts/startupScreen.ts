@@ -24,21 +24,44 @@ function retryUrl(href: string): string {
     return url.href
 }
 
+type Failure = { text: string, status?: number }
+
 // The stylesheet error event carries no reason, so ask the server directly.
-async function describeFailure(href: string, korean: boolean): Promise<string> {
+async function describeFailure(href: string, korean: boolean): Promise<Failure> {
     const path = new URL(href).pathname
     try {
         const response = await fetch(href, { cache: 'no-store' })
-        return `${path} HTTP ${response.status}, Content-Type: ${response.headers.get('content-type') || (korean ? '없음' : 'none')}`
+        return {
+            text: `${path} HTTP ${response.status}, Content-Type: ${response.headers.get('content-type') || (korean ? '없음' : 'none')}`,
+            status: response.status,
+        }
     } catch (cause) {
-        return `${path} ${korean ? '요청 차단 또는 연결 실패' : 'request blocked or connection failed'} (${errorMessage(cause)})`
+        return { text: `${path} ${korean ? '요청 차단 또는 연결 실패' : 'request blocked or connection failed'} (${errorMessage(cause)})` }
     }
+}
+
+const STALE_RELOAD_KEY = 'risubard-stale-build-reload'
+const STALE_RELOAD_WINDOW_MS = 60_000
+
+// A hashed asset that the server no longer has means this page came from a
+// cached copy of an older build. A reload revalidates index.html and picks up
+// the current build. Reload at most once a minute so a broken server cannot loop.
+function reloadForStaleBuild(reload: () => void): boolean {
+    try {
+        const last = Number(sessionStorage.getItem(STALE_RELOAD_KEY))
+        if (last && Date.now() - last < STALE_RELOAD_WINDOW_MS) return false
+        sessionStorage.setItem(STALE_RELOAD_KEY, String(Date.now()))
+    } catch {
+        return false
+    }
+    reload()
+    return true
 }
 
 // Vite stops the app import at the first stylesheet that fails. Retry every
 // failed stylesheet once; Vite remembers the original URLs, so a second import
 // goes straight to the app code. Returns failure details, or [] on success.
-async function retryFailedStylesheets(failedUrl: string, korean: boolean): Promise<string[]> {
+async function retryFailedStylesheets(failedUrl: string, korean: boolean): Promise<Failure[]> {
     const failedLinks = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].filter(link => !link.sheet)
     const hrefs = new Set([new URL(failedUrl, location.href).href, ...failedLinks.map(link => link.href)])
     const results = await Promise.all([...hrefs].map(async href => ({ href, loaded: await loadStylesheet(retryUrl(href)) })))
@@ -50,7 +73,7 @@ async function retryFailedStylesheets(failedUrl: string, korean: boolean): Promi
     return Promise.all(stillFailed.map(result => describeFailure(result.href, korean)))
 }
 
-export async function startWithBranding(loadApp: () => Promise<unknown>): Promise<void> {
+export async function startWithBranding(loadApp: () => Promise<unknown>, reload: () => void = () => location.reload()): Promise<void> {
     const korean = document.documentElement.lang === 'ko'
     const status = document.getElementById('preloading-status')
     const logo = document.querySelector<HTMLImageElement>('[data-startup-logo="preloader"]')
@@ -80,7 +103,11 @@ export async function startWithBranding(loadApp: () => Promise<unknown>): Promis
         if (status) status.textContent = korean ? '화면 스타일 파일을 다시 받는 중...' : 'Downloading the style files again...'
         const failures = await retryFailedStylesheets(cssFailure[1], korean)
         if (failures.length > 0) {
-            showError(`${errorMessage(cause)} (${korean ? '다시 받기 실패' : 'retry failed'}: ${failures.join('; ')})`)
+            if (failures.some(failure => failure.status === 404)) {
+                if (status) status.textContent = korean ? '새 버전을 불러오는 중...' : 'Loading the new version...'
+                if (reloadForStaleBuild(reload)) return
+            }
+            showError(`${errorMessage(cause)} (${korean ? '다시 받기 실패' : 'retry failed'}: ${failures.map(failure => failure.text).join('; ')})`)
             console.error('RisuBard startup failed', cause, failures)
             return
         }

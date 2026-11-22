@@ -1050,6 +1050,12 @@ app.use('/assets', express.static(path.join(process.cwd(), 'dist/assets'), {
     maxAge: '1y',
     immutable: true,
 }));
+// 없는 해시 청크 요청은 캐시된 예전 빌드가 보낸 것이다. 브라우저 HTTP 캐시를 비워
+// 다음 실행부터 예전 index.html·번들이 다시 쓰이지 않게 한다(저장소·쿠키는 건드리지 않음).
+app.use('/assets', (req, res, next) => {
+    if (!/^\/[\w.-]+-[\w-]{8}\.(?:js|css)$/.test(req.path)) return next();
+    res.set('Clear-Site-Data', '"cache"').set('Cache-Control', 'no-store').status(404).end();
+});
 app.use(express.static(path.join(process.cwd(), 'dist'), {index: false, maxAge: 0}));
 app.use(
     '/api/risubard/memory',
