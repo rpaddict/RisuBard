@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { parseWikiGapPrompt, summarizeWikiAnalysisGap, summarizeWikiBacklog, wikiBacklogInterrupted, wikiBacklogMessages } from './wikiBacklog'
+import { parseWikiGapPrompt, summarizeWikiAnalysisGap, WIKI_GAP_PROMPT_TTL_MS, summarizeWikiBacklog, wikiBacklogInterrupted, wikiBacklogMessages } from './wikiBacklog'
 
 const reply = (index: number, extra: Record<string, unknown> = {}) => ({
     role: 'char', data: `reply ${index}`, chatId: `assistant-${index}`, ...extra,
@@ -87,17 +87,21 @@ describe('wikiBacklogInterrupted', () => {
 })
 
 describe('parseWikiGapPrompt', () => {
+    const now = Date.parse('2026-11-22T05:00:00Z')
+
     test('reads a stored prompt', () => {
-        expect(parseWikiGapPrompt('{"characterId":"c","chatId":"h","targetMessageId":"m","extra":1}'))
+        expect(parseWikiGapPrompt(`{"characterId":"c","chatId":"h","targetMessageId":"m","at":${now - 1000},"extra":1}`, now))
             .toEqual({ characterId: 'c', chatId: 'h', targetMessageId: 'm' })
     })
 
-    test('ignores a missing or malformed record', () => {
-        expect(parseWikiGapPrompt(null)).toBeUndefined()
-        expect(parseWikiGapPrompt('')).toBeUndefined()
-        expect(parseWikiGapPrompt('{')).toBeUndefined()
-        expect(parseWikiGapPrompt('null')).toBeUndefined()
-        expect(parseWikiGapPrompt('{"characterId":"c","chatId":"h"}')).toBeUndefined()
-        expect(parseWikiGapPrompt('{"characterId":"c","chatId":"h","targetMessageId":3}')).toBeUndefined()
+    test('ignores a missing, malformed or day-old record', () => {
+        expect(parseWikiGapPrompt(null, now)).toBeUndefined()
+        expect(parseWikiGapPrompt('', now)).toBeUndefined()
+        expect(parseWikiGapPrompt('{', now)).toBeUndefined()
+        expect(parseWikiGapPrompt('null', now)).toBeUndefined()
+        expect(parseWikiGapPrompt(`{"characterId":"c","chatId":"h","at":${now}}`, now)).toBeUndefined()
+        expect(parseWikiGapPrompt('{"characterId":"c","chatId":"h","targetMessageId":"m"}', now)).toBeUndefined()
+        expect(parseWikiGapPrompt(`{"characterId":"c","chatId":"h","targetMessageId":"m","at":${now - WIKI_GAP_PROMPT_TTL_MS}}`, now))
+            .toBeUndefined()
     })
 })

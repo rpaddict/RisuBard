@@ -629,17 +629,18 @@ const WIKI_GAP_PROMPT_KEY = 'risubard-wiki-gap-prompt'
 let wikiGapPromptOpen = false
 
 /**
- * Keeps the turn whose catch-up prompt is showing for this tab, so that a
- * prompt lost to a page reload (a mobile app sent to the background) or to
- * another alert can be shown again.
+ * Keeps the turn whose catch-up prompt is showing, so that a prompt lost to a
+ * page reload or app close (a mobile app sent to the background or swiped
+ * away) or to another alert can be shown again. localStorage, because a closed
+ * mobile app starts with an empty sessionStorage.
  */
 function rememberWikiGapPrompt(prompt: WikiGapPrompt | undefined): void {
     try {
         if (prompt) {
             const { characterId, chatId, targetMessageId } = prompt
-            sessionStorage.setItem(WIKI_GAP_PROMPT_KEY, JSON.stringify({ characterId, chatId, targetMessageId }))
+            localStorage.setItem(WIKI_GAP_PROMPT_KEY, JSON.stringify({ characterId, chatId, targetMessageId, at: Date.now() }))
         } else {
-            sessionStorage.removeItem(WIKI_GAP_PROMPT_KEY)
+            localStorage.removeItem(WIKI_GAP_PROMPT_KEY)
         }
     } catch {
         // Storage unavailable: an unanswered prompt waits for the next reply as before.
@@ -654,7 +655,7 @@ function rememberWikiGapPrompt(prompt: WikiGapPrompt | undefined): void {
 function resumeWikiGapPrompt(): void {
     let prompt: WikiGapPrompt | undefined
     try {
-        prompt = parseWikiGapPrompt(sessionStorage.getItem(WIKI_GAP_PROMPT_KEY))
+        prompt = parseWikiGapPrompt(localStorage.getItem(WIKI_GAP_PROMPT_KEY))
     } catch {
         return
     }
