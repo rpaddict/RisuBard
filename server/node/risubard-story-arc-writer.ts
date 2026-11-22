@@ -17,6 +17,16 @@ export const STORY_ARC_MAX_MARKDOWN_CHARACTERS =
     ARC_PLOTTER_DEFAULT_SETTINGS.maxCharacters
 export const STORY_ARC_EVENT_EXCERPT_CHARACTERS = 800
 
+/**
+ * The limit error the retry shows the model. It names the measured length and
+ * a target under the limit; without numbers a model "shortens to about the
+ * limit" and lands over it again.
+ */
+export function storyArcLengthError(length: number, limit: number): Error {
+    const target = Math.floor(limit * 0.85)
+    return new Error(`Story arc Markdown exceeds the configured character limit: ${length.toLocaleString('en-US')} characters, limit ${limit.toLocaleString('en-US')}. Cut at least ${(length - target).toLocaleString('en-US')} characters so the whole document is about ${target.toLocaleString('en-US')}: merge older arcs and keep one or two event links per bullet.`)
+}
+
 const checkpointPattern = /<!--\s*risubard-story-arc-checkpoint:\s*([A-Za-z0-9._:-]{1,200})\s*-->/gu
 const wikiLinkPattern = /\[\[([^\]\r\n]{1,240})\]\]/gu
 
@@ -347,6 +357,9 @@ export function storyArcRewriteInstruction(
 ): string {
     const settings = normalizeArcPlotterSettings(value)
     const maxCharacters = settings.maxCharacters.toLocaleString('en-US')
+    // Headings and checkpoint take about 10%; the rest is shared by the bullets.
+    const bulletBudget = Math.max(80, Math.floor(settings.maxCharacters * 0.9
+        / (settings.maxArcs + settings.maxTurningPoints + settings.maxOpenThreads))).toLocaleString('en-US')
     const arc = wikiWritingLocales[writingLanguage].storyArc
     return [
         `For the reserved other document titled ${arc.title}, use storyArcEvents as the evidence batch.`,
@@ -355,5 +368,6 @@ export function storyArcRewriteInstruction(
         'Every rewrite must link at least one event from the current storyArcEvents checkpoint.',
         'Merge older adjacent arcs when over the cap while preserving distinctive names, objects, places, causal transitions, and representative event links.',
         `Keep the complete document within ${maxCharacters} characters. Never reproduce full event summaries or character state histories.`,
+        `With every bullet filled, each bullet averages about ${bulletBudget} characters including its links; link only the one or two most representative events per bullet.`,
     ].join('\n')
 }

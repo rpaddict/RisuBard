@@ -7,6 +7,7 @@ import {
     readStoryArcCheckpoint,
     restoreDroppedStoryArcs,
     stampStoryArcCheckpoint,
+    storyArcLengthError,
     storyArcRewriteInstruction,
     validateStoryArcCheckpointEventLink,
 } from './risubard-story-arc-writer'
@@ -153,6 +154,16 @@ describe('story arc writer', () => {
             'at most 5 chronological arc bullets, 9 turning-point bullets, and 3 open-thread bullets'
         )
         expect(storyArcRewriteInstruction('ko', settings)).toContain('4,500 characters')
+        // 4,500 × 0.9 over 17 bullets.
+        expect(storyArcRewriteInstruction('ko', settings)).toContain('each bullet averages about 238 characters')
+    })
+
+    test('tells a retry how far over the limit the rewrite went', () => {
+        const message = storyArcLengthError(13_700, 12_000).message
+        expect(message).toContain('exceeds the configured character limit')
+        expect(message).toContain('13,700 characters, limit 12,000')
+        expect(message).toContain('Cut at least 3,500 characters')
+        expect(message.length).toBeLessThanOrEqual(512)
     })
 
     test('continues from the program checkpoint and updates one reserved map', () => {
