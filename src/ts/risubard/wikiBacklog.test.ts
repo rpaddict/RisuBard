@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { summarizeWikiAnalysisGap, summarizeWikiBacklog, wikiBacklogMessages } from './wikiBacklog'
+import { summarizeWikiAnalysisGap, summarizeWikiBacklog, wikiBacklogInterrupted, wikiBacklogMessages } from './wikiBacklog'
 
 const reply = (index: number, extra: Record<string, unknown> = {}) => ({
     role: 'char', data: `reply ${index}`, chatId: `assistant-${index}`, ...extra,
@@ -69,5 +69,19 @@ describe('wiki analysis gap', () => {
     test('leaves chats that never confirmed a turn, and fully analyzed chats, alone', () => {
         expect(summarizeWikiAnalysisGap([ask(1), reply(1), ask(2), reply(2)]).messageIds).toEqual([])
         expect(summarizeWikiAnalysisGap([ask(1), reply(1, { risubardMemoryConfirmed: true })]).messageIds).toEqual([])
+    })
+})
+
+describe('wikiBacklogInterrupted', () => {
+    test('resumes turns that are only waiting', () => {
+        expect(wikiBacklogInterrupted([reply(1, { risubardWikiPending: {} })])).toBe(true)
+        expect(wikiBacklogInterrupted([])).toBe(false)
+    })
+
+    test('resumes a failure only when it happened while the app was hidden', () => {
+        const failed = reply(2, { risubardWikiPending: { reason: 'Failed to fetch', failedAt: '2026-11-21T10:05:00.000Z' } })
+        expect(wikiBacklogInterrupted([reply(1, { risubardWikiPending: {} }), failed], '2026-11-21T10:00:00.000Z')).toBe(true)
+        expect(wikiBacklogInterrupted([failed], '2026-11-21T10:10:00.000Z')).toBe(false)
+        expect(wikiBacklogInterrupted([failed])).toBe(false)
     })
 })
