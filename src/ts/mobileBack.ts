@@ -21,10 +21,16 @@ import { hideTopFullscreenPluginFrame } from './plugins/apiV3/pluginFrameLayer'
 // With nothing left to close the press shows a hint and drops the remaining
 // guards, so the next press exits as before.
 //
-// Guards are only pushed while handling a user gesture, one per gesture.
-// Chrome marks the entry before a pushState made without user activation as
-// skipped by the back button, so such a guard would send the back button
-// straight out of the app ("Leave site?").
+// Guards are only pushed while handling a user gesture; one gesture fills the
+// stack up to GUARD_DEPTH. Chrome marks the entry before a pushState made
+// without user activation as skipped by the back button, so such a guard would
+// send the back button straight out of the app ("Leave site?").
+//
+// Guards carry a per-page-load token. When Android reloads a backgrounded PWA,
+// the new page inherits history.state from the old one ({ risuBack: 2 }), but
+// those entries belong to the old document: going back to them leaves the page
+// instead of firing popstate. Guards with another token count as absent, so
+// the next gesture stacks fresh ones on top.
 //
 // On an Android PWA one back press delivers popstate twice, 20-40 ms apart,
 // even with a single guard. A popstate that follows another within
@@ -32,7 +38,7 @@ import { hideTopFullscreenPluginFrame } from './plugins/apiV3/pluginFrameLayer'
 // screen and does not run past the guard.
 
 const GUARD_DEPTH = 2
-/** One tap fires pointerup, touchend and click; it adds one guard. */
+/** One tap fires pointerup, touchend and click; it fills the guards once. */
 const GUARD_GESTURE_MS = 500
 const DUPLICATE_POP_MS = 150
 const DIALOG_SELECTOR = '[aria-modal="true"][data-state="open"],[role="dialog"][data-state="open"]'
@@ -119,16 +125,24 @@ export function shouldHandleBackButton() {
         || window.matchMedia('(pointer: coarse)').matches
 }
 
-const guardLevel = (state: unknown) => Number((state as { risuBack?: unknown } | null)?.risuBack) || 0
+const pageToken = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+
+const guardLevel = (state: unknown) => {
+    const guard = state as { risuBack?: unknown, risuBackPage?: unknown } | null
+    return guard?.risuBackPage === pageToken ? Number(guard.risuBack) || 0 : 0
+}
 
 let lastGuardAt = Number.NEGATIVE_INFINITY
 
-/** Adds one guard entry, up to GUARD_DEPTH; call only during a user gesture. */
+/** Fills guard entries up to GUARD_DEPTH; call only during a user gesture. */
 export function fillBackGuards(now = Date.now()) {
-    const level = guardLevel(history.state)
+    let level = guardLevel(history.state)
     if (level >= GUARD_DEPTH || now - lastGuardAt < GUARD_GESTURE_MS) return
     lastGuardAt = now
-    history.pushState({ risuBack: level + 1 }, '')
+    while (level < GUARD_DEPTH) {
+        level += 1
+        history.pushState({ risuBack: level, risuBackPage: pageToken }, '')
+    }
 }
 
 export function initMobileBack(onExitHint: () => void) {
