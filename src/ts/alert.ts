@@ -7,6 +7,7 @@ import { alertStore as alertStoreImported, togglePresetsOpenStore } from "./stor
 import { addLog } from "./log"
 import { nativeConsoleError } from "./log-capture"
 import { noteImportActivity } from './importProgress'
+import { readConfirmMultiOutcome } from './alertOutcome'
 import type { ShButtonVariant } from "../lib/UI/GUI/ShButton.svelte"
 import type { ShDialogTier } from "../lib/UI/GUI/ShDialog.svelte"
 
@@ -333,6 +334,21 @@ export async function alertConfirm(
  *               heading (breakdowns, consequences). Newlines are preserved.
  */
 export async function alertConfirmMulti(prompt:string, actions:(string | AlertAction)[], detail?:string){
+    const outcome = await alertConfirmMultiOutcome(prompt, actions, detail)
+    return typeof outcome === 'number' ? outcome : -1
+}
+
+/**
+ * Like alertConfirmMulti, but tells a prompt the user closed ('cancel') apart
+ * from one another alert replaced before it was answered ('replaced'). There
+ * is one alert slot, so an error raised meanwhile, such as one on returning to
+ * a mobile app, takes the prompt's place and the user never sees it again.
+ */
+export async function alertConfirmMultiOutcome(
+    prompt: string,
+    actions: (string | AlertAction)[],
+    detail?: string,
+): Promise<number | 'cancel' | 'replaced'> {
     const normalized: AlertAction[] = actions.map(a =>
         typeof a === 'string' ? { label: a, variant: 'default' } : a
     )
@@ -345,9 +361,7 @@ export async function alertConfirmMulti(prompt:string, actions:(string | AlertAc
 
     await waitAlert()
 
-    const raw = get(alertStoreImported).msg
-    const n = parseInt(raw)
-    return isNaN(n) ? -1 : n
+    return readConfirmMultiOutcome(get(alertStoreImported).msg)
 }
 
 export async function alertPluginConfirm(msg:string){

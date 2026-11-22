@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { summarizeWikiAnalysisGap, summarizeWikiBacklog, wikiBacklogInterrupted, wikiBacklogMessages } from './wikiBacklog'
+import { parseWikiGapPrompt, summarizeWikiAnalysisGap, WIKI_GAP_PROMPT_TTL_MS, summarizeWikiBacklog, wikiBacklogInterrupted, wikiBacklogMessages } from './wikiBacklog'
 
 const reply = (index: number, extra: Record<string, unknown> = {}) => ({
     role: 'char', data: `reply ${index}`, chatId: `assistant-${index}`, ...extra,
@@ -83,5 +83,25 @@ describe('wikiBacklogInterrupted', () => {
         expect(wikiBacklogInterrupted([reply(1, { risubardWikiPending: {} }), failed], '2026-11-21T10:00:00.000Z')).toBe(true)
         expect(wikiBacklogInterrupted([failed], '2026-11-21T10:10:00.000Z')).toBe(false)
         expect(wikiBacklogInterrupted([failed])).toBe(false)
+    })
+})
+
+describe('parseWikiGapPrompt', () => {
+    const now = Date.parse('2026-11-22T05:00:00Z')
+
+    test('reads a stored prompt', () => {
+        expect(parseWikiGapPrompt(`{"characterId":"c","chatId":"h","targetMessageId":"m","at":${now - 1000},"extra":1}`, now))
+            .toEqual({ characterId: 'c', chatId: 'h', targetMessageId: 'm' })
+    })
+
+    test('ignores a missing, malformed or day-old record', () => {
+        expect(parseWikiGapPrompt(null, now)).toBeUndefined()
+        expect(parseWikiGapPrompt('', now)).toBeUndefined()
+        expect(parseWikiGapPrompt('{', now)).toBeUndefined()
+        expect(parseWikiGapPrompt('null', now)).toBeUndefined()
+        expect(parseWikiGapPrompt(`{"characterId":"c","chatId":"h","at":${now}}`, now)).toBeUndefined()
+        expect(parseWikiGapPrompt('{"characterId":"c","chatId":"h","targetMessageId":"m"}', now)).toBeUndefined()
+        expect(parseWikiGapPrompt(`{"characterId":"c","chatId":"h","targetMessageId":"m","at":${now - WIKI_GAP_PROMPT_TTL_MS}}`, now))
+            .toBeUndefined()
     })
 })
