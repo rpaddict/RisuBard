@@ -27,6 +27,16 @@ export function toGeminiResponseSchema(
             )
             continue
         }
+        // The OpenAPI subset takes one type: `["integer", "null"]` is rejected
+        // as "Proto field is not repeating", so write it as `nullable`.
+        // (responseJsonSchema, which preserves additionalProperties, takes arrays.)
+        if (key === 'type' && Array.isArray(item) && !preserveAdditionalProperties) {
+            const types = item.filter((type) => type !== 'null')
+            if (types.length !== item.length) converted.nullable = true
+            if (types.length === 1) converted.type = types[0]
+            else if (types.length > 1) converted.anyOf = types.map((type) => ({ type }))
+            continue
+        }
         if (key === 'const') {
             if (typeof item === 'string') {
                 converted.type = 'string'

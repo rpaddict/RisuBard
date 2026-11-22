@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { directWikiCommandSchema } from '../../risubard/directWikiCommand'
 import { directWikiBlockSchema } from '../../risubard/directWikiBlocks'
 import { toGeminiResponseSchema } from './geminiResponseSchema'
+import { memoryWriterDraftSchema } from '../../../../server/node/risubard-memory-writer'
 
 const unsupportedKeys = ['const', 'oneOf', '$schema', 'additionalProperties']
 
@@ -65,5 +66,40 @@ describe('toGeminiResponseSchema', () => {
             const keys = collectKeys(toGeminiResponseSchema(JSON.parse(schema)))
             for (const key of unsupportedKeys) expect(keys.has(key)).toBe(false)
         }
+    })
+    it('writes a nullable type array as nullable for responseSchema only', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                days: { type: ['integer', 'null'], minimum: 0 },
+                either: { type: ['string', 'number'] },
+            },
+        }
+        expect(toGeminiResponseSchema(schema)).toEqual({
+            type: 'object',
+            properties: {
+                days: { nullable: true, type: 'integer', minimum: 0 },
+                either: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+            },
+        })
+        // responseJsonSchema accepts the array as is.
+        expect(toGeminiResponseSchema(schema, true)).toEqual(schema)
+    })
+
+    it('leaves no type array in the BardWiki analysis schema', () => {
+        const types: unknown[] = []
+        const walk = (value: unknown) => {
+            if (Array.isArray(value)) value.forEach(walk)
+            else if (value && typeof value === 'object') {
+                for (const [key, item] of Object.entries(value)) {
+                    // A property named `type` holds a schema object, not a type.
+                    if (key === 'type' && (typeof item === 'string' || Array.isArray(item))) types.push(item)
+                    walk(item)
+                }
+            }
+        }
+        walk(toGeminiResponseSchema(JSON.parse(memoryWriterDraftSchema)))
+        expect(types.length).toBeGreaterThan(0)
+        expect(types.every((type) => typeof type === 'string')).toBe(true)
     })
 })
