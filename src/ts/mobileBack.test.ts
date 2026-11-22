@@ -130,18 +130,31 @@ describe('fullscreen plugin frames', () => {
 })
 
 describe('back guards', () => {
-    test('adds one guard per gesture, up to two', () => {
+    test('one gesture fills two guards for this page', () => {
         history.replaceState(null, '')
         const push = vi.spyOn(history, 'pushState')
         try {
             fillBackGuards(10_000)
             fillBackGuards(10_100) // the same tap's touchend and click
-            expect(push.mock.calls.map((call) => call[0])).toEqual([{ risuBack: 1 }])
-            history.replaceState({ risuBack: 1 }, '')
-            fillBackGuards(11_000)
-            history.replaceState({ risuBack: 2 }, '')
-            fillBackGuards(12_000)
-            expect(push.mock.calls.map((call) => call[0])).toEqual([{ risuBack: 1 }, { risuBack: 2 }])
+            const states = push.mock.calls.map((call) => call[0] as { risuBack: number, risuBackPage: string })
+            expect(states.map((state) => state.risuBack)).toEqual([1, 2])
+            expect(states[0].risuBackPage).toBeTruthy()
+            expect(states[1].risuBackPage).toBe(states[0].risuBackPage)
+            fillBackGuards(11_000) // already full
+            expect(push).toHaveBeenCalledTimes(2)
+        } finally {
+            push.mockRestore()
+            history.replaceState(null, '')
+        }
+    })
+
+    test('guards inherited from an earlier page load count as absent', () => {
+        // Android reloads a backgrounded PWA; the new page inherits the old history.state.
+        history.replaceState({ risuBack: 2, risuBackPage: 'earlier-load' }, '')
+        const push = vi.spyOn(history, 'pushState')
+        try {
+            fillBackGuards(20_000)
+            expect(push.mock.calls.map((call) => (call[0] as { risuBack: number }).risuBack)).toEqual([1, 2])
         } finally {
             push.mockRestore()
             history.replaceState(null, '')
@@ -151,6 +164,12 @@ describe('back guards', () => {
     test('pushes nothing until a user gesture and drops the guards when nothing is open', async () => {
         const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) =>
             ({ matches: query === '(pointer: coarse)' }) as MediaQueryList)
+        // A guard of this page, as a real gesture leaves it.
+        history.replaceState(null, '')
+        fillBackGuards(30_000)
+        history.back()
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        const guard = history.state
         const push = vi.spyOn(history, 'pushState')
         const go = vi.spyOn(history, 'go').mockImplementation(() => {})
         const onExitHint = vi.fn()
@@ -160,7 +179,8 @@ describe('back guards', () => {
             document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
             expect(push).not.toHaveBeenCalled()
 
-            window.dispatchEvent(new PopStateEvent('popstate', { state: { risuBack: 1 } }))
+            expect(guard.risuBack).toBe(1)
+            window.dispatchEvent(new PopStateEvent('popstate', { state: guard }))
             // Android delivers one press twice; the second is ignored.
             window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
             await vi.waitFor(() => expect(onExitHint).toHaveBeenCalledOnce())
