@@ -193,6 +193,17 @@ describe('unsaved draft protection', () => {
         await tick()
         expect(onDirtyChange).toHaveBeenLastCalledWith(false)
     })
+
+    it('opens the event behind an evidence mark (#N) in the preview', async () => {
+        // The event has no stored number, so it is ranked like the server ranks older events: #1.
+        await mountEditor({}, [{ ...lavian, content: '# 라비안\n\n검을 잃었다. (#1)' }, battle, gate])
+        q<HTMLInputElement>('[data-wiki-markdown-toggle]')!.click()
+        await tick()
+        const mark = q<HTMLElement>('.wikilink-event-mark')!
+        expect(mark.textContent).toBe('#1')
+        mark.click()
+        await vi.waitFor(() => expect(titleValue()).toBe('전투'))
+    })
 })
 
 describe('deletion', () => {
