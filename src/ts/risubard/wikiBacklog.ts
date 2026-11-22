@@ -117,3 +117,23 @@ export function wikiBacklogInterrupted(
         return hiddenSince !== undefined && (pending.failedAt ?? '') >= hiddenSince
     })
 }
+
+/** The turn whose catch-up prompt was shown but not answered yet. */
+export interface WikiGapPrompt {
+    characterId: string
+    chatId: string
+    targetMessageId: string
+}
+
+/** Reads a stored WikiGapPrompt, or undefined when it is missing or malformed. */
+export function parseWikiGapPrompt(raw: string | null | undefined): WikiGapPrompt | undefined {
+    if (!raw) return undefined
+    try {
+        const value = JSON.parse(raw) as Partial<Record<keyof WikiGapPrompt, unknown>> | null
+        if (!value || typeof value.characterId !== 'string' || typeof value.chatId !== 'string'
+            || typeof value.targetMessageId !== 'string') return undefined
+        return { characterId: value.characterId, chatId: value.chatId, targetMessageId: value.targetMessageId }
+    } catch {
+        return undefined
+    }
+}
