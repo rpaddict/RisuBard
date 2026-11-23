@@ -752,6 +752,7 @@ export const languageKorean = {
   sidebarChatListLabel: "목록",
   saveChatFileAction: "저장하기",
   loadChatFileAction: "불러오기",
+  risuBardHistoryTrimmed: "입력 예산이 모자라 최근 답장 {{selected}}개 중 {{kept}}개만 넣었습니다. 모델 프리셋의 입력 한도를 올리면 모두 들어갑니다.",
   risuBardQuickSave: "퀵세이브",
   risuBardQuickLoad: "퀵로드",
   risuBardShowSaveLoadShortcuts: "세이브 / 로드 바로가기 버튼 보이기",

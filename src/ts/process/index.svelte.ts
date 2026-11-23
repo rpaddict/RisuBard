@@ -10,7 +10,8 @@ import { DBState } from '../stores.svelte';
 import { alertStore, CharEmotion, selectedCharID } from "../stores.svelte";
 import { ChatTokenizer, tokenize, tokenizeNum } from "../tokenizer";
 import { language } from "../../lang";
-import { alertConfirmMultiOutcome, alertError, notifyError } from "../alert";
+import { alertConfirmMultiOutcome, alertError, notifyError, notifyWarning } from "../alert";
+import { countStoryReplies, shouldKeepLatestReply } from "../risubard/historyBudget";
 import { parseChatML } from "../parser/chatML";
 import { loadLoreBookV3Prompt } from "./lorebook.svelte";
 import { isStableAlwaysActiveLore, resolveStableLoreIndex } from "./lorebookStablePrefix";
@@ -2849,6 +2850,7 @@ export async function sendChat(chatProcessIndex = -1,arg:{
 
     //await tokenize currernt
     let currentTokens = maxResponseTokens
+    let keptReplyOverflowTokens = 0
     const requiredWikiMessage = createRequiredWikiMessage(requiredWikiSources, responseWikiPromptGuide)
     if (requiredWikiMessage) currentTokens += await tokenizer.tokenizeChat(requiredWikiMessage)
     if (cacheFriendlyNarrativeMessage) currentTokens += await tokenizer.tokenizeChat(cacheFriendlyNarrativeMessage)
@@ -3331,7 +3333,14 @@ export async function sendChat(chatProcessIndex = -1,arg:{
     // compatibility data and must not activate another summarizer here.
     {
         stageTimings.stage1Duration = Date.now() - stageTimings.stage1Start
+        const selectedReplyCount = countStoryReplies(chats)
         while(currentTokens > maxContextTokens){
+            // The latest reply is usually not in BardWiki yet; without it the
+            // model loses the scene right before the input.
+            if(shouldKeepLatestReply(chats, currentTokens - maxContextTokens, maxResponseTokens)){
+                keptReplyOverflowTokens = currentTokens - maxContextTokens
+                break
+            }
             if(chats.length <= 1){
                 throwError(language.errors.toomuchtoken + "\n\nRequired Tokens: " + currentTokens)
                 endGeneration(genKey)
@@ -3340,6 +3349,12 @@ export async function sendChat(chatProcessIndex = -1,arg:{
 
             currentTokens -= await tokenizer.tokenizeChat(chats[0])
             chats.splice(0, 1)
+        }
+        const keptReplyCount = countStoryReplies(chats)
+        if(keptReplyCount < selectedReplyCount){
+            notifyWarning(language.risuBardHistoryTrimmed
+                .replace('{{kept}}', String(keptReplyCount))
+                .replace('{{selected}}', String(selectedReplyCount)))
         }
     }
 
@@ -3763,7 +3778,9 @@ export async function sendChat(chatProcessIndex = -1,arg:{
         inputTokens += messageTokens
     }
 
-    const inputTokenLimit = requiredWikiMessage ? maxContextTokens - maxResponseTokens : maxContextTokens
+    // The latest reply kept over budget above must not be blanked here again.
+    const inputTokenLimit = (requiredWikiMessage ? maxContextTokens - maxResponseTokens : maxContextTokens)
+        + keptReplyOverflowTokens
     if(inputTokens > inputTokenLimit){
         let pointer = 0
         while(inputTokens > inputTokenLimit){

@@ -685,6 +685,7 @@ export const languageEnglish = {
     sidebarChatListLabel: "List",
     saveChatFileAction: "Save chat",
     loadChatFileAction: "Load chat",
+    risuBardHistoryTrimmed: "The input budget ran short: only {{kept}} of the {{selected}} recent replies were sent. Raise the model preset's input limit to send them all.",
     risuBardQuickSave: "Quicksave",
     risuBardQuickLoad: "Quickload",
     risuBardShowSaveLoadShortcuts: "Show save / load shortcut buttons",
