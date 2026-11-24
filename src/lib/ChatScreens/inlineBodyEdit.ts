@@ -172,7 +172,7 @@ function unwrap(wrapper: HTMLElement) {
         const next: Node | null = node.nextSibling
         if (node.nodeType === Node.TEXT_NODE && next?.nodeType === Node.TEXT_NODE) {
             (node as Text).appendData((next as Text).data)
-            next.remove()
+            next.parentNode?.removeChild(next)
             if (next === after) break
             continue
         }

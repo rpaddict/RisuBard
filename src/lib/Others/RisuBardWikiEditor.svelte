@@ -359,7 +359,7 @@
     // (inherited from another chat, saved without sources) keep their old #sequence.
     let eventTurns = $derived.by(() => {
         const turnOf = createEventTurnLabels(messages)
-        return new Map(documents.flatMap((document) => {
+        return new Map(documents.flatMap((document): (readonly [string, string])[] => {
             if (document.type !== 'event') return []
             const turn = turnOf(document.sourceMessageIds)
             if (turn) return [[document.id, `${language.chatTurnLabel} ${turn}`] as const]
