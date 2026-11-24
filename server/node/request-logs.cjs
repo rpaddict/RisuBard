@@ -32,6 +32,7 @@ const PURPOSES = [
     'character-assistant',
     'input-assistant',
     'reader-board',
+    'bgm-dj',
 ];
 const READ_CHUNK_BYTES = 1024 * 1024;
 const BODY_FIELDS = ['requestHeaders', 'requestBody', 'responseBody'];
