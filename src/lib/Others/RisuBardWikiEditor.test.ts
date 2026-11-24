@@ -533,15 +533,22 @@ describe('RisuBardWikiEditor', () => {
         }))
         mounted = mount(RisuBardWikiEditor, {
             target: document.body,
-            props: { characterId: 'character', chatId: 'chat', documents: relinkDocuments },
+            props: { characterId: 'character', chatId: 'chat', documents: relinkDocuments, messages: [
+                { chatId: 'user-1', role: 'user' },
+                { chatId: 'ooc-1', role: 'char' },
+                { chatId: 'user-2', role: 'user' },
+                { chatId: 'assistant-1', role: 'char' },
+            ] },
         })
         await tick()
 
-        expect(document.querySelector('[data-wiki-event-sequence]')?.textContent).toBe('#7')
+        // The list shows the chat turn, not the stored event sequence (#7).
+        expect(document.querySelector('[data-wiki-event-turn]')?.textContent).toBe('Turn 2')
+        expect(document.querySelector('[data-wiki-event-turn]')?.getAttribute('title')).toBe('이 사건의 원문이 있는 챗 턴')
         document.querySelector<HTMLElement>('[data-wikilink-status="missing"]')!.click()
         await tick()
         const candidate = document.querySelector<HTMLButtonElement>('[data-wiki-link-candidate="event.turn"]')!
-        expect(candidate.textContent).toBe('#7 라비안이 성문 앞에서 승리하다')
+        expect(candidate.textContent).toBe('Turn 2 라비안이 성문 앞에서 승리하다')
         candidate.click()
         await vi.waitFor(() => expect(mocks.saveManualWikiDocument).toHaveBeenCalled())
         expect(mocks.saveManualWikiDocument.mock.calls.at(-1)![0].markdown)
@@ -1107,5 +1114,15 @@ describe('RisuBardWikiEditor', () => {
         await tick()
         expect(document.querySelector('[data-wiki-send-to-workbench]')).toBeNull()
         expect(document.querySelector('[data-wiki-reveal-file]')).not.toBeNull()
+    })
+
+    it('keeps the stored sequence for events whose source is not in this chat', async () => {
+        mounted = mount(RisuBardWikiEditor, {
+            target: document.body,
+            props: { characterId: 'character', chatId: 'chat', messages: [{ chatId: 'assistant-1', role: 'char' }],
+                documents: [{ ...documents[1], sequence: 7, sourceMessageIds: ['inherited:old:assistant-1'] }] },
+        })
+        await tick()
+        expect(document.querySelector('[data-wiki-event-turn]')?.textContent).toBe('#7')
     })
 })

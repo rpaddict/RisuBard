@@ -83,7 +83,7 @@ describe('BardWiki reboot connections', () => {
         expect(chatSource).not.toContain('let wikiBlocksGeneration = $derived(')
         expect(chatSource).toContain('if (wikiRebootBlocksGeneration)')
         expect(chatSource).toContain('disabled={wikiRebootBlocksGeneration}')
-        expect(chatSource).toContain('{#if $isWikiGenerating}')
+        expect(chatSource).toContain('{:else if $isWikiGenerating}')
     })
 
     test('offers text lifecycle controls and one-turn or two-turn choices', () => {
@@ -130,10 +130,15 @@ describe('BardWiki reboot connections', () => {
         expect(enSource).toContain('Canonical update batches are automatically split by document')
     })
 
-    test('shows the send lock with resume and cancel above the composer', () => {
+    test('shows the send lock with resume above the composer and pauses instead of cancelling', () => {
         expect(chatSource).toContain('data-risubard-wiki-reboot-notice')
         expect(chatSource).toContain('onclick={resumeRebootFromNotice}')
-        expect(chatSource).toContain('alertConfirm(language.risuBardWikiRebootCancelWarning)')
+        // Cancelling discards the staging wiki, so the composer only offers a pause.
+        expect(chatSource).not.toContain('data-risubard-wiki-reboot-notice-cancel')
+        expect(chatSource).not.toContain('cancelRebootFromNotice')
+        expect(chatSource).toContain('data-risubard-wiki-reboot-pause')
+        expect(chatSource).toContain('await stopCurrentWikiReboot()')
+        expect(koSource).toContain('risuBardWikiRebootStop: "리부트 일시정지"')
         expect(koSource).toContain('risuBardWikiRebootNoticePaused')
         expect(enSource).toContain('risuBardWikiRebootNoticePaused')
     })

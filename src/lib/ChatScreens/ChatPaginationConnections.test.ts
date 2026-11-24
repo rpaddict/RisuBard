@@ -64,9 +64,12 @@ describe('bounded chat-page UI connections', () => {
         expect(pageJump).toBeLessThan(turnJump)
         expect(turnJump).toBeLessThan(jumpButton)
         expect(toolbar).toContain('ArrowRightToLineIcon')
-        expect(toolbar).toContain('onJump')
-        expect(source).toContain('buildChatTurnNavigation(currentChat, targetPageBounds.start, targetPageBounds.end)')
-        expect(source).toContain('messageIndexByTurn[target - 1]')
+        expect(toolbar).toContain('onJumpPage')
+        expect(toolbar).toContain('onJumpTurn')
+        // The turn field takes the chat's own turn numbers, not a count within the page.
+        expect(source).toContain('buildChatTurnNavigation(currentChat)')
+        expect(source).toContain('turnCount={chatTurnNavigation.turnCount}')
+        expect(source).toContain('resolveShownTurn(chatTurnNavigation, target, hiddenOocTurnIndices)')
     })
 
     it('passes stable response turn numbers into each rendered chat message', () => {

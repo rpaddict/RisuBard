@@ -6,6 +6,9 @@
     import RisuAccountImportScreen from './lib/Setting/RisuAccountImportScreen.svelte';
     import ChatScreen from './lib/ChatScreens/ChatScreen.svelte';
     import RisuBardPromptAssistant from './lib/Others/RisuBardPromptAssistant.svelte';
+    import BgmFloatingPlayer from './lib/Others/BgmPlayer/BgmFloatingPlayer.svelte';
+    import BgmManager from './lib/Others/BgmPlayer/BgmManager.svelte';
+    import { bgmManager } from './ts/bgm/managerState.svelte';
     import RisuBardCharacterAssistant from './lib/Others/RisuBardCharacterAssistant.svelte';
     import RisuBardReaderBoard from './lib/Others/RisuBardReaderBoard.svelte';
     import AlertComp from './lib/Others/AlertComp.svelte';
@@ -44,6 +47,7 @@
     import PopupList from './lib/UI/PopupList.svelte';
     import LoadingOverlay from './lib/Others/LoadingOverlay.svelte';
     import LoadingActivity from './lib/Others/LoadingActivity.svelte';
+    import StartupChecksumPanel from './lib/Others/StartupChecksumPanel.svelte';
     import Toaster from './lib/UI/GUI/Toaster.svelte';
     import RequestStatusToaster from './lib/UI/GUI/RequestStatusToaster.svelte';
     import { createKeepAliveAudio } from './ts/keepAliveAudio';
@@ -282,6 +286,9 @@
             {#if LoadingStatusState.error}
                 <p role="alert" class="text-sm mt-3 max-w-[90vw] whitespace-pre-wrap break-words text-danger">{language.startupLoading.failed}: {LoadingStatusState.error}</p>
             {/if}
+            {#if LoadingStatusState.checksumMismatch}
+                <StartupChecksumPanel mismatch={LoadingStatusState.checksumMismatch} />
+            {/if}
         </div>
     {:else if $settingsOpen}
         {#await loadSettings()}
@@ -325,6 +332,12 @@
     {/if}
     {#if $loadedStore && readerBoardMounted}
         <RisuBardReaderBoard bind:open={$readerBoardOpen} />
+    {/if}
+    {#if $loadedStore && DBState.db.bgmPlayer?.enabled}
+        <BgmFloatingPlayer />
+    {/if}
+    {#if $loadedStore && bgmManager.open}
+        <BgmManager />
     {/if}
     <AlertComp />
     <ExternalChangeReview />

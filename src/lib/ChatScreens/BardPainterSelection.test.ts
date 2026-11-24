@@ -368,7 +368,7 @@ describe('BardPainter passage selection', () => {
         }
         const handler = findHandler(tree.html)
         expect(handler).toBeDefined()
-        const click = new Function('DBState', 'window', `let editMode = false; const readOnly = false, idx = 0, isOptimizedStreamingMessage = false; (${code.slice(handler.start, handler.end)})(); return editMode;`)
+        const click = new Function('DBState', 'window', `let editMode = false; const readOnly = false, idx = 0, isOptimizedStreamingMessage = false, inlineEditAllowed = () => false, getInlineEditor = () => null; (${code.slice(handler.start, handler.end)})(); return editMode;`)
         expect(click({ db: { clickToEdit: true } }, window)).toBe(false)
         window.getSelection()!.removeAllRanges()
         expect(click({ db: { clickToEdit: true } }, window)).toBe(true)

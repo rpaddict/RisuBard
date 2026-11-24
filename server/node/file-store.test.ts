@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
 
 const {
     atomicWriteFile,
@@ -113,6 +114,13 @@ describe('crash-safe canonical writes', () => {
         fs.writeFileSync(target, `${JSON.stringify({ schemaVersion: 1, value: 'external' }, null, 2)}\n`)
 
         expect(() => readVerifiedJson(root, relativePath)).toThrow(/checksum mismatch/i)
+        let mismatch: any
+        try { readVerifiedJson(root, relativePath) } catch (error: any) { mismatch = error.checksumMismatch }
+        expect(mismatch).toEqual({
+            file: target,
+            expected: fs.readFileSync(`${target}.sha256`, 'utf8').trim(),
+            actual: crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex'),
+        })
         expect(readVerifiedJson(root, relativePath, { acceptExternalChanges: true }))
             .toEqual({ schemaVersion: 1, value: 'external' })
         expect(readVerifiedJson(root, relativePath)).toEqual({ schemaVersion: 1, value: 'external' })

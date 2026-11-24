@@ -1,6 +1,8 @@
 export interface LiveFileSnapshot {
     characters: Record<string, any>[]
     loreBook: any[]
+    /** Present only when an accepted external change touched a module. */
+    modules?: any[]
     chatMetadata?: Array<{ characterId: string, chatId: string, metadata: Record<string, any>, previous?: Record<string, any>, revision?: string }>
 }
 
@@ -118,6 +120,10 @@ export function applyLiveFileSnapshot(
     }
     merge(current, { loreBook: baseline.loreBook }, { loreBook: remote.loreBook })
     baseline.loreBook = clone(remote.loreBook)
+    if (remote.modules) {
+        merge(current, { modules: baseline.modules ?? [] }, { modules: remote.modules })
+        baseline.modules = clone(remote.modules)
+    }
     for (const entry of remote.chatMetadata ?? []) {
         const identity = JSON.stringify([entry.characterId, entry.chatId])
         const remembered = chatBaseline.get(identity)

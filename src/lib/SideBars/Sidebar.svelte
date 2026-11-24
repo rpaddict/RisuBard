@@ -38,7 +38,9 @@
     User2Icon,
     ChevronsLeft,
     ArrowRight,
+    PowerIcon,
   } from "@lucide/svelte";
+    import { canStopServerFromBrowser, stopServerFromBrowser } from "src/ts/serverShutdown";
     import {
   addCharacter,
     changeChar,
@@ -864,6 +866,17 @@
       {/if}
       <div class="mt-2 h-px w-10 bg-selected shrink-0"></div>
       <div class="mt-2"></div>
+      {#if canStopServerFromBrowser()}
+        <BarIcon
+          ariaLabel={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
+          title={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
+          additionalStyle="background-color: var(--color-draculared); color: #fff;"
+          onClick={() => {
+            menuMode = 0;
+            stopServerFromBrowser();
+          }}><PowerIcon /></BarIcon
+        >
+      {/if}
     </div>
     {/if}
   </div>
@@ -1338,6 +1351,17 @@
       {/if}
       <div class="mt-2 h-px w-10 bg-selected shrink-0"></div>
       <div class="mt-2"></div>
+      {#if canStopServerFromBrowser()}
+        <BarIcon
+          ariaLabel={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
+          title={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
+          additionalStyle="background-color: var(--color-draculared); color: #fff;"
+          onClick={() => {
+            menuMode = 0;
+            stopServerFromBrowser();
+          }}><PowerIcon /></BarIcon
+        >
+      {/if}
     </div>
     {/if}
   </div>
@@ -1526,6 +1550,9 @@
               <SolarBoldIcon name="code-square" size={22} />
             </button>
           {/if}
+          <button type="button" data-bgm-player-toggle aria-label={language.bgm.toolbarToggle} use:tooltip={language.bgm.toolbarToggle} aria-pressed={!!DBState.db.bgmPlayer?.enabled} class="character-toolbar-button risu-button-lift" class:is-active={!!DBState.db.bgmPlayer?.enabled} onclick={() => { if (DBState.db.bgmPlayer) { DBState.db.bgmPlayer.enabled = !DBState.db.bgmPlayer.enabled; if (DBState.db.bgmPlayer.enabled) DBState.db.bgmPlayer.collapsed = false } }}>
+            <SolarBoldIcon name="music-note-2" size={22} />
+          </button>
           <button type="button" data-character-config-tab aria-label={language.advancedSettings} use:tooltip={language.advancedSettings} aria-pressed={$botMakerMode && !devTool && $CharConfigSubMenu === 2} class="character-toolbar-button risu-button-lift" class:is-active={$botMakerMode && !devTool && $CharConfigSubMenu === 2} onclick={() => { devTool = false; risuBardGalleryOpen.set(false); botMakerMode.set(true); CharConfigSubMenu.set(2) }}>
             <SolarBoldIcon name="settings" size={22} />
           </button>

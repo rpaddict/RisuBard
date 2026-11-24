@@ -602,6 +602,10 @@
             hide: () => { if (!isEditing) hideBlockButton(); },
             onFrame: (lastMouseX, lastMouseY) => {
                 if (isEditing) return;
+                if (root.querySelector('[data-inline-editing]')) {
+                    hideBlockButton();
+                    return;
+                }
 
                 if (isMouseOnBlockButton(lastMouseX, lastMouseY)) {
                     return;
@@ -691,7 +695,7 @@
                     ? ancestor as HTMLElement
                     : ancestor.parentElement;
 
-                if (!ancestorEl || !bodyRoot.contains(ancestorEl)) {
+                if (!ancestorEl || !bodyRoot.contains(ancestorEl) || ancestorEl.closest('[data-inline-editing]')) {
                     hideDragButton();
                     return;
                 }

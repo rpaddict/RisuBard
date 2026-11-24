@@ -997,6 +997,26 @@ function resolveCanonicalTarget(
     return nearest.length === 1 ? nearest[0].document : undefined
 }
 
+// Named things share one namespace: a faction and a character with the same
+// name are one entity the model mistyped, not two documents. Scenes and story
+// arcs are titled records, so they stay out.
+const NAMED_ENTITY_TYPES: ReadonlySet<string> = new Set([
+    'character', 'location', 'faction', 'creature', 'item', 'concept',
+])
+
+function crossTypeNamesakes(
+    candidate: { type: string; title: string; targetDocumentId: string | null },
+    documents: readonly LoadedCanonicalDocument[]
+): LoadedCanonicalDocument[] {
+    if (!NAMED_ENTITY_TYPES.has(candidate.type)) return []
+    const titleKey = canonicalIdentityKey(candidate.title)
+    return documents.filter((document) =>
+        document.type !== candidate.type
+        && NAMED_ENTITY_TYPES.has(document.type)
+        && (document.id === candidate.targetDocumentId
+            || canonicalIdentityKeys(document).includes(titleKey)))
+}
+
 function mergeEvidenceBackedAliases(
     candidate: Pick<
         MemoryWriterDraft['canonicalUpdateCandidates'][number],
@@ -1055,10 +1075,12 @@ function recoverNewKnowledgeCharacters(
     // Knowledge subjects are explicit identities, unlike free-form state subjects.
     // Only register names also present in confirmed evidence; the normal writer
     // still verifies their facts before saving. Existing aliases never create twins.
+    // A knowledge subject can be a group (자경단 knows...), so every named
+    // document and candidate counts, not only characters.
     const known = new Set([
-        ...documents.filter((document) => document.type === 'character')
+        ...documents.filter((document) => NAMED_ENTITY_TYPES.has(document.type))
             .flatMap((document) => [document.title, ...(document.aliases ?? [])]),
-        ...draft.canonicalUpdateCandidates.filter((candidate) => candidate.type === 'character')
+        ...draft.canonicalUpdateCandidates.filter((candidate) => NAMED_ENTITY_TYPES.has(candidate.type))
             .flatMap((candidate) => [candidate.title, ...(candidate.aliases ?? [])]),
     ].map(normalizeCanonicalMatch))
     const candidates: MemoryWriterDraft['canonicalUpdateCandidates'] = []
@@ -1900,7 +1922,8 @@ export function createMemoryAnalysisRunner(
                     }> = []
                     // Every candidate of this analysis is written; the calls are
                     // sized by the documents themselves, not by a count.
-                    for (const candidate of draft.canonicalUpdateCandidates) {
+                    for (const proposed of draft.canonicalUpdateCandidates) {
+                        let candidate = proposed
                         const titleKey = canonicalIdentityKey(candidate.title)
                         const aliasKeys = new Set(mergeEvidenceBackedAliases(
                             candidate, undefined, snapshot.messages
@@ -1914,9 +1937,31 @@ export function createMemoryAnalysisRunner(
                                     || aliasKeys.has(canonicalIdentityKey(document.title)))
                             )
                         if (repeatsExcludedTitle) continue
-                        const target = resolveCanonicalTarget(
+                        let target = resolveCanonicalTarget(
                             candidate, documents, excludedDocumentIds, aliasKeys
                         )
+                        if (!target && !documents.some((document) =>
+                            document.type === candidate.type
+                            && canonicalIdentityKeys(document).includes(titleKey))) {
+                            const namesakes = crossTypeNamesakes(candidate, documents)
+                            const open = namesakes.filter((document) => !excludedDocumentIds.has(document.id))
+                            if (namesakes.length === 1 && open.length === 1) {
+                                target = open[0]
+                                receiptWarnings.push(
+                                    `종류 보정: ${candidate.title}을(를) 새 ${candidate.type} 문서로 만들지 않고 기존 ${target.type} 문서 ${target.title}에 반영했습니다.`
+                                )
+                                candidate = { ...candidate, type: target.type as typeof candidate.type,
+                                    action: 'update', targetDocumentId: target.id }
+                            }
+                            else if (open.length > 0) {
+                                receiptWarnings.push(
+                                    `이름 충돌: ${candidate.title}이(가) 다른 종류의 여러 문서 이름이나 별칭과 같아 새 문서를 만들지 않았습니다.`
+                                )
+                                continue
+                            }
+                            // Already handled this turn under its real type.
+                            else if (namesakes.length > 0) continue
+                        }
                         if (deferred.some((entry) => entry.documentId
                             ? entry.documentId === target?.id || entry.documentId === candidate.targetDocumentId
                             : entry.type === candidate.type && normalizeCanonicalMatch(entry.title) === normalizeCanonicalMatch(candidate.title))) continue

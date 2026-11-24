@@ -1,4 +1,5 @@
 import { captureGenerationTarget, createGenerationScope, type GenerationTarget } from "./generationTarget";
+import { emitGenerationOutputStart } from "./generationEvents";
 import { isOocAssistantTurn, isOocToggleActive } from '../risubard/oocTurns'
 import { captureChatContext } from '../risubard/chatContextCapture'
 import { selectAnalysisLoreReference } from '../risubard/analysisLoreReference'
@@ -13,6 +14,7 @@ import { language } from "../../lang";
 import { alertConfirmMultiOutcome, alertError, notifyError } from "../alert";
 import { parseChatML } from "../parser/chatML";
 import { loadLoreBookV3Prompt } from "./lorebook.svelte";
+import { selectFirstMessageSource } from "./firstMessage";
 import { isStableAlwaysActiveLore, resolveStableLoreIndex } from "./lorebookStablePrefix";
 import { findCharacterbyId, getPersonaPrompt, getUserName, isLastCharPunctuation, trimUntilPunctuation, parseToggleSyntax, prebuiltAssetCommand, sleep } from "../util";
 import { requestChatData } from "./request/request";
@@ -2314,16 +2316,14 @@ export async function sendChat(chatProcessIndex = -1,arg:{
 
     let renderedFirstMessageCache: { source: string, content: string } | undefined
     const renderFirstMessage = async (source: string) => {
-        if (renderedFirstMessageCache?.source === source) return renderedFirstMessageCache.content
+        if (renderedFirstMessageCache && renderedFirstMessageCache.source === source) return renderedFirstMessageCache.content
         const content = await processGenerationScript(nowChatroom,
             parseGenerationText(source, {chara: currentChar}),
         'editprocess')
         renderedFirstMessageCache = { source, content }
         return content
     }
-    const selectedFirstMessage = currentChat.firstMessageDisabled
-        ? undefined
-        : currentChat.fmIndex === -1 ? nowChatroom.firstMessage : nowChatroom.alternateGreetings?.[currentChat.fmIndex]
+    const selectedFirstMessage = selectFirstMessageSource(nowChatroom, currentChat)
     const lorepmt = await loadLoreBookV3Prompt({
         character: generationScope.character,
         chat: generationScope.chat,
@@ -3115,7 +3115,8 @@ export async function sendChat(chatProcessIndex = -1,arg:{
     let ms:Message[] = makeMs(currentChat)
     const addFirstMessage = async () => {
         if(msReseted || currentChat.firstMessageDisabled) return
-        const firstMsg = currentChat.fmIndex === -1 ? nowChatroom.firstMessage : nowChatroom.alternateGreetings[currentChat.fmIndex]
+        const firstMsg = selectFirstMessageSource(nowChatroom, currentChat)
+        if(firstMsg === undefined) return
 
         const chat:OpenAIChat = {
             role: 'assistant',
@@ -3928,6 +3929,7 @@ export async function sendChat(chatProcessIndex = -1,arg:{
     if(abortSignal.aborted === true){
         return false
     }
+    if(req.type !== 'fail') emitGenerationOutputStart()
     if(req.type === 'fail'){
         throwError(req.result)
         endGeneration(genKey)

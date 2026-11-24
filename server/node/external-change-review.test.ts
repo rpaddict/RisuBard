@@ -176,3 +176,27 @@ test('a checksum-consistent character rewrite listed as changed is still compare
         expect(result.reload).toBe(false)
     } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })
+
+test('an edited module lorebook is applied in place without a reload', () => {
+    const { root, repository, review, db } = setup()
+    try {
+        const module = { id: 'mod-1', name: 'World', description: 'd', lorebook: [{ id: 'm1', comment: 'Town', key: 'town', content: 'old town', mode: 'normal' }] }
+        repository.importLegacyDatabase({ ...db, modules: [module] }, { mode: 'sync' })
+        const app = { ...db, modules: [JSON.parse(JSON.stringify(module))] }
+        const moduleFile = path.join(root, repository.collectionItemPath('modules', repository.loadSidebarIndex().collections.modules[0]))
+        const edited = JSON.parse(fs.readFileSync(moduleFile, 'utf8'))
+        edited.lorebook[0].content = 'new town'
+        fs.writeFileSync(moduleFile, JSON.stringify(edited))
+        const relative = path.relative(root, moduleFile).split(path.sep).join('/')
+
+        const result = review.inspect('m1', app, [{ path: relative, status: 'changed' }])
+        expect(result.errors).toEqual([])
+        expect(result.changes).toHaveLength(1)
+        expect(result.changes[0]).toMatchObject({ kind: 'module', name: 'World', fields: [] })
+        expect(result.changes[0].lore.changed.map((entry: any) => entry.name)).toEqual(['Town'])
+        expect(result.reload).toBe(false)
+        const next = review.applyExternal(app, result)
+        expect(next.modules[0].lorebook[0].content).toBe('new town')
+        expect(app.modules[0].lorebook[0].content).toBe('old town')
+    } finally { fs.rmSync(root, { recursive: true, force: true }) }
+})

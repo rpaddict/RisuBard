@@ -39,4 +39,6 @@ export const uiSkinParts: readonly UiSkinPartDefinition[] = [
     { part: 'menu', description: 'Dropdown menu surface.' },
     { part: 'settings-nav', description: 'Settings navigation column.' },
     { part: 'settings-page', description: 'One settings page.' },
+    { part: 'bgm-player', description: 'Floating BGM player: a small pill when collapsed, a card when expanded.', attributes: { 'data-skin-state': ['collapsed', 'expanded'] } },
+    { part: 'bgm-manager', description: 'Body of the BGM manager dialog: sets, slots and tracks columns.' },
 ]

@@ -1,15 +1,20 @@
 import { CHARACTER_ASSISTANT_SYSTEM_PROMPT } from './characterAssistant'
 import { CHARACTER_ASSISTANT_PLAYER_PROMPT } from './characterAssistantPlay'
 import { PROMPT_ASSISTANT_SELECT_PROMPT, PROMPT_ASSISTANT_SYSTEM_PROMPT } from './promptAssistant'
+import { BGM_DJ_SYSTEM_PROMPT } from '../bgm/djPrompt'
 
 export const ASSISTANT_PROMPT_KEYS = [
     'promptAssistant',
     'promptAssistantSelect',
     'characterAssistant',
     'characterAssistantPlayer',
+    'bgmDj',
 ] as const
 
 export type AssistantPromptKey = typeof ASSISTANT_PROMPT_KEYS[number]
+
+/** Prompt to show first the next time the assistant prompts page opens (set by links to it). */
+export const assistantPromptJump: { key: AssistantPromptKey | null } = { key: null }
 
 /** Only the prompts the user changed; a missing key falls back to the built-in text. */
 export type AssistantPromptOverrides = Partial<Record<AssistantPromptKey, string>>
@@ -19,6 +24,7 @@ export const ASSISTANT_PROMPT_DEFAULTS: Record<AssistantPromptKey, string> = {
     promptAssistantSelect: PROMPT_ASSISTANT_SELECT_PROMPT,
     characterAssistant: CHARACTER_ASSISTANT_SYSTEM_PROMPT,
     characterAssistantPlayer: CHARACTER_ASSISTANT_PLAYER_PROMPT,
+    bgmDj: BGM_DJ_SYSTEM_PROMPT,
 }
 
 export function normalizeAssistantPromptOverrides(raw: unknown): AssistantPromptOverrides {

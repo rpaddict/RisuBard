@@ -23,10 +23,13 @@
         XIcon,
         Maximize2Icon,
         Minimize2Icon,
+        PauseIcon,
+        PlayIcon,
     } from '@lucide/svelte'
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
     import ShDialog from 'src/lib/UI/GUI/ShDialog.svelte'
     import { language } from 'src/lang'
+    import { createEventTurnLabels } from 'src/ts/risubard/eventOrder'
     import { forageStorage, downloadFile, trackChatForSave } from 'src/ts/globalApi.svelte'
     import ShDropdownMenu from 'src/lib/UI/GUI/ShDropdownMenu.svelte'
     import ShDropdownMenuTrigger from 'src/lib/UI/GUI/ShDropdownMenuTrigger.svelte'
@@ -1196,6 +1199,61 @@
             </div>
             {#if !compactActive}{@render dockWindowActions()}{/if}
         </div>
+        {#snippet rebootRow()}
+        {#if rebootJob && rebootProgress}
+          <div class="reboot-row" data-risubard-wiki-reboot-row>
+            {#if rebootJob.status === 'running' || rebootJob.status === 'stop-requested'}
+                <button type="button" class="reboot-button" data-risubard-wiki-reboot-pause
+                    onclick={handleRebootAction}
+                    disabled={rebootActionBusy || rebootJob.status === 'stop-requested'}
+                ><PauseIcon size={15} fill="currentColor" strokeWidth={0} /><span>{rebootJob.status === 'stop-requested'
+                    ? language.risuBardWikiRebootStopping
+                    : language.risuBardWikiRebootStop}</span></button>
+            {:else if rebootJob.status === 'paused' || rebootJob.status === 'failed'}
+                <button type="button" class="reboot-button" data-risubard-wiki-reboot-resume
+                    onclick={handleRebootAction}
+                    disabled={rebootActionBusy}
+                ><PlayIcon size={15} fill="currentColor" strokeWidth={0} /><span>{language.risuBardWikiRebootResume}</span></button>
+                <button type="button" class="reboot-cancel-button" data-risubard-wiki-reboot-cancel
+                    title={language.risuBardWikiRebootCancelDescription}
+                    onclick={cancelReboot}
+                    disabled={rebootActionBusy}
+                ><span>{language.risuBardWikiRebootCancel}</span></button>
+            {/if}
+            <div
+                class="reboot-progress"
+                class:running={rebootJob.status === 'running'}
+                data-risubard-wiki-reboot-progress
+                role="progressbar"
+                aria-live="polite"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow={rebootProgress.percent}
+                aria-valuetext={language.risuBardWikiRebootProgress(
+                    rebootProgress.completed,
+                    rebootProgress.total,
+                    rebootProgress.percent
+                )}
+            >
+                <div class="reboot-progress-copy">
+                    <span>{language.risuBardWikiReboot}</span>
+                    <strong>{language.risuBardWikiRebootProgress(
+                        rebootProgress.completed,
+                        rebootProgress.total,
+                        rebootProgress.percent
+                    )}</strong>
+                </div>
+                <div class="reboot-progress-track" aria-hidden="true">
+                    <span
+                        class="reboot-progress-fill"
+                        data-risubard-wiki-reboot-progress-fill
+                        style:width={`${rebootProgress.percent}%`}
+                    ></span>
+                </div>
+            </div>
+          </div>
+        {/if}
+        {/snippet}
         <div class="dock-views-shell">
         <nav class="dock-views" aria-label="BardWiki 보기" bind:this={dockViewsElement} onscroll={updateDockViewsOverflow}>
             {#if wiki?.mode === 'markdown' && activeView !== 'painter'}
@@ -1235,9 +1293,6 @@
                         <ShDropdownMenuItem data-wiki-new-chat disabled={transferBlocked} onclick={startWithWiki}>이 위키로 새 챗 시작</ShDropdownMenuItem>
                         <ShDropdownMenuItem data-wiki-export disabled={transferBlocked} onclick={() => { exportScope = `${characterId}\u0000${chatId}`; exportOpen = true }}>위키 내보내기</ShDropdownMenuItem>
                         <ShDropdownMenuItem data-wiki-import disabled={transferBlocked} onclick={() => { importScope = { characterId, chatId }; importInput?.click() }}>위키 들여오기</ShDropdownMenuItem>
-                        {#if rebootJob && (rebootJob.status === 'paused' || rebootJob.status === 'failed')}
-                            <ShDropdownMenuItem onclick={cancelReboot} disabled={rebootActionBusy}>{language.risuBardWikiRebootCancel}</ShDropdownMenuItem>
-                        {/if}
                     </ShDropdownMenuContent>
                 </ShDropdownMenu>
             {/if}
@@ -1311,39 +1366,7 @@
                     ><SolarBoldIcon name="settings" size={22} /><span>설정</span></button>
                 {/if}
             </div>
-            {#if rebootJob && rebootProgress}
-                <div
-                    class="reboot-progress"
-                    class:running={rebootJob.status === 'running'}
-                    data-risubard-wiki-reboot-progress
-                    role="progressbar"
-                    aria-live="polite"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                    aria-valuenow={rebootProgress.percent}
-                    aria-valuetext={language.risuBardWikiRebootProgress(
-                        rebootProgress.completed,
-                        rebootProgress.total,
-                        rebootProgress.percent
-                    )}
-                >
-                    <div class="reboot-progress-copy">
-                        <span>{language.risuBardWikiReboot}</span>
-                        <strong>{language.risuBardWikiRebootProgress(
-                            rebootProgress.completed,
-                            rebootProgress.total,
-                            rebootProgress.percent
-                        )}</strong>
-                    </div>
-                    <div class="reboot-progress-track" aria-hidden="true">
-                        <span
-                            class="reboot-progress-fill"
-                            data-risubard-wiki-reboot-progress-fill
-                            style:width={`${rebootProgress.percent}%`}
-                        ></span>
-                    </div>
-                </div>
-            {/if}
+            {#if layoutMode !== 'mobile'}{@render rebootRow()}{/if}
         </nav>
             {#if dockViewsOverflow.start}
                 <button type="button" class="dock-views-scroll start" tabindex="-1" aria-label="툴바 왼쪽으로 넘기기"
@@ -1358,6 +1381,10 @@
                 </button>
             {/if}
         </div>
+        {#if layoutMode === 'mobile' && rebootJob && rebootProgress}
+            <!-- The mobile toolbar scrolls sideways, so the reboot controls get their own visible strip. -->
+            <div class="dock-views reboot-strip" role="group" aria-label={language.risuBardWikiReboot}>{@render rebootRow()}</div>
+        {/if}
         {#if compactActive}
             <div class="dock-compact-actions">{@render dockWindowActions()}</div>
         {/if}
@@ -1682,7 +1709,9 @@
                 </div>
             {:else if storyTimePhase === 'confirm' && storyTimePlan}
                 {@const first = storyTimePlan.batches[0]?.[0]}
-                <p>날짜가 미상인 첫 사건{first ? ` (#${first.sequence} ${first.title})` : ''}부터 끝까지, 사건 원문을 AI가 다시 읽고 0일 기준 날짜, 회상, 상태창 날짜를 매깁니다. 사건 본문은 바뀌지 않으며, 적용한 뒤에도 되돌릴 수 있습니다.</p>
+                {@const firstTurn = first ? createEventTurnLabels(activityMessages)(
+                    markdownDocuments.find((document) => document.id === first.id)?.sourceMessageIds) : undefined}
+                <p>날짜가 미상인 첫 사건{first ? ` (${firstTurn ? `${language.chatTurnLabel} ${firstTurn}` : `#${first.sequence}`} ${first.title})` : ''}부터 끝까지, 사건 원문을 AI가 다시 읽고 0일 기준 날짜, 회상, 상태창 날짜를 매깁니다. 사건 본문은 바뀌지 않으며, 적용한 뒤에도 되돌릴 수 있습니다.</p>
                 <p class="compress-cost" data-wiki-story-time-cost>사건 {storyTimePlan.eventCount.toLocaleString()}개, AI 호출 {storyTimePlan.batches.length.toLocaleString()}회, 입력 약 {storyTimePlan.inputTokens.toLocaleString()}토큰이 듭니다(분석 모델 사용).</p>
                 <div class="compress-actions">
                     <ShButton size="sm" variant="ghost" onclick={() => storyTimeOpen = false}>닫기</ShButton>
@@ -1960,12 +1989,23 @@
     .dock-views-scroll:hover { color: var(--risu-theme-textcolor); }
     .dock-views { position: relative; display: flex; flex-wrap: wrap; width: 100%; min-height: 44px; align-items: center; gap: .3rem; padding: .3rem .35rem; border-radius: calc(var(--risu-radius-lg) * 0.96); background: color-mix(in srgb, var(--risu-theme-darkbg) 78%, var(--risu-theme-textcolor2) 8%); }
     .dock-view-actions { display: flex; align-items: center; justify-content: flex-end; gap: .25rem; margin-left: auto; }
-    .reboot-progress {
+    .reboot-row {
         flex: 1 0 100%;
-        display: grid;
-        gap: .28rem;
+        display: flex;
+        align-items: center;
+        gap: .3rem;
         padding: .38rem .18rem .08rem;
         border-top: 1px solid color-mix(in srgb, var(--risu-theme-primary) 18%, var(--risu-theme-darkborderc));
+    }
+    .reboot-strip { margin-top: .3rem; min-height: 0; }
+    .reboot-strip .reboot-row { flex-wrap: wrap; row-gap: .4rem; border-top: 0; padding-top: .08rem; }
+    .reboot-strip .reboot-progress { min-width: 11rem; }
+    .reboot-progress {
+        flex: 1 1 auto;
+        min-width: 6rem;
+        display: grid;
+        gap: .28rem;
+        padding-left: .2rem;
     }
     .reboot-progress-copy {
         display: flex;
@@ -2500,6 +2540,7 @@
     }
     .memory-wiki-dock.mobile-layout .dock-views .reboot-button,
     .memory-wiki-dock.mobile-layout .dock-views .reboot-cancel-button {
+        width: auto;
         min-width: auto;
         height: 2.75rem;
         padding-inline: .6rem;

@@ -5,6 +5,7 @@
     import type { PromptItem } from 'src/ts/process/prompt'
     import { getPromptV2TextSource } from 'src/ts/promptV2'
     import {
+        assistantPromptJump,
         normalizeAssistantPromptOverrides,
         resolveAssistantPrompt,
         setAssistantPromptOverride,
@@ -20,12 +21,14 @@
     const groups: { label: string; keys: AssistantPromptKey[] }[] = [
         { label: text.promptAssistant, keys: ['promptAssistant', 'promptAssistantSelect'] },
         { label: text.characterAssistant, keys: ['characterAssistant', 'characterAssistantPlayer'] },
+        { label: text.bgmDj, keys: ['bgmDj'] },
     ]
 
     // Drops stale or malformed entries saved by older versions.
     DBState.db.risuBardAssistantPrompts = normalizeAssistantPromptOverrides(DBState.db.risuBardAssistantPrompts)
 
-    let selectedKey = $state<AssistantPromptKey>('promptAssistant')
+    let selectedKey = $state<AssistantPromptKey>(assistantPromptJump.key ?? 'promptAssistant')
+    assistantPromptJump.key = null
     let editorVersion = $state(0)
     let blockEditor: PromptV2BlockEditor | undefined = $state()
 

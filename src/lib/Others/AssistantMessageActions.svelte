@@ -1,7 +1,7 @@
 <script lang="ts">
     // Fork, copy and delete under each message, shared by the assistant docks.
     import { onDestroy } from 'svelte'
-    import { CheckIcon, CopyIcon, GitBranchIcon, TrashIcon } from '@lucide/svelte'
+    import { CheckIcon, CopyIcon, GitBranchIcon, TrashIcon, Undo2Icon } from '@lucide/svelte'
     import { copyAssistantText, type AssistantChatMessage } from 'src/ts/risubard/assistantChat'
 
     interface Props {
@@ -10,10 +10,12 @@
         busy: boolean
         onFork: (message: AssistantChatMessage) => void
         onDelete: (message: AssistantChatMessage) => void
+        /** Removes this question and everything after it, putting the question back in the input. */
+        onRewind?: (message: AssistantChatMessage) => void
         onCopyFailed: () => void
     }
 
-    let { message, busy, onFork, onDelete, onCopyFailed }: Props = $props()
+    let { message, busy, onFork, onDelete, onRewind, onCopyFailed }: Props = $props()
 
     let copied = $state(false)
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -37,6 +39,11 @@
     <button type="button" disabled={busy} title={message.role === 'user' ? '이 질문 직전까지 새 프로젝트로 복사하고, 질문은 입력창에 넣습니다' : '이 답변까지 새 프로젝트로 복사합니다'} onclick={() => onFork(message)} data-message-fork>
         <GitBranchIcon size={13} /> 여기서 포크하기
     </button>
+    {#if message.role === 'user' && onRewind}
+        <button type="button" disabled={busy} title="이 질문과 그 뒤의 대화를 지우고, 질문을 입력창으로 되돌립니다" onclick={() => onRewind?.(message)} data-message-rewind>
+            <Undo2Icon size={13} /> 되돌리기
+        </button>
+    {/if}
     {#if message.role === 'assistant' && !message.failed}
         <button type="button" class:done={copied} onclick={() => void copy()} data-message-copy>
             {#if copied}<CheckIcon size={13} /> 복사됨{:else}<CopyIcon size={13} /> 답변 복사{/if}

@@ -182,6 +182,7 @@ export const DBState = $state({
 export const LoadingStatusState = $state({
     text: '',
     error: '',
+    checksumMismatch: null as import('./storage/checksumMismatch').ChecksumMismatch | null,
 })
 
 export const loadingOverlayStore = writable<{

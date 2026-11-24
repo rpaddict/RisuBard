@@ -2460,6 +2460,74 @@ describe('memory analysis runner', () => {
         }))
     })
 
+    describe('a name already used by another document type', () => {
+        const faction = {
+            id: 'faction.vigilante', type: 'faction' as const,
+            title: '자경단', aliases: [],
+            relativePath: 'factions/vigilante.md',
+            content: '# 자경단\n\n마을을 지키는 무리.',
+            sourceMessageIds: [], contentHash: 'faction-hash',
+        }
+        const runWith = async (draft: Record<string, unknown>) => {
+            const saveCanonicalDocument = vi.fn(async (input) => ({
+                ...input, id: input.documentId ?? 'new',
+                relativePath: 'x.md', contentHash: 'new-hash',
+            }))
+            const analyze = vi.fn(async (request: MemoryAnalysisModelRequest) =>
+                request.format === 'canonical-batch'
+                    ? canonicalBatch('# 자경단\n\n### 현재 상태\n\n- 광장에 모였다.')
+                    : JSON.stringify({
+                        schemaVersion: 1, title: '자경단 집결',
+                        establishedEvents: ['자경단이 광장에 모였다.'],
+                        stateChanges: [], characterKnowledge: [],
+                        persistentFacts: [], openContinuity: [],
+                        canonicalUpdateCandidates: [], ...draft,
+                    }))
+            const runner = createMemoryAnalysisRunner({
+                memoryService: { loadState: vi.fn(), applyDelta: vi.fn() },
+                nativeV2Analysis: true,
+                markdownWikiService: {
+                    inquire: vi.fn(async () => ({ graphRevision: 0, sources: [] })),
+                    saveConfirmedTurn: vi.fn(async () => undefined),
+                    loadDocuments: vi.fn(async () => [faction]),
+                    saveCanonicalDocument,
+                },
+                onError: vi.fn(), analyze,
+            })
+            await runner.run({
+                characterId: 'character', chatId: 'chat',
+                messages: [{ messageId: 'assistant-1', role: 'assistant',
+                    content: '자경단은 광장에 모여 도둑의 정체를 알게 되었다.' }],
+            })
+            return saveCanonicalDocument
+        }
+
+        test('updates the existing faction instead of creating a same-named character', async () => {
+            const save = await runWith({ canonicalUpdateCandidates: [{
+                type: 'character', title: '자경단', aliases: [],
+                reason: '자경단이 광장에 모였다.',
+                action: 'create', targetDocumentId: null, confidence: 0.9,
+            }] })
+
+            expect(save).toHaveBeenCalledTimes(1)
+            expect(save).toHaveBeenCalledWith(expect.objectContaining({
+                documentId: 'faction.vigilante', type: 'faction',
+                title: '자경단', expectedContentHash: 'faction-hash',
+            }))
+        })
+
+        test('does not register a faction named in character knowledge as a new character', async () => {
+            const save = await runWith({ characterKnowledge: [{
+                character: '자경단', fact: '도둑의 정체를 안다.',
+                stance: 'knows', gap: null,
+            }] })
+
+            expect(save).not.toHaveBeenCalledWith(expect.objectContaining({
+                type: 'character',
+            }))
+        })
+    })
+
     test('performs only bounded fallback searches for unresolved create candidates', async () => {
         const inquire = vi.fn()
             .mockResolvedValueOnce({ graphRevision: 0, sources: [] })

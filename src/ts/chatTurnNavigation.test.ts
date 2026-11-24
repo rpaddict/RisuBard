@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Message } from './storage/database.svelte'
 import {
     buildChatTurnNavigation,
+    firstShownTurnFrom,
     normalizeChatNavigationTarget,
+    resolveShownTurn,
 } from './chatTurnNavigation'
 
 const message = (role: Message['role'], data: string, extra: Partial<Message> = {}): Message => ({
@@ -70,5 +72,34 @@ describe('chat turn navigation', () => {
         expect(normalizeChatNavigationTarget(99, 8, 4)).toBe(8)
         expect(normalizeChatNavigationTarget('', 8, 4)).toBe(4)
         expect(normalizeChatNavigationTarget('bad', 8, 4)).toBe(4)
+    })
+})
+
+describe('jumping by the chat turn numbers', () => {
+    // Turns 1..4 at message indexes 1, 3, 5, 7; turn 2 (index 3) is a hidden OOC turn.
+    const chat = [
+        message('user', 'u'), message('char', 't1'),
+        message('user', 'u'), message('char', '<!-- OOC_turn --> ooc'),
+        message('user', 'u'), message('char', 't3'),
+        message('user', 'u'), message('char', 't4'),
+    ]
+    const navigation = buildChatTurnNavigation(chat)
+    const hidden = new Set([2, 3])
+
+    it('keeps a shown turn and moves a hidden one to the next shown turn', () => {
+        expect(resolveShownTurn(navigation, 3, hidden)).toBe(3)
+        expect(resolveShownTurn(navigation, 2, hidden)).toBe(3)
+        expect(resolveShownTurn(navigation, 2, new Set())).toBe(2)
+    })
+
+    it('falls back to the previous shown turn at the end, and 0 when nothing is shown', () => {
+        expect(resolveShownTurn(navigation, 4, new Set([7]))).toBe(3)
+        expect(resolveShownTurn(navigation, 1, new Set([1, 3, 5, 7]))).toBe(0)
+    })
+
+    it('names the first shown turn of a page, or the last one before it', () => {
+        expect(firstShownTurnFrom(navigation, 2, 6, hidden)).toBe(3)
+        expect(firstShownTurnFrom(navigation, 2, 4, hidden)).toBe(1)
+        expect(firstShownTurnFrom(navigation, 0, 2, hidden)).toBe(1)
     })
 })

@@ -33,6 +33,7 @@ import {
     type ReaderBoard,
     type ReaderBoardIndex,
     type ReaderBoardModel,
+    type ReaderBoardOpenRequest,
 } from './readerBoard'
 
 const INDEX_KEY = 'risubard/reader-board/index.json'
@@ -44,6 +45,8 @@ export interface ReaderBoardRunRecord {
     chatKey: string
     ranges: ({ start: number; end: number } | undefined)[]
     onlyPostNo?: number
+    /** Topic or poll the run opened. */
+    open?: ReaderBoardOpenRequest
     /** Board updatedAt right after the run; any later change makes the undo stale. */
     after: number
     savedAt: number
@@ -270,6 +273,7 @@ export interface ReaderBoardRunInput {
     views: ChatMessageView[]
     range?: { start: number; end: number }
     onlyPostNo?: number
+    open?: ReaderBoardOpenRequest
     /** The chat's wiki scope; notes are used when the board allows it. */
     wiki?: { characterId: string; chatId: string; messages: EventOrderMessage[] }
     model: ReaderBoardModel
@@ -299,7 +303,7 @@ export async function runReaderBoard(input: ReaderBoardRunInput): Promise<Reader
         const reply = await requestJson(buildRosterRequest(working, input.storyName), input.model, input.currentCharacter, input.signal, input.systemPrompt)
         rosterAdded = applyRosterResult(working, reply, v4)
     }
-    const plan = prepareGeneration({ board: working, chatKey: input.chatKey, views: input.views, range: input.range, onlyPostNo: input.onlyPostNo })
+    const plan = prepareGeneration({ board: working, chatKey: input.chatKey, views: input.views, range: input.range, onlyPostNo: input.onlyPostNo, open: input.open })
     if (!plan) throw new Error('독자가 반응할 새 연재분이나 작가 글이 없습니다.')
     input.onStage?.('reactions')
     const wiki = plan.board.settings.useWiki && input.wiki ? await wikiNotes(plan, input.wiki, input.signal) : ''
@@ -325,7 +329,7 @@ async function wikiNotes(
     const positions = (keys: string[]) => keys.map((key) => indexOf.get(key)).filter((index): index is number => index !== undefined)
     const all = positions(published.flatMap((episode) => episode.messageKeys))
     if (all.length === 0) return ''
-    const focus = plan.episode ? positions(plan.episode.messageKeys) : []
+    const focus = positions(plan.episode?.messageKeys ?? plan.focusMessageKeys ?? [])
     try {
         const wiki = await loadNarrativeMemoryWiki({
             characterId: scope.characterId,
@@ -340,6 +344,7 @@ async function wikiNotes(
             messages: scope.messages,
             publishedUntil: Math.max(...all),
             focus: focus.length > 0 ? { start: Math.min(...focus), end: Math.max(...focus) } : undefined,
+            keyword: plan.keyword,
         })
     }
     catch (cause) {

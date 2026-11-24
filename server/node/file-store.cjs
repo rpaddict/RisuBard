@@ -33,6 +33,15 @@ function canonicalChangedError(relativePath) {
     return error;
 }
 
+// Carries which file failed and both checksums so the startup screen can show
+// them and let the user accept the current contents.
+function checksumMismatchError(target, relativePath, expected, actual, code) {
+    const error = new Error(`Canonical file checksum mismatch: ${relativePath}`);
+    if (code) error.code = code;
+    error.checksumMismatch = { file: target, expected: expected || null, actual };
+    return error;
+}
+
 function checksum(data) {
     return crypto.createHash('sha256').update(data).digest('hex');
 }
@@ -251,7 +260,7 @@ function readVerifiedJson(root, relativePath, options = {}) {
         const expected = fs.readFileSync(checksumPath, 'utf8').trim();
         if (expected && checksum(bytes) !== expected) {
             if (!options.acceptExternalChanges) {
-                throw new Error(`Canonical file checksum mismatch: ${relativePath}`);
+                throw checksumMismatchError(target, relativePath, expected, checksum(bytes));
             }
             replaceAtomic(checksumPath, Buffer.from(`${checksum(bytes)}\n`, 'utf8'));
         }
@@ -582,6 +591,7 @@ module.exports = {
     atomicWriteFileChunks,
     atomicWriteJson,
     checksum,
+    checksumMismatchError,
     commitTransaction,
     moveToTrash,
     observeWrites,

@@ -1307,10 +1307,17 @@ describe('RisuBardMemoryWiki', () => {
         const progress = document.querySelector<HTMLElement>(
             '[data-risubard-wiki-reboot-progress]'
         )!
-        expect(progress.parentElement?.classList.contains('dock-views')).toBe(true)
-        expect(progress.previousElementSibling?.classList.contains(
+        const row = progress.parentElement!
+        expect(row.hasAttribute('data-risubard-wiki-reboot-row')).toBe(true)
+        expect(row.parentElement?.classList.contains('dock-views')).toBe(true)
+        expect(row.previousElementSibling?.classList.contains(
             'dock-view-actions'
         )).toBe(true)
+        // The pause control sits left of the gauge; cancel appears only once paused.
+        expect(progress.previousElementSibling?.hasAttribute(
+            'data-risubard-wiki-reboot-pause'
+        )).toBe(true)
+        expect(row.querySelector('[data-risubard-wiki-reboot-cancel]')).toBeNull()
         expect(progress.getAttribute('role')).toBe('progressbar')
         expect(progress.getAttribute('aria-valuemin')).toBe('0')
         expect(progress.getAttribute('aria-valuemax')).toBe('100')
@@ -1321,6 +1328,46 @@ describe('RisuBardMemoryWiki', () => {
             '[data-risubard-wiki-reboot-progress-fill]'
         )?.style.width).toBe('20%')
         expect(progress.classList.contains('running')).toBe(true)
+    })
+
+    test('offers resume and cancel beside the gauge while a reboot is paused', async () => {
+        mocks.loadNarrativeMemoryWiki.mockResolvedValue({
+            mode: 'markdown',
+            wikiPath: 'C:\\wiki',
+            health: { danglingLinks: [], unlinkedDocumentIds: [] },
+            documents: [],
+        })
+        const onResumeWikiReboot = vi.fn(async () => true)
+        mounted = mount(RisuBardMemoryWiki, {
+            target: document.body,
+            props: {
+                open: true,
+                characterId: 'character',
+                chatId: 'chat',
+                onResumeWikiReboot,
+                onCancelWikiReboot: vi.fn(async () => true),
+                rebootJob: {
+                    version: 1,
+                    jobId: 'job',
+                    stagingChatId: 'reboot-job',
+                    batchSize: 1,
+                    status: 'paused',
+                    targetAssistantMessageIds: ['assistant-1', 'assistant-2'],
+                    completedAssistantMessageIds: ['assistant-1'],
+                    receipts: {},
+                    startedAt: 1,
+                    updatedAt: 2,
+                },
+            },
+        })
+
+        await vi.waitFor(() => expect(document.querySelector(
+            '[data-risubard-wiki-reboot-resume]'
+        )).not.toBeNull())
+        expect(document.querySelector('[data-risubard-wiki-reboot-pause]')).toBeNull()
+        expect(document.querySelector('[data-risubard-wiki-reboot-cancel]')).not.toBeNull()
+        document.querySelector<HTMLButtonElement>('[data-risubard-wiki-reboot-resume]')!.click()
+        await vi.waitFor(() => expect(onResumeWikiReboot).toHaveBeenCalledOnce())
     })
 
     test('reloads an open view when its background analysis completes', async () => {

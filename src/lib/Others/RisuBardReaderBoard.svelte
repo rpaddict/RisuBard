@@ -2,6 +2,7 @@
     import { onDestroy, untrack } from 'svelte'
     import {
         BanIcon,
+        BookOpenIcon,
         ChartColumnIcon,
         ChevronDownIcon,
         ChevronLeftIcon,
@@ -12,9 +13,11 @@
         FileCodeIcon,
         FileTextIcon,
         GitBranchIcon,
+        HashIcon,
         LibraryIcon,
         LinkIcon,
         LoaderCircleIcon,
+        MessagesSquareIcon,
         NewspaperIcon,
         PanelRightCloseIcon,
         PanelRightOpenIcon,
@@ -23,6 +26,7 @@
         ReplyIcon,
         RefreshCwIcon,
         RotateCcwIcon,
+        SearchIcon,
         Undo2Icon,
         SendHorizontalIcon,
         Settings2Icon,
@@ -33,6 +37,7 @@
         UploadIcon,
         UserPlusIcon,
         UsersIcon,
+        VoteIcon,
         XIcon,
     } from '@lucide/svelte'
     import ShButton from 'src/lib/UI/GUI/ShButton.svelte'
@@ -45,6 +50,13 @@
         addComment,
         addTab,
         analyzeChat,
+        closePoll,
+        DELETABLE_KINDS,
+        pollTally,
+        postSection,
+        POLL_OPTION_LIMIT,
+        READER_BOARD_TOPICS,
+        TOPIC_LABELS,
         chatSeries,
         endSeries,
         findSeries,
@@ -82,7 +94,10 @@
         type ReaderBoardAppearance,
         type ReaderBoardConceptPreset,
         type ReaderBoardIndex,
+        type ReaderBoardOpenRequest,
         type ReaderBoardPost,
+        type ReaderBoardSection,
+        type ReaderBoardTopic,
         type ReaderBoardReader,
         type ReaderBoardSummary,
         type ReaderBoardWorkKind,
@@ -114,6 +129,7 @@
         type ReaderBoardRunRecord,
         type ReaderBoardStage,
     } from 'src/ts/risubard/readerBoardStore'
+    import { measureNovel, VOLUME_BASIS, type NovelVolume } from 'src/ts/risubard/novelVolume'
 
     interface Props {
         open: boolean
@@ -121,7 +137,7 @@
 
     let { open = $bindable() }: Props = $props()
 
-    type View = 'board' | 'readers' | 'metrics' | 'settings' | 'manage'
+    type View = 'board' | 'readers' | 'metrics' | 'volume' | 'settings' | 'manage'
 
     const RATIO_KEY = 'risubard-reader-board-dock-ratio'
     const COLLAPSED_KEY = 'risubard-reader-board-collapsed'
@@ -181,6 +197,35 @@
 
     // Feed tab: everything, the main story, or one side-story tab.
     let feedTab = $state<string>('all')
+    // Serial (episodes, author posts, notices) or forum (reader posts, polls).
+    let section = $state<ReaderBoardSection>('serial')
+    let forumFilter = $state<'all' | ReaderBoardTopic | 'poll'>('all')
+    // Post search, like a web forum's: in the section and tab on screen.
+    type SearchField = 'titleBody' | 'title' | 'body' | 'author'
+    const SEARCH_FIELDS: { id: SearchField; label: string }[] = [
+        { id: 'titleBody', label: '제목+내용' },
+        { id: 'title', label: '제목' },
+        { id: 'body', label: '내용' },
+        { id: 'author', label: '글쓴이' },
+    ]
+    let searchField = $state<SearchField>('titleBody')
+    let searchQuery = $state('')
+    // Forum: the author opening a topic or a poll.
+    let openForm = $state<'topic' | 'poll' | null>(null)
+    let topicKind = $state<ReaderBoardTopic>('character')
+    let topicSubject = $state('')
+    let topicAuthor = $state('')
+    let topicFrom = $state(1)
+    let topicTo = $state(1)
+    let pollTitle = $state('인기 캐릭터 투표')
+    let pollOptionsText = $state('')
+    const TOPIC_PLACEHOLDERS: Record<ReaderBoardTopic, string> = {
+        episode: '무엇을 이야기할까요 (선택, 예: 반전이 납득되나)',
+        character: '인물 이름 (예: 쿠루미)',
+        setting: '설정 이름 (예: 자경단)',
+        theory: '떡밥 (선택, 예: 아오야마의 정체)',
+        free: '주제 (선택)',
+    }
     // Where this chat publishes: the main story, one of its side stories, or a new one.
     const NEW_TAB = '__new-tab'
     let targetOpen = $state(false)
@@ -247,9 +292,40 @@
         ? index.boards.filter((item) => item.characterId === currentCharacter.chaId && !matches.some((match) => match.id === item.id)).slice(0, 4)
         : [])
     const canRun = $derived(linked && !running && (canPublish || pendingAuthorCount > 0 || (analysis?.removed.length ?? 0) > 0 || (analysis?.edited.length ?? 0) > 0))
-    const posts = $derived(board
+    const tabPosts = $derived(board
         ? [...board.posts].reverse().filter((post) => feedTab === 'all' || !board!.tabs.length || postTabId(board!, post) === (board!.tabs.some((tab) => tab.id === feedTab) ? feedTab : MAIN_TAB_ID))
         : [])
+    const sectionCounts = $derived({
+        serial: tabPosts.filter((post) => postSection(post) === 'serial').length,
+        forum: tabPosts.filter((post) => postSection(post) === 'forum').length,
+    })
+    const searchTerm = $derived(searchQuery.trim().toLowerCase())
+    const posts = $derived(tabPosts.filter((post) => postSection(post) === section && (section === 'serial' || forumFilter === 'all'
+        || (forumFilter === 'poll' ? post.kind === 'poll' : post.kind === 'thread' && (post.topic ?? 'free') === forumFilter))
+        && (!searchTerm || matchesSearch(post))))
+    // Main-story episode numbers a topic can point at.
+    const lastEpisodeNo = $derived(board
+        ? Math.max(0, ...board.episodes.filter((item) => item.workId === board!.currentWorkId && !item.seriesId && item.status === 'published').map((item) => item.no))
+        : 0)
+    const pollOptions = $derived(pollOptionsText.split('\n').map((item) => item.trim()).filter(Boolean))
+    const topicNeedsSubject = $derived(topicKind === 'character' || topicKind === 'setting')
+    const canOpenTopic = $derived(linked && !running && (!topicNeedsSubject || !!topicSubject.trim()) && (topicKind !== 'episode' || lastEpisodeNo > 0 || !!topicSubject.trim()))
+    const canOpenPoll = $derived(linked && !running && !!pollTitle.trim() && pollOptions.length !== 1 && pollOptions.length <= POLL_OPTION_LIMIT)
+    // How long the story is as a novel: the whole chat, and what the board published from it.
+    const volumes = $derived.by(() => {
+        if (view !== 'volume') return []
+        const result: { id: string; label: string; volume: NovelVolume; episodes?: number }[] = [
+            { id: 'chat', label: '이 챗 전체', volume: measureNovel(views) },
+        ]
+        if (board && linked) {
+            const published = board.episodes.filter((episode) => episode.workId === board!.currentWorkId && episode.status === 'published')
+            const keys = new Set(published.flatMap((episode) => episode.messageKeys))
+            const held = published.filter((episode) => episode.messageKeys.some((key) => views.some((view) => view.key === key)))
+            const volume = measureNovel(views.filter((view) => keys.has(view.key)))
+            if (volume.turns > 0) result.push({ id: 'published', label: '게시판에 연재한 분량', volume, episodes: held.length })
+        }
+        return result
+    })
     const PAGE_SIZE = 10
     const pageCount = $derived(Math.max(1, Math.ceil(posts.length / PAGE_SIZE)))
     const pagePosts = $derived(posts.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE))
@@ -261,6 +337,17 @@
     const managed = $derived(manageScope === 'all' || !currentCharacter
         ? index.boards
         : index.boards.filter((item) => item.characterId === currentCharacter.chaId))
+
+    function matchesSearch(post: ReaderBoardPost): boolean {
+        const episode = post.episodeId ? episodeById.get(post.episodeId) : undefined
+        const title = [post.title, episode?.title ?? '', post.subject ?? ''].join('\n')
+        const body = [post.body, ...(post.poll?.options ?? [])].join('\n')
+        const fields = searchField === 'author' ? [post.author]
+            : searchField === 'title' ? [title]
+                : searchField === 'body' ? [body]
+                    : [title, body]
+        return fields.some((value) => value.toLowerCase().includes(searchTerm))
+    }
 
     /** Message index ranges for turns [from, to], `size` turns per episode (0: one episode). */
     function turnRanges(from: number, to: number, size: number): { start: number; end: number }[] {
@@ -713,7 +800,7 @@
      * a split), saving after each. The board from before is kept so the run
      * can be undone or rolled again.
      */
-    async function runBatch(ranges: ({ start: number; end: number } | undefined)[], onlyPostNo: number | undefined, splitMessage: string, before?: ReaderBoard) {
+    async function runBatch(ranges: ({ start: number; end: number } | undefined)[], onlyPostNo: number | undefined, splitMessage: string, before?: ReaderBoard, open?: ReaderBoardOpenRequest) {
         if (!board || !linked || running) return
         const start = before ?? $state.snapshot(board) as ReaderBoard
         if (ranges.length > 1) {
@@ -724,7 +811,7 @@
         running = true
         notice = ''
         controller = new AbortController()
-        const totals = { comments: 0, threads: 0, roster: 0, newReaders: [] as string[], dropped: [] as string[], returned: [] as string[] }
+        const totals = { comments: 0, threads: 0, votes: 0, roster: 0, newReaders: [] as string[], dropped: [] as string[], returned: [] as string[] }
         let done = 0
         let working = start
         try {
@@ -736,6 +823,7 @@
                     views,
                     range,
                     onlyPostNo,
+                    open,
                     wiki: currentCharacter && currentChat?.id
                         ? { characterId: currentCharacter.chaId, chatId: currentChat.id, messages: currentChat.message.map((message) => ({ chatId: message.chatId, role: message.role })) }
                         : undefined,
@@ -752,6 +840,7 @@
                 done++
                 totals.comments += result.applied.comments
                 totals.threads += result.applied.threads
+                totals.votes += result.applied.votes
                 totals.roster += result.rosterAdded
                 totals.newReaders.push(...result.applied.newReaders)
                 totals.dropped.push(...result.applied.dropped)
@@ -769,7 +858,7 @@
             controller = null
         }
         if (done > 0 && board) {
-            const record: ReaderBoardRunRecord = { chatKey, ranges, onlyPostNo, after: board.updatedAt, savedAt: Date.now() }
+            const record: ReaderBoardRunRecord = { chatKey, ranges, onlyPostNo, ...(open ? { open } : {}), after: board.updatedAt, savedAt: Date.now() }
             try {
                 undoCount = await saveRunUndo(start, record, board.settings.undoDepth)
                 undoRecord = record
@@ -781,11 +870,62 @@
         const parts = [`댓글 ${totals.comments}개`]
         if (ranges.length > 1) parts.unshift(`${done}화 연재`)
         if (totals.roster) parts.unshift(`독자 ${totals.roster}명 입장`)
-        if (totals.threads) parts.push(`새 글 ${totals.threads}개`)
+        if (totals.votes) parts.push(`투표 ${totals.votes}표`)
+        if (totals.threads && open) parts.unshift('토론란에 독자 글이 올라왔습니다')
+        else if (totals.threads) parts.push(`토론란 새 글 ${totals.threads}개`)
         if (totals.newReaders.length) parts.push(`새 독자 ${totals.newReaders.join(', ')}`)
         if (totals.dropped.length) parts.push(`구독 취소 ${totals.dropped.join(', ')}`)
         if (totals.returned.length) parts.push(`복귀 ${totals.returned.join(', ')}`)
         notice = parts.join(', ')
+    }
+
+    function showOpenForm(kind: 'topic' | 'poll') {
+        openForm = kind
+        if (kind === 'topic' && lastEpisodeNo > 0) {
+            topicFrom = lastEpisodeNo
+            topicTo = lastEpisodeNo
+        }
+    }
+
+    function showForum() {
+        section = 'forum'
+        forumFilter = 'all'
+        page = 1
+    }
+
+    /** The readers write one post about the topic and argue over it. */
+    function openTopic() {
+        if (!canOpenTopic) return
+        const episodes = topicKind === 'episode' && lastEpisodeNo > 0
+            ? { from: clampInt(topicFrom, 1, lastEpisodeNo, lastEpisodeNo), to: clampInt(topicTo, 1, lastEpisodeNo, lastEpisodeNo) }
+            : undefined
+        const author = topicAuthor.trim()
+        const request: ReaderBoardOpenRequest = { kind: 'topic', topic: topicKind, subject: topicSubject.trim(), ...(episodes ? { episodes } : {}), ...(author ? { author } : {}) }
+        openForm = null
+        topicSubject = ''
+        showForum()
+        void runBatch([undefined], undefined, '', undefined, request)
+    }
+
+    /** Opens a poll; the readers vote and say why. */
+    function openPoll() {
+        if (!canOpenPoll) return
+        const request: ReaderBoardOpenRequest = { kind: 'poll', title: pollTitle.trim(), options: pollOptions }
+        openForm = null
+        pollOptionsText = ''
+        showForum()
+        void runBatch([undefined], undefined, '', undefined, request)
+    }
+
+    /** Closes a poll, posts the result to the serial section and lets the readers react. */
+    async function finishPoll(post: ReaderBoardPost) {
+        if (!board || running) return
+        if (!(await alertConfirm(`'${post.title}' 투표를 마감할까요? 연재란에 결과 발표 글이 올라가고, 독자들이 결과에 반응합니다.`))) return
+        const result = closePoll(board, post.no)
+        if (!result) return
+        await persist()
+        await runBatch([undefined], result.no, '')
+        if (!notice.startsWith('생성')) notice = `결과 발표 글 #${result.no}을(를) 연재란에 올렸습니다. ${notice}`
     }
 
     /** Puts the board back to just before the last run. */
@@ -815,7 +955,7 @@
         if (!board || !canUndo || running) return
         const saved = await loadRunUndo(board.id)
         if (!saved) return
-        await runBatch(saved.run.ranges, saved.run.onlyPostNo, '같은 범위를 다시 생성합니다.', saved.board)
+        await runBatch(saved.run.ranges, saved.run.onlyPostNo, '같은 범위를 다시 생성합니다.', saved.board, saved.run.open)
     }
 
     async function removeEpisode(post: ReaderBoardPost) {
@@ -903,7 +1043,8 @@
 
     async function removeAuthorPost(post: ReaderBoardPost) {
         if (!board) return
-        if (!(await alertConfirm(`작가 글 #${post.no}을(를) 지울까요? 달린 댓글도 함께 사라집니다.`))) return
+        const label = post.kind === 'poll' ? '투표' : post.kind === 'thread' ? `${post.author}의 글` : '작가 글'
+        if (!(await alertConfirm(`${label} #${post.no}을(를) 지울까요? 달린 댓글${post.kind === 'poll' ? '과 표' : ''}도 함께 사라집니다. 이 글을 읽고 바뀐 독자의 생각은 남습니다.`))) return
         deletePost(board, post.no)
         await persist()
     }
@@ -938,6 +1079,19 @@
             lastActivePostNo: 0,
         })
         editingReader = id
+    }
+
+    /** "약 12화", "약 0.6권", or "0.1권 미만" for a sliver. */
+    function amount(value: number, unit: string): string {
+        if (value >= 10) return `약 ${Math.round(value).toLocaleString()}${unit}`
+        if (value >= 0.1) return `약 ${(Math.round(value * 10) / 10).toLocaleString()}${unit}`
+        return value > 0 ? `0.1${unit} 미만` : `0${unit}`
+    }
+
+    function duration(minutes: number): string {
+        if (minutes < 60) return `${Math.max(1, minutes)}분`
+        const hours = Math.floor(minutes / 60)
+        return minutes % 60 ? `${hours}시간 ${minutes % 60}분` : `${hours}시간`
     }
 
     function bar(value: number): string {
@@ -1066,6 +1220,7 @@
                 <button type="button" role="tab" aria-selected={view === 'board'} class:active={view === 'board'} onclick={() => view = 'board'}><NewspaperIcon size={14} /> 게시판</button>
                 <button type="button" role="tab" aria-selected={view === 'readers'} class:active={view === 'readers'} onclick={() => view = 'readers'}><UsersIcon size={14} /> 독자</button>
                 <button type="button" role="tab" aria-selected={view === 'metrics'} class:active={view === 'metrics'} onclick={() => view = 'metrics'}><ChartColumnIcon size={14} /> 지표</button>
+                <button type="button" role="tab" aria-selected={view === 'volume'} class:active={view === 'volume'} onclick={() => view = 'volume'} data-reader-board-volume-tab><BookOpenIcon size={14} /> 분량</button>
                 <button type="button" role="tab" aria-selected={view === 'settings'} class:active={view === 'settings'} onclick={() => view = 'settings'}><Settings2Icon size={14} /> 설정</button>
             </div>
         {/if}
@@ -1351,7 +1506,78 @@
             </section>
         {:else if view === 'board'}
             <section class="feed" data-reader-board-feed>
-                {#if linked}
+                <div class="feed-top" data-reader-board-feed-top>
+                <div class="section-tabs segmented wide" role="tablist" aria-label="게시판 구역" data-reader-board-sections>
+                    <button type="button" role="tab" aria-selected={section === 'serial'} class:active={section === 'serial'} onclick={() => { section = 'serial'; page = 1 }} data-reader-board-section="serial">
+                        <NewspaperIcon size={13} /> 연재 <span class="count tabular">{sectionCounts.serial}</span>
+                    </button>
+                    <button type="button" role="tab" aria-selected={section === 'forum'} class:active={section === 'forum'} onclick={() => { section = 'forum'; page = 1 }} data-reader-board-section="forum">
+                        <MessagesSquareIcon size={13} /> 토론 <span class="count tabular">{sectionCounts.forum}</span>
+                    </button>
+                </div>
+                {#if linked && section === 'forum'}
+                    <div class="compose forum-tools">
+                        {#if openForm === 'topic'}
+                            <form class="compose-form" onsubmit={(event) => { event.preventDefault(); openTopic() }} data-reader-board-topic-form>
+                                <p class="compose-target"><HashIcon size={13} /> 독자들에게 이야기 거리 던지기</p>
+                                <div class="segmented wide" role="radiogroup" aria-label="말머리">
+                                    {#each READER_BOARD_TOPICS as item (item)}
+                                        <button type="button" role="radio" aria-checked={topicKind === item} class:active={topicKind === item} onclick={() => topicKind = item}>{TOPIC_LABELS[item]}</button>
+                                    {/each}
+                                </div>
+                                {#if topicKind === 'episode'}
+                                    {#if lastEpisodeNo > 0}
+                                        <div class="range" aria-label="토론할 화">
+                                            <span>토론할 화</span>
+                                            <input class="field num" type="number" min="1" max={lastEpisodeNo} bind:value={topicFrom} aria-label="시작 화" />
+                                            <span>~</span>
+                                            <input class="field num" type="number" min="1" max={lastEpisodeNo} bind:value={topicTo} aria-label="끝 화" />
+                                            <span class="muted tabular">본편 {lastEpisodeNo}화까지 연재됨</span>
+                                        </div>
+                                    {:else}
+                                        <p class="hint">아직 연재된 본편 화가 없어 화를 고를 수 없습니다. 주제를 적으면 그 주제로 이야기합니다.</p>
+                                    {/if}
+                                {/if}
+                                <input class="field" bind:value={topicSubject} maxlength="120" placeholder={TOPIC_PLACEHOLDERS[topicKind]} aria-label="주제" data-reader-board-topic-subject />
+                                <input class="field" bind:value={topicAuthor} maxlength="40" list="reader-board-handles" placeholder="글쓴이 (비우면 어울리는 독자가 씁니다)" aria-label="글쓴이" data-reader-board-topic-author />
+                                <datalist id="reader-board-handles">
+                                    {#each board.readers.filter((reader) => !reader.banned) as reader (reader.id)}<option value={reader.handle}></option>{/each}
+                                </datalist>
+                                <div class="form-actions">
+                                    <ShButton variant="outline" size="sm" type="button" onclick={() => openForm = null}><XIcon size={14} /> 취소</ShButton>
+                                    <ShButton variant="primary" size="sm" type="submit" disabled={!canOpenTopic} data-reader-board-topic-submit><SparklesIcon size={14} /> 독자 글 받기</ShButton>
+                                </div>
+                                <p class="hint">독자 한 명이 이 주제로 글을 쓰고 다른 독자들이 댓글로 토론합니다. 글쓴이는 명단에서 고르거나 새 이름을 적을 수 있고, 명단에 없는 이름은 지나가던 독자로 그대로 씁니다. 독자는 연재된 내용만 압니다. 모델 요청을 한 번 보냅니다.</p>
+                            </form>
+                        {:else if openForm === 'poll'}
+                            <form class="compose-form" onsubmit={(event) => { event.preventDefault(); openPoll() }} data-reader-board-poll-form>
+                                <p class="compose-target"><VoteIcon size={13} /> 인기투표 열기</p>
+                                <input class="field" bind:value={pollTitle} maxlength="300" placeholder="투표 제목" aria-label="투표 제목" data-reader-board-poll-title />
+                                <textarea class="field area" bind:value={pollOptionsText} rows="4" placeholder="후보를 한 줄에 하나씩 적습니다. 비워 두면 독자들이 연재된 인물 중에서 후보를 고릅니다." aria-label="후보" data-reader-board-poll-options></textarea>
+                                {#if pollOptions.length === 1}<p class="hint">후보는 두 개 이상이어야 합니다.</p>{/if}
+                                {#if pollOptions.length > POLL_OPTION_LIMIT}<p class="hint">후보는 {POLL_OPTION_LIMIT}개까지입니다.</p>{/if}
+                                <div class="form-actions">
+                                    <ShButton variant="outline" size="sm" type="button" onclick={() => openForm = null}><XIcon size={14} /> 취소</ShButton>
+                                    <ShButton variant="primary" size="sm" type="submit" disabled={!canOpenPoll} data-reader-board-poll-submit><VoteIcon size={14} /> 투표 열기</ShButton>
+                                </div>
+                                <p class="hint">독자들이 표를 던지고 이유를 댓글로 남깁니다. 눈팅 독자의 표는 구독자 수에 맞춰 더해집니다. '투표와 댓글 더 받기'로 더 많은 독자가 투표하고, '투표 마감'을 누르면 연재란에 결과 발표 글이 올라갑니다.</p>
+                            </form>
+                        {:else}
+                            <div class="forum-open">
+                                <button type="button" class="compose-open" disabled={running} onclick={() => showOpenForm('topic')} data-reader-board-topic-open><HashIcon size={14} /> 주제 열기</button>
+                                <button type="button" class="compose-open" disabled={running} onclick={() => showOpenForm('poll')} data-reader-board-poll-open><VoteIcon size={14} /> 인기투표 열기</button>
+                            </div>
+                        {/if}
+                    </div>
+                {/if}
+                {#if section === 'forum'}
+                    <div class="chips topic-filter" role="radiogroup" aria-label="말머리 거르기" data-reader-board-topic-filter>
+                        {#each [['all', '전체'], ...READER_BOARD_TOPICS.map((item) => [item, TOPIC_LABELS[item]]), ['poll', '투표']] as [id, label] (id)}
+                            <button type="button" role="radio" class="chip" class:active={forumFilter === id} aria-checked={forumFilter === id} onclick={() => { forumFilter = id as typeof forumFilter; page = 1 }}>{label}</button>
+                        {/each}
+                    </div>
+                {/if}
+                {#if linked && section === 'serial'}
                     <div class="compose" class:open={composeOpen && !replyTarget}>
                         {#if !composeOpen || replyTarget}
                             <button type="button" class="compose-open" onclick={() => { composeOpen = true; replyTarget = null }} data-reader-board-compose>
@@ -1371,17 +1597,33 @@
                         {/each}
                     </div>
                 {/if}
-                {#if posts.length === 0 && feedTab !== 'all'}
-                    <p class="empty">이 탭에는 아직 연재된 화가 없습니다. 챗의 연재 위치를 이 탭의 외전으로 바꾸고 연재하면 여기에 올라갑니다.</p>
-                {:else if posts.length === 0}
-                    <p class="empty">아직 글이 없습니다. 챗을 진행한 뒤 '연재하고 반응 받기'를 누르면 첫 화가 올라갑니다.</p>
-                {:else}
+                <form class="search" role="search" aria-label="게시물 검색" onsubmit={(event) => event.preventDefault()} data-reader-board-search>
+                    <select class="field search-field" bind:value={searchField} onchange={() => page = 1} aria-label="검색 범위">
+                        {#each SEARCH_FIELDS as item (item.id)}<option value={item.id}>{item.label}</option>{/each}
+                    </select>
+                    <span class="search-box">
+                        <SearchIcon size={13} />
+                        <input class="field" type="text" bind:value={searchQuery} oninput={() => page = 1} maxlength="100" placeholder={section === 'forum' ? '토론 글 검색' : '연재 글 검색'} aria-label="검색어" data-reader-board-search-input />
+                        {#if searchQuery}<button type="button" class="search-clear" aria-label="검색어 지우기" title="검색어 지우기" onclick={() => { searchQuery = ''; page = 1 }}><XIcon size={13} /></button>{/if}
+                    </span>
+                </form>
+                {#if posts.length > 0}
                     <div class="feed-head">
-                        <p class="muted small">최신 글이 위에 있습니다.</p>
+                        <p class="muted small">{searchTerm ? `검색 결과 ${posts.length}개` : '최신 글이 위에 있습니다.'}</p>
                         <button type="button" class="link-button" onclick={() => foldPage(!allFolded)} data-reader-board-fold-all>
                             <ChevronDownIcon size={12} class={allFolded ? 'turned' : ''} /> {allFolded ? '이 쪽 모두 펴기' : '이 쪽 모두 접기'}
                         </button>
                     </div>
+                {/if}
+                </div>
+                {#if posts.length === 0 && searchTerm}
+                    <p class="empty">'{searchQuery.trim()}'에 맞는 글이 없습니다. 검색 범위나 {section === 'forum' ? '말머리, ' : ''}{feedTabs.length > 0 ? '탭, ' : ''}구역을 바꿔 보세요.</p>
+                {:else if posts.length === 0 && section === 'forum'}
+                    <p class="empty">{forumFilter === 'all' ? "아직 토론 글이 없습니다. '주제 열기'로 독자들에게 이야기 거리를 던지거나 인기투표를 열어 보세요. 연재할 때 독자들이 직접 글을 쓰기도 합니다." : '이 말머리의 글이 아직 없습니다.'}</p>
+                {:else if posts.length === 0 && feedTab !== 'all'}
+                    <p class="empty">이 탭에는 아직 연재된 화가 없습니다. 챗의 연재 위치를 이 탭의 외전으로 바꾸고 연재하면 여기에 올라갑니다.</p>
+                {:else if posts.length === 0}
+                    <p class="empty">아직 글이 없습니다. 챗을 진행한 뒤 '연재하고 반응 받기'를 누르면 첫 화가 올라갑니다.</p>
                 {/if}
                 {#each pagePosts as post (post.no)}
                     {@const episode = post.episodeId ? episodeById.get(post.episodeId) : undefined}
@@ -1395,16 +1637,40 @@
                                 <ChevronDownIcon size={14} />
                             </button>
                             {#if episode}<span class="ep-no tabular">{episodeLabel(episode, board)}</span>{/if}
+                            {#if post.topic}<span class="tag topic">{TOPIC_LABELS[post.topic]}</span>{/if}
+                            {#if post.kind === 'poll'}<span class="tag topic">투표</span>{/if}
                             <h3>{episode ? (episode.title || '부제 없음') : post.title}</h3>
                             {#if episode && board.works.length > 1 && episode.workId !== board.currentWorkId}<span class="tag subtle">{workLabel(workById.get(episode.workId) ?? { no: 0, title: '이전 작품' })}</span>{/if}
                             {#if feedTab === 'all' && board.tabs.length > 0 && postTabId(board, post) !== MAIN_TAB_ID}<span class="tag subtle">{tabName(board, postTabId(board, post))}</span>{/if}
                             {#if retracted}<span class="tag warn">내려감</span>{/if}
                             {#if episode?.editedAt}<span class="tag subtle">수정됨</span>{/if}
                             {#if pending}<span class="tag subtle">반응 대기</span>{/if}
+                            {#if post.subject}<span class="tag subtle">{post.subject}</span>{/if}
+                            {#if post.poll?.status === 'closed'}<span class="tag subtle">마감</span>{/if}
                         </header>
                         <p class="meta post-meta"><b class:author-name={post.kind === 'author' || post.kind === 'episode'}>{post.author}</b> <span class="tabular">{formatTime(post.createdAt)}</span>{#if turns} <span class="tabular">{turns}</span>{/if} <span class="tabular post-no">#{post.no}</span>{#if isFolded && post.comments.length > 0} <span class="tabular">댓글 {post.comments.length}</span>{/if}</p>
                         {#if !isFolded}
                         {#if post.body}<p class="post-body">{post.body}</p>{/if}
+                        {#if post.poll}
+                            {@const poll = post.poll}
+                            {@const tally = pollTally(poll)}
+                            {@const top = Math.max(0, ...tally.total)}
+                            {#if poll.options.length === 0}
+                                <p class="muted small">후보가 아직 없습니다. 독자 반응을 받으면 독자들이 후보를 고릅니다.</p>
+                            {:else}
+                                <ol class="poll" data-reader-board-poll>
+                                    {#each poll.options as label, i (i)}
+                                        {@const share = tally.voters ? tally.total[i] / tally.voters : 0}
+                                        <li class:leading={top > 0 && tally.total[i] === top}>
+                                            <span class="poll-label">{label}</span>
+                                            <span class="poll-count tabular">{tally.total[i].toLocaleString()}표{tally.voters ? ` ${Math.round(share * 1000) / 10}%` : ''}</span>
+                                            <span class="poll-bar" aria-hidden="true"><span style:width={`${share * 100}%`}></span></span>
+                                        </li>
+                                    {/each}
+                                </ol>
+                                <p class="muted small tabular">{poll.status === 'open' ? '진행 중' : '마감'}, {tally.voters.toLocaleString()}명 참여 (댓글 독자 {tally.named.reduce((sum, value) => sum + value, 0)}명)</p>
+                            {/if}
+                        {/if}
                         {#if post.comments.length > 0}
                             <p class="comments-head tabular">댓글 {post.comments.length}</p>
                             <ul class="comments">
@@ -1442,9 +1708,14 @@
                                 <button type="button" class="link-button" onclick={() => startReply(post)}><ReplyIcon size={12} /> 댓글</button>
                                 {#if pending}
                                     <button type="button" class="link-button accent" disabled={running} onclick={() => generatePost(post)} data-reader-board-post-run><SparklesIcon size={12} /> 이 글에 독자 반응 받기</button>
+                                {:else}
+                                    <button type="button" class="link-button" disabled={running} onclick={() => generatePost(post)} data-reader-board-post-more><SparklesIcon size={12} /> {post.poll?.status === 'open' ? '투표와 댓글 더 받기' : '댓글 더 받기'}</button>
                                 {/if}
-                                {#if post.kind === 'author'}
-                                    <button type="button" class="link-button danger" onclick={() => void removeAuthorPost(post)}><TrashIcon size={12} /> 지우기</button>
+                                {#if post.poll?.status === 'open' && post.poll.options.length > 0}
+                                    <button type="button" class="link-button accent" disabled={running} onclick={() => void finishPoll(post)} data-reader-board-poll-close><CheckIcon size={12} /> 투표 마감</button>
+                                {/if}
+                                {#if DELETABLE_KINDS.includes(post.kind)}
+                                    <button type="button" class="link-button danger" disabled={running} onclick={() => void removeAuthorPost(post)} data-reader-board-delete-post><TrashIcon size={12} /> 지우기</button>
                                 {/if}
                                 {#if episode && canDeleteEpisode(board, episode.id)}
                                     <button type="button" class="link-button danger" disabled={running} onclick={() => void removeEpisode(post)} data-reader-board-delete-episode><TrashIcon size={12} /> 이 화 지우기</button>
@@ -1539,6 +1810,43 @@
                         {/if}
                     </article>
                 {/each}
+            </section>
+        {:else if view === 'volume'}
+            <section class="volume" data-reader-board-volume>
+                {#if !chatReady}
+                    <p class="empty">챗을 불러오는 중입니다.</p>
+                {:else}
+                    {#each volumes as { id, label, volume, episodes } (id)}
+                        {@const unit = volume.language === 'ko' ? '자' : '단어'}
+                        <div class="volume-card" data-reader-board-volume-scope={id}>
+                            <h3>{label}</h3>
+                            {#if volume.turns === 0}
+                                <p class="empty">아직 세어 넣을 본문이 없습니다. 캐릭터 응답이 쌓이면 소설 분량으로 환산합니다.</p>
+                            {:else}
+                                <p class="volume-lead">웹소설 <b class="tabular">{amount(volume.episodes, '화')}</b>, e북 단행본 <b class="tabular">{amount(volume.ebooks, '권')}</b></p>
+                                <dl class="volume-grid tabular">
+                                    {#if volume.language === 'ko'}
+                                        <div><dt>글자 수 (공백 포함)</dt><dd>{volume.count.withSpaces.toLocaleString()}자</dd></div>
+                                        <div><dt>글자 수 (공백 제외)</dt><dd>{volume.count.withoutSpaces.toLocaleString()}자</dd></div>
+                                        <div><dt>어절 수</dt><dd>{volume.count.words.toLocaleString()}개</dd></div>
+                                        <div><dt>원고지 (200자)</dt><dd>{volume.manuscriptPages?.toLocaleString()}매</dd></div>
+                                    {:else}
+                                        <div><dt>단어 수</dt><dd>{volume.count.words.toLocaleString()}단어</dd></div>
+                                        <div><dt>글자 수 (공백 포함)</dt><dd>{volume.count.withSpaces.toLocaleString()}자</dd></div>
+                                    {/if}
+                                    <div><dt>종이책 장편</dt><dd>{amount(volume.paperbacks, '권')}</dd></div>
+                                    <div><dt>읽는 시간</dt><dd>약 {duration(volume.readingMinutes)}</dd></div>
+                                    <div><dt>세어 넣은 턴</dt><dd>{volume.turns.toLocaleString()}턴, 턴당 평균 {volume.perTurn.toLocaleString()}{unit}</dd></div>
+                                    {#if episodes}
+                                        <div><dt>게시판 연재</dt><dd>{episodes}화, 화당 평균 {Math.round(volume.size / episodes).toLocaleString()}{unit}</dd></div>
+                                    {/if}
+                                </dl>
+                            {/if}
+                        </div>
+                    {/each}
+                    <p class="hint">캐릭터 응답의 본문만 셉니다. 사용자 메시지, OOC 응답, 숨긴 메시지, 그림, 표, 코드 블록, 상태창처럼 태그나 [TAG] 블록으로 감싼 부분은 빼고, 줄바꿈은 세지 않습니다. 태그 없이 본문에 섞여 쓰인 상태 줄은 걸러지지 않을 수 있습니다.</p>
+                    <p class="hint flush">환산 기준(한국어): 웹소설 1화 {VOLUME_BASIS.ko.episode.toLocaleString()}자, e북 단행본 1권 {VOLUME_BASIS.ko.ebook.toLocaleString()}자(25화), 종이책 장편 1권 {VOLUME_BASIS.ko.paperback.toLocaleString()}자(원고지 1,000매), 분당 {VOLUME_BASIS.ko.perMinute}자 읽기. 모두 공백 포함 글자 수의 흔한 평균입니다. 영어 챗은 단어로 세며 1화 {VOLUME_BASIS.en.episode.toLocaleString()}단어, e북 {VOLUME_BASIS.en.ebook.toLocaleString()}단어, 장편 {VOLUME_BASIS.en.paperback.toLocaleString()}단어, 분당 {VOLUME_BASIS.en.perMinute}단어로 환산합니다.</p>
+                {/if}
             </section>
         {:else if view === 'metrics'}
             <section class="metrics" data-reader-board-metrics>
@@ -1941,6 +2249,23 @@
     .match-row strong { font-size: .8rem; }
 
     .feed { display: grid; gap: .55rem; }
+    /* Board controls stay put while the posts scroll under them. */
+    .feed-top {
+        position: sticky; top: -.7rem; z-index: 2; display: grid; gap: .55rem;
+        max-height: 70vh; margin: -.7rem -.7rem 0; padding: .7rem .7rem .5rem; overflow-y: auto;
+        border-bottom: 1px solid var(--risu-theme-darkborderc); background: var(--risu-theme-darkbg);
+        scrollbar-width: thin;
+    }
+    .search { display: flex; align-items: center; gap: .35rem; }
+    .search .search-field { flex: 0 0 auto; width: auto; padding-right: 1.4rem; }
+    .search-box { position: relative; display: flex; flex: 1 1 auto; align-items: center; min-width: 0; color: var(--risu-theme-textcolor2); }
+    .search-box > :global(svg) { position: absolute; left: .5rem; pointer-events: none; }
+    .search-box .field { width: 100%; padding-left: 1.6rem; padding-right: 1.8rem; }
+    .search-clear {
+        position: absolute; right: .25rem; display: grid; place-items: center; width: 1.5rem; height: 1.5rem;
+        border: 0; border-radius: 999px; color: var(--risu-theme-textcolor2); background: transparent; cursor: pointer;
+    }
+    .search-clear:hover, .search-clear:focus-visible { color: var(--risu-theme-textcolor); background: color-mix(in srgb, var(--risu-theme-textcolor2) 15%, transparent); outline: 0; }
     .compose .compose-open {
         display: flex; align-items: center; gap: .4rem; width: 100%; height: 2.3rem; padding: 0 .7rem;
         border: 1px dashed var(--risu-theme-darkborderc); border-radius: calc(var(--risu-radius-lg) * 0.9);
@@ -1948,6 +2273,20 @@
     }
     .compose .compose-open:hover, .compose .compose-open:focus-visible { border-color: var(--risu-theme-primary); color: var(--risu-theme-primary); outline: 0; }
     .compose-target { display: flex; align-items: center; gap: .3rem; margin: 0; color: var(--risu-theme-primary); font-size: .72rem; font-weight: 600; }
+    .compose .compose-open:disabled { cursor: not-allowed; opacity: .55; }
+    .forum-open { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+    .section-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; }
+    .section-tabs .count { color: var(--risu-theme-textcolor2); font-size: .66rem; font-weight: 500; }
+    .chip.active { border-color: var(--risu-theme-primary); color: var(--risu-theme-primary); background: color-mix(in srgb, var(--risu-theme-primary) 12%, transparent); }
+    .tag.topic { color: var(--risu-theme-primary); background: color-mix(in srgb, var(--risu-theme-primary) 13%, transparent); }
+    .poll { display: grid; gap: .45em; margin: .5em 0 .3em; padding: 0; list-style: none; font-size: .78em; }
+    .poll li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2em .6em; }
+    .poll-label { overflow-wrap: anywhere; }
+    .poll-count { color: var(--risu-theme-textcolor2); }
+    .poll-bar { grid-column: 1 / -1; height: .45em; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--risu-theme-textcolor2) 15%, transparent); }
+    .poll-bar span { display: block; height: 100%; border-radius: inherit; background: color-mix(in srgb, var(--risu-theme-primary) 55%, transparent); }
+    .poll li.leading .poll-label { font-weight: 700; }
+    .poll li.leading .poll-bar span { background: var(--risu-theme-primary); }
 
     /* Feed text scales with the viewer's size setting. */
     .feed { font-size: calc(var(--rb-scale, 1) * 1rem); }
@@ -2046,6 +2385,17 @@
     .theory-refuted { color: var(--risu-theme-textcolor2); text-decoration: line-through; }
     .reader-form { display: grid; gap: .45rem; }
 
+    .volume { display: grid; gap: .7rem; }
+    .volume-card { display: grid; gap: .5rem; padding: .75rem; border: 1px solid var(--rb-line); border-radius: var(--risu-radius-lg); background: var(--rb-surface); }
+    .volume-card h3 { margin: 0; font-size: .8rem; font-weight: 700; }
+    .volume-card .empty { margin: 0; }
+    .volume-lead { margin: 0; font-size: .82rem; line-height: 1.5; }
+    .volume-lead b { color: var(--risu-theme-primary); font-size: 1.35em; }
+    .volume-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: .45rem .8rem; margin: 0; }
+    .volume-grid div { display: grid; gap: .1rem; min-width: 0; }
+    .volume-grid dt { color: var(--risu-theme-textcolor2); font-size: .66rem; }
+    .volume-grid dd { margin: 0; font-size: .78rem; font-weight: 600; overflow-wrap: anywhere; }
+    .volume .hint { margin: 0; }
     .metrics table { width: 100%; border-collapse: collapse; font-size: .72rem; }
     .metrics th, .metrics td { padding: .4rem .3rem; border-bottom: 1px solid var(--risu-theme-darkborderc); text-align: left; vertical-align: middle; }
     .metrics thead th { color: var(--risu-theme-textcolor2); font-size: .66rem; font-weight: 600; }

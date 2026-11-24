@@ -2,6 +2,40 @@
 export interface EventOrderMessage {
     chatId?: string
     role: string
+    /** Chat messages store string flags too; any truthy value counts. */
+    disabled?: unknown
+    isComment?: unknown
+}
+
+/**
+ * Chat turn numbers of an event's source messages, counted the way the chat
+ * screen counts them, so the wiki and the chat show the same number.
+ * Returns "41" or "40~41"; undefined when no source is in this chat.
+ */
+export function createEventTurnLabels(messages: readonly EventOrderMessage[] = []) {
+    const assistantTurns = new Map<string, number>()
+    const userTurns = new Map<string, number>()
+    const waitingUsers: string[] = []
+    let turn = 0
+    for (const message of messages) {
+        if (message.isComment) continue
+        if (message.role === 'user' && message.chatId) waitingUsers.push(message.chatId)
+        if (message.role !== 'char' || message.disabled) continue
+        turn += 1
+        if (message.chatId) assistantTurns.set(message.chatId, turn)
+        // A user message belongs to the turn its reply opens.
+        for (const id of waitingUsers.splice(0)) userTurns.set(id, turn)
+    }
+    return (sourceMessageIds: readonly string[] = []): string | undefined => {
+        const collect = (turns: Map<string, number>) => sourceMessageIds
+            .flatMap((id) => turns.has(id) ? [turns.get(id)!] : [])
+        const found = collect(assistantTurns)
+        const numbers = found.length > 0 ? found : collect(userTurns)
+        if (numbers.length === 0) return undefined
+        const start = Math.min(...numbers)
+        const end = Math.max(...numbers)
+        return start === end ? String(start) : `${start}~${end}`
+    }
 }
 
 interface EventSource {

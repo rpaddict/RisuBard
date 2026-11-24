@@ -42,7 +42,7 @@ const upstreamPluginStorage = require('./upstream-plugin-storage.cjs');
 const { createSaveObservation } = require('./save-observation.cjs');
 const { createProjectionShadow } = require('./projection-shadow.cjs');
 const { generateStorageDiagnosticReport } = require('./storage-diagnostic-report.cjs');
-const { commitTransaction, moveToTrash, observeWrites } = require('./file-store.cjs');
+const { checksum: sha256Hex, commitTransaction, moveToTrash, observeWrites, refreshChecksum, resolveInside } = require('./file-store.cjs');
 const { cleanupTrash, retentionDays } = require('./trash-cleanup.cjs');
 const { createRuntimeMemoryService } = require('./risubard-memory-runtime.cjs');
 const { openServerBrowser } = require('./open-server-browser.cjs');
@@ -3958,6 +3958,8 @@ app.post('/api/external-changes/resolve', async (req, res, next) => {
                 const changed = new Set(review.changes.filter(change => change.kind === 'character').map(change => change.id))
                 const full = metadataSnapshot(dbCache[DB_HEX_KEY])
                 snapshot = { characters: full.characters.filter(character => changed.has(character.chaId)), loreBook: full.loreBook, chatMetadata: [] }
+                // Modules are sent only when one changed, so a character-only review leaves them alone.
+                if (review.changes.some(change => change.kind === 'module')) snapshot.modules = structuredClone(dbCache[DB_HEX_KEY].modules || [])
             }
             logger.info(`[ExternalChanges] ${decision === 'accept' ? 'Accepted' : 'Kept app version over'} ${review.changes.length} externally edited file(s)`)
             res.json({ decision, resolved: true, etag: dbEtag, snapshot, backupPath })
@@ -4380,6 +4382,52 @@ app.get('/api/read', async (req, res, next) => {
     }
 });
 
+// A canonical file whose checksum sidecar no longer matches blocks startup.
+// After the user reviews the file on the startup screen, accept its current
+// contents. Both checksums must still be what the user saw.
+app.post('/api/storage/accept-checksum', async (req, res, next) => {
+    if(!await checkAuth(req, res)){
+        return;
+    }
+    const { path: relativePath, expected, actual } = req.body ?? {};
+    const isHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+    if (typeof relativePath !== 'string' || !relativePath || relativePath.endsWith('.sha256')
+        || !isHash(actual) || (expected !== null && typeof expected !== 'string')) {
+        res.status(400).send({ error: 'Invalid checksum request' });
+        return;
+    }
+    try {
+        const result = await queueStorageOperation(async () => {
+            let target;
+            try { target = resolveInside(savePath, relativePath); } catch { return { status: 400, error: 'Invalid path' }; }
+            if (!existsSync(target)) return { status: 404, error: 'File not found' };
+            const bytes = readFileSync(target);
+            if (sha256Hex(bytes) !== actual.toLowerCase()) {
+                return { status: 409, error: 'The file changed again. Restart to see its current checksum.' };
+            }
+            const sidecar = `${target}.sha256`;
+            const recorded = existsSync(sidecar) ? readFileSync(sidecar, 'utf8').trim() : null;
+            if ((recorded || null) !== (expected || null)) {
+                return { status: 409, error: 'The recorded checksum changed. Restart to see it again.' };
+            }
+            if (target.toLowerCase().endsWith('.json')) {
+                try { JSON.parse(bytes.toString('utf8')); } catch {
+                    return { status: 422, error: 'The file is not valid JSON. Fix or restore it first.' };
+                }
+            }
+            refreshChecksum(savePath, relativePath);
+            return { status: 200 };
+        });
+        if (result.status !== 200) {
+            res.status(result.status).send({ error: result.error });
+            return;
+        }
+        res.send({ success: true });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // Batched cache reads: rebuildable caches (BardWiki vectors) otherwise cost
 // one authenticated request per entry and grow with chat length.
 const READ_MANY_LIMIT = 256;
@@ -4627,6 +4675,16 @@ app.get('/api/storage-diagnostics/report', async (req, res, next) => {
         next(error);
     }
 });
+
+{
+    const { createBgmFolders, registerBgmRoutes } = require('./bgm-folders.cjs');
+    registerBgmRoutes(app, {
+        auth: checkAuth,
+        activeSession: checkActiveSession,
+        sessionAuth: sessionAuthMiddleware,
+        folders: createBgmFolders(processDataRoot),
+    });
+}
 
 require('./character-asset-routes.cjs').registerCharacterAssetRoutes(app, {
     auth: checkAuth,
@@ -7940,6 +7998,26 @@ app.post('/api/local-shutdown', (req, res) => {
     setImmediate(() => shutdownGracefully('local shutdown request'));
 });
 
+// The sidebar's stop button. The tunnel and the dev proxy also connect from loopback,
+// so the page itself must be open on a loopback address: a phone or tunnel user cannot
+// start the server again and must not be able to stop it.
+function isLoopbackHostname(hostname) {
+    const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+    return host === 'localhost' || host === '::1' || host.startsWith('127.');
+}
+app.post('/api/shutdown-from-browser', async (req, res) => {
+    if (!await checkAuth(req, res)) return;
+    const remote = req.socket.remoteAddress || '';
+    const loopback = remote === '::1' || remote.startsWith('127.') || remote.startsWith('::ffff:127.');
+    let originHost = '';
+    try { originHost = new URL(String(req.headers.origin || '')).hostname; } catch {}
+    if (!loopback || !isLoopbackHostname(originHost)) {
+        return res.status(403).json({ error: 'Only this computer can stop the server.' });
+    }
+    res.json({ status: 'stopping' });
+    setImmediate(() => shutdownGracefully('browser shutdown request'));
+});
+
 // ─── Express error middleware — must be registered after all routes ─────────
 app.use(expressErrorMiddleware);
 app.use((err, req, res, next) => {
@@ -7947,7 +8025,20 @@ app.use((err, req, res, next) => {
     // Body parsers reject an oversized body with type 'entity.too.large'; keep
     // its 413 so the client can show the size message instead of a generic one.
     const status = err?.type === 'entity.too.large' ? 413 : 500;
-    res.status(status).json({ error: err?.message || 'internal server error' });
+    const body = { error: err?.message || 'internal server error' };
+    // The startup screen shows the file and both checksums and offers a fix.
+    if (err?.checksumMismatch) {
+        const { file, expected, actual } = err.checksumMismatch;
+        const relative = path.relative(path.resolve(savePath), file);
+        const inside = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+        body.checksumMismatch = {
+            file, expected, actual,
+            // Only files under the data root can be accepted from the startup screen.
+            path: inside ? relative.split(path.sep).join('/') : null,
+        };
+        if (err.code) body.code = err.code;
+    }
+    res.status(status).json(body);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

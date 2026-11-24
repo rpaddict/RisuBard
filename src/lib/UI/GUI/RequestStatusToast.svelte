@@ -104,13 +104,6 @@
         return parts.join(' · ')
     })
 
-    // Collapsed summary: estimated/actual input plus thinking and output so far.
-    const totalTokens = $derived.by(() => {
-        const e = entry
-        if (!e) return 0
-        return (injectionManifest?.totalTokens ?? 0) + e.thinkingTokens + e.responseTokens
-    })
-
     const spinning = $derived(entry ? !isTerminalPhase(entry.phase) && entry.phase !== 'stalled' : false)
 
     function injectionLabel(item: RequestInjectionItem): string {
@@ -172,9 +165,7 @@
                     {/if}
                 {/if}
                 <span class="rs-actions">
-                    {#if collapsed}
-                        {#if totalTokens > 0}<span class="rs-right">{rs?.totalTokens ?? 'total'} <b>{fmt(totalTokens)}</b></span>{/if}
-                    {:else if right}
+                    {#if right}
                         <span class="rs-right">{right.label} <b>{right.value}</b></span>
                     {/if}
                     <button class="rs-close" type="button" aria-expanded={!collapsed}

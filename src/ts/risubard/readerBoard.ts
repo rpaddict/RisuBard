@@ -136,7 +136,40 @@ export interface ReaderBoardComment {
     createdAt: number
 }
 
-export type ReaderBoardPostKind = 'episode' | 'author' | 'event' | 'thread'
+export type ReaderBoardPostKind = 'episode' | 'author' | 'event' | 'thread' | 'poll'
+
+/** Heading of a reader post in the forum section. */
+export type ReaderBoardTopic = 'episode' | 'character' | 'setting' | 'theory' | 'free'
+export const READER_BOARD_TOPICS: ReaderBoardTopic[] = ['episode', 'character', 'setting', 'theory', 'free']
+export const TOPIC_LABELS: Record<ReaderBoardTopic, string> = {
+    episode: '화 토론',
+    character: '인물',
+    setting: '설정',
+    theory: '떡밥',
+    free: '잡담',
+}
+
+/** Serial: episodes, author posts and notices. Forum: what the readers write, and polls. */
+export type ReaderBoardSection = 'serial' | 'forum'
+
+export function postSection(post: Pick<ReaderBoardPost, 'kind'>): ReaderBoardSection {
+    return post.kind === 'thread' || post.kind === 'poll' ? 'forum' : 'serial'
+}
+
+/** Most candidates one poll takes. */
+export const POLL_OPTION_LIMIT = 12
+
+export interface ReaderBoardPoll {
+    options: string[]
+    /** Named readers' votes: handle -> option index. */
+    votes: Record<string, number>
+    /** Silent audience votes per option, scaled from the named votes. */
+    crowd: number[]
+    status: 'open' | 'closed'
+    closedAt?: number
+    /** Notice that announced the result. */
+    resultPostNo?: number
+}
 
 export interface ReaderBoardPost {
     no: number
@@ -147,6 +180,11 @@ export interface ReaderBoardPost {
     episodeId?: string
     /** Side story a notice belongs to; episode posts go by their episode. */
     seriesId?: string
+    /** Forum heading of a reader post. */
+    topic?: ReaderBoardTopic
+    /** Character, setting or episodes the author asked the readers to talk about. */
+    subject?: string
+    poll?: ReaderBoardPoll
     comments: ReaderBoardComment[]
     createdAt: number
 }
@@ -495,7 +533,28 @@ function normalizeComment(value: unknown): ReaderBoardComment | null {
     }
 }
 
-const POST_KINDS: ReaderBoardPostKind[] = ['episode', 'author', 'event', 'thread']
+const POST_KINDS: ReaderBoardPostKind[] = ['episode', 'author', 'event', 'thread', 'poll']
+
+function normalizePoll(value: unknown): ReaderBoardPoll | null {
+    if (!isRecord(value) || !Array.isArray(value.options)) return null
+    const options = value.options.map((item) => text(item, 80).trim()).filter(Boolean).slice(0, POLL_OPTION_LIMIT)
+    const votes: Record<string, number> = {}
+    if (isRecord(value.votes)) {
+        for (const [handle, choice] of Object.entries(value.votes)) {
+            const index = clampInt(choice, -1, options.length - 1, -1)
+            if (index >= 0) votes[handle.slice(0, 40)] = index
+        }
+    }
+    const crowd = options.map((_, index) => clampInt(Array.isArray(value.crowd) ? value.crowd[index] : 0, 0, 1e9, 0))
+    return {
+        options,
+        votes,
+        crowd,
+        status: value.status === 'closed' ? 'closed' : 'open',
+        ...(typeof value.closedAt === 'number' ? { closedAt: clampInt(value.closedAt, 0, Number.MAX_SAFE_INTEGER, 0) } : {}),
+        ...(typeof value.resultPostNo === 'number' ? { resultPostNo: clampInt(value.resultPostNo, 1, 1e9, 1) } : {}),
+    }
+}
 
 function normalizePost(value: unknown): ReaderBoardPost | null {
     if (!isRecord(value)) return null
@@ -508,6 +567,9 @@ function normalizePost(value: unknown): ReaderBoardPost | null {
         body: text(value.body, 20000),
         ...(typeof value.episodeId === 'string' ? { episodeId: value.episodeId } : {}),
         ...(typeof value.seriesId === 'string' && value.seriesId ? { seriesId: value.seriesId.slice(0, 80) } : {}),
+        ...(READER_BOARD_TOPICS.includes(value.topic as ReaderBoardTopic) ? { topic: value.topic as ReaderBoardTopic } : {}),
+        ...(typeof value.subject === 'string' && value.subject.trim() ? { subject: value.subject.trim().slice(0, 120) } : {}),
+        ...(kind === 'poll' ? { poll: normalizePoll(value.poll) ?? { options: [], votes: {}, crowd: [], status: 'open' as const } } : {}),
         comments: Array.isArray(value.comments) ? value.comments.map(normalizeComment).filter((item): item is ReaderBoardComment => !!item) : [],
         createdAt: clampInt(value.createdAt, 0, Number.MAX_SAFE_INTEGER, 0),
     }
@@ -1302,16 +1364,122 @@ export function banReader(board: ReaderBoard, readerId: string, removeComments: 
     return true
 }
 
+/** Posts the author may remove: their own, polls and reader posts in the forum. */
+export const DELETABLE_KINDS: ReaderBoardPostKind[] = ['author', 'poll', 'thread']
+
 export function deletePost(board: ReaderBoard, postNo: number): boolean {
     const index = board.posts.findIndex((post) => post.no === postNo)
-    if (index < 0 || board.posts[index].kind !== 'author') return false
+    if (index < 0 || !DELETABLE_KINDS.includes(board.posts[index].kind)) return false
     board.posts.splice(index, 1)
     board.pendingAuthor = board.pendingAuthor.filter((item) => item.postNo !== postNo)
     board.updatedAt = Date.now()
     return true
 }
 
+// ---------------------------------------------------------------- polls
+
+/** Named and silent votes per option. */
+export function pollTally(poll: ReaderBoardPoll): { named: number[]; total: number[]; voters: number } {
+    const named = poll.options.map(() => 0)
+    for (const choice of Object.values(poll.votes)) if (choice >= 0 && choice < named.length) named[choice]++
+    const total = named.map((count, index) => count + (poll.crowd[index] ?? 0))
+    return { named, total, voters: total.reduce((sum, count) => sum + count, 0) }
+}
+
+/**
+ * Lurkers vote too, but only as numbers: a share of the subscribers, split
+ * like the named readers' votes with a little repeatable jitter so the bars
+ * are not a plain multiple of the comments.
+ */
+export function updatePollCrowd(board: ReaderBoard, post: ReaderBoardPost): void {
+    const poll = post.poll
+    if (!poll) return
+    const named = pollTally({ ...poll, crowd: [] }).named
+    const count = named.reduce((sum, value) => sum + value, 0)
+    const lurkers = Math.round(board.audience.subscribers * 0.12 * Math.min(1, count / 6))
+    if (count === 0 || lurkers === 0) {
+        poll.crowd = poll.options.map(() => 0)
+        return
+    }
+    const weights = named.map((value, index) => (value + 0.3) * (0.75 + unitFrom(`${board.id}:${post.no}:${index}`) * 0.5))
+    const sum = weights.reduce((total, value) => total + value, 0)
+    poll.crowd = weights.map((weight) => Math.round(lurkers * weight / sum))
+}
+
+/** Opens a poll in the forum. Empty options let the readers name the candidates. */
+export function addPollPost(board: ReaderBoard, input: { title: string; options: string[]; now?: number }): ReaderBoardPost {
+    const options = [...new Set(input.options.map((item) => item.trim().slice(0, 80)).filter(Boolean))].slice(0, POLL_OPTION_LIMIT)
+    const post: ReaderBoardPost = {
+        no: board.nextPostNo++,
+        kind: 'poll',
+        author: board.settings.authorName,
+        title: input.title.trim().slice(0, 300) || '인기투표',
+        body: '',
+        poll: { options, votes: {}, crowd: options.map(() => 0), status: 'open' },
+        comments: [],
+        createdAt: input.now ?? Date.now(),
+    }
+    board.posts.push(post)
+    board.updatedAt = post.createdAt
+    return post
+}
+
+/** Ranking lines of a poll, most votes first. */
+export function pollRanking(poll: ReaderBoardPoll): { label: string; votes: number; percent: number; rank: number }[] {
+    const { total, voters } = pollTally(poll)
+    const rows = poll.options.map((label, index) => ({ label, votes: total[index], percent: voters ? Math.round(total[index] / voters * 1000) / 10 : 0, rank: 0 }))
+        .sort((a, b) => b.votes - a.votes)
+    rows.forEach((row, index) => { row.rank = index > 0 && rows[index - 1].votes === row.votes ? rows[index - 1].rank : index + 1 })
+    return rows
+}
+
+/**
+ * Closes a poll and posts the result as a notice in the serial section,
+ * where the readers react to it. Returns the notice.
+ */
+export function closePoll(board: ReaderBoard, postNo: number, now = Date.now()): ReaderBoardPost | null {
+    const post = board.posts.find((item) => item.no === postNo)
+    const poll = post?.poll
+    if (!post || !poll || poll.status === 'closed' || poll.options.length === 0) return null
+    poll.status = 'closed'
+    poll.closedAt = now
+    const ranking = pollRanking(poll)
+    const { voters } = pollTally(poll)
+    const notice: ReaderBoardPost = {
+        no: board.nextPostNo++,
+        kind: 'event',
+        author: '게시판 알림',
+        title: `${post.title} 결과 발표`,
+        body: [
+            `#${post.no} 투표가 마감되었습니다. 모두 ${voters.toLocaleString()}명이 참여했습니다.`,
+            ...ranking.map((row) => `${row.rank}위 ${row.label}: ${row.votes.toLocaleString()}표 (${row.percent}%)`),
+        ].join('\n'),
+        ...(post.seriesId ? { seriesId: post.seriesId } : {}),
+        comments: [],
+        createdAt: now,
+    }
+    board.posts.push(notice)
+    poll.resultPostNo = notice.no
+    board.updatedAt = now
+    return notice
+}
+
 // ---------------------------------------------------------------- generation
+
+/**
+ * The author opening a talk in the forum: a topic the readers write a post
+ * about, or a poll they vote in.
+ */
+export type ReaderBoardOpenRequest =
+    | {
+        kind: 'topic'
+        topic: ReaderBoardTopic
+        subject: string
+        episodes?: { from: number; to: number }
+        /** Who writes the post; a name outside the roster posts as a passer-by. */
+        author?: string
+    }
+    | { kind: 'poll'; title: string; options: string[] }
 
 export interface GenerationMessage {
     role: 'system' | 'user' | 'assistant'
@@ -1329,6 +1497,14 @@ export interface GenerationPlan {
     activeHandles: string[]
     events: string[]
     episodeText: string
+    /** Text of a past episode the readers were asked to comment on again. */
+    focusEpisodeText?: string
+    /** Messages of the episodes in focus, for picking wiki notes. */
+    focusMessageKeys?: string[]
+    /** Topic the author opened; the readers write one post about it. */
+    open?: Extract<ReaderBoardOpenRequest, { kind: 'topic' }>
+    /** Word the wiki notes should be about first. */
+    keyword?: string
 }
 
 /**
@@ -1427,14 +1603,19 @@ export function prepareGeneration(input: {
      * next full run.
      */
     onlyPostNo?: number
+    /** A topic or poll the author opens; like onlyPostNo, nothing else moves. */
+    open?: ReaderBoardOpenRequest
     chatName?: string
     random?: () => number
     now?: number
 }): GenerationPlan | null {
     const now = input.now ?? Date.now()
     const board = structuredClone(input.board)
-    const focus = input.onlyPostNo
-    if (focus !== undefined && !board.posts.some((post) => post.no === focus)) return null
+    const opened = input.open
+    const topic = opened?.kind === 'topic' ? opened : undefined
+    const pollPost = opened?.kind === 'poll' ? addPollPost(board, { title: opened.title, options: opened.options, now }) : undefined
+    const focus = pollPost ? pollPost.no : topic ? -1 : input.onlyPostNo
+    if (focus !== undefined && focus >= 0 && !board.posts.some((post) => post.no === focus)) return null
     const analysis = focus === undefined
         ? analyzeChat(board, input.chatKey, input.views)
         : { lineage: [], removed: [], edited: [], nextStart: 0, pending: 0 }
@@ -1538,10 +1719,27 @@ export function prepareGeneration(input: {
     const pendingPosts = [...new Set(board.pendingAuthor.map((item) => item.postNo))]
         .filter((no) => board.posts.some((post) => post.no === no))
         .sort((a, b) => a - b)
-    const targetPostNos = focus !== undefined
-        ? [focus]
-        : [eventPostNo, episodePostNo, ...pendingPosts].filter((no): no is number => typeof no === 'number')
-    if (targetPostNos.length === 0) return null
+    const targetPostNos = topic
+        ? []
+        : focus !== undefined
+            ? [focus]
+            : [eventPostNo, episodePostNo, ...pendingPosts].filter((no): no is number => typeof no === 'number')
+    if (targetPostNos.length === 0 && !topic) return null
+
+    // A past episode asked for more comments, or a topic about some
+    // episodes: give the readers their text again.
+    const focusPost = focus !== undefined ? board.posts.find((post) => post.no === focus) : undefined
+    const range = topic?.episodes
+    const pastEpisodes = focusPost?.kind === 'episode'
+        ? board.episodes.filter((item) => item.id === focusPost.episodeId)
+        : range
+            ? board.episodes.filter((item) => item.workId === board.currentWorkId && !item.seriesId && item.status === 'published'
+                && item.no >= Math.min(range.from, range.to) && item.no <= Math.max(range.from, range.to))
+            : []
+    const focusMessageKeys = pastEpisodes.flatMap((item) => item.messageKeys)
+    const keys = new Set(focusMessageKeys)
+    const focusViews = input.views.filter((view) => keys.has(view.key))
+    const focusEpisodeText = focusViews.length > 0 ? trimMiddle(formatTranscript(focusViews), EPISODE_TEXT_LIMIT) : ''
 
     // Readers the author answered or named should get the chance to reply.
     const mentioned = new Set<string>()
@@ -1553,6 +1751,7 @@ export function prepareGeneration(input: {
         if (target) mentioned.add(target.author)
         for (const reader of board.readers) if (comment?.text.includes(reader.handle)) mentioned.add(reader.handle)
     }
+    if (topic?.author?.trim()) mentioned.add(topic.author.trim())
     const active = pickActiveReaders(board.readers, board.settings.readersPerRun, input.random ?? Math.random, [...mentioned])
     return {
         board,
@@ -1563,6 +1762,10 @@ export function prepareGeneration(input: {
         activeHandles: active.map((reader) => reader.handle),
         events,
         episodeText,
+        focusEpisodeText,
+        ...(focusMessageKeys.length > 0 ? { focusMessageKeys } : {}),
+        ...(topic ? { open: topic } : {}),
+        ...(topic && (topic.topic === 'character' || topic.topic === 'setting') && topic.subject.trim() ? { keyword: topic.subject.trim() } : {}),
     }
 }
 
@@ -1623,12 +1826,24 @@ function describeReader(board: ReaderBoard, reader: ReaderBoardReader, full: boo
     ].filter(Boolean).join('\n')
 }
 
+function describePoll(poll: ReaderBoardPoll): string {
+    if (poll.options.length === 0) return '  (후보가 아직 없음)'
+    const { named, total } = pollTally(poll)
+    const voters = (index: number) => Object.entries(poll.votes).filter(([, choice]) => choice === index).map(([handle]) => handle)
+    return [
+        `  투표 ${poll.status === 'open' ? '진행 중' : '마감'}. 후보:`,
+        ...poll.options.map((label, index) => `  ${index + 1}. ${label}: ${total[index]}표${named[index] ? ` (댓글 독자 중 ${voters(index).join(', ')})` : ''}`),
+    ].join('\n')
+}
+
 function describePost(board: ReaderBoard, post: ReaderBoardPost, commentLimit: number): string {
     const comments = post.comments.slice(-commentLimit)
     const skipped = post.comments.length - comments.length
+    const heading = post.topic ? `[${TOPIC_LABELS[post.topic]}${post.subject ? `: ${post.subject}` : ''}] ` : post.kind === 'poll' ? '[투표] ' : ''
     return [
-        `#${post.no} [${post.author}] ${post.title}`,
+        `#${post.no} [${post.author}] ${heading}${post.title}`,
         post.body ? post.body : '',
+        post.poll ? describePoll(post.poll) : '',
         skipped > 0 ? `  (앞선 댓글 ${skipped}개 생략)` : '',
         ...comments.map((comment) => `  ${post.no}-${comment.no} [${comment.author}]${comment.replyTo ? ` (${comment.replyTo}에 답글)` : ''} ${comment.text}`),
     ].filter(Boolean).join('\n')
@@ -1721,6 +1936,9 @@ export function buildGenerationRequest(plan: GenerationPlan, storyName: string, 
     // Talk about an ended work would pull the readers back into it.
     const since = currentWork(board).startedPostNo
     const recent = board.posts.filter((post) => !targetSet.has(post.no) && post.no >= since).slice(-6)
+    const openPolls = plan.targetPostNos.map((no) => board.posts.find((post) => post.no === no))
+        .filter((post): post is ReaderBoardPost => post?.poll?.status === 'open')
+    const emptyPoll = openPolls.find((post) => post.poll!.options.length === 0)
     const pending = board.pendingAuthor.map((item) => item.commentNo === undefined
         ? `- #${item.postNo} 작가 글`
         : `- ${item.postNo}-${item.commentNo} 작가 댓글`)
@@ -1748,21 +1966,38 @@ export function buildGenerationRequest(plan: GenerationPlan, storyName: string, 
             '{',
             '  "episode": {"title": "새 화의 짧은 부제(화 번호는 빼고)", "summary": "새 화 내용 3~5문장 요약"},',
             '  "comments": [{"postNo": 대상 게시글 번호, "author": "닉네임", "text": "댓글", "replyTo": "게시글번호-댓글번호 또는 생략"}],',
-            '  "threads": [{"author": "닉네임", "title": "독자가 새로 쓴 글 제목", "body": "본문", "comments": [{"author": "닉네임", "text": "댓글"}]}],',
+            '  "threads": [{"author": "닉네임", "topic": "episode, character, setting, theory, free 중 하나", "title": "독자가 새로 쓴 글 제목", "body": "본문", "comments": [{"author": "닉네임", "text": "댓글"}]}],',
+            openPolls.length > 0 ? '  "votes": [{"postNo": 투표 게시글 번호, "handle": "닉네임", "option": 후보 번호}],' : '',
+            emptyPoll ? '  "pollOptions": ["후보 이름"],' : '',
             '  "readerUpdates": [{"handle": "닉네임", "opinion": "지금 이 작품에 대한 생각 한두 문장", "newTheories": ["새로 품은 추측"], "resolved": [{"id": "t3", "status": "confirmed 또는 refuted", "note": "어떻게 됐는지"}], "subscribed": true 또는 false, "scores": {"fun": 0~10, "immersion": 0~10, "plausibility": 0~10, "nextIntent": 0~10}}],',
             board.settings.allowNewcomers ? '  "newReaders": [{"handle": "새 닉네임", "persona": "...", "taste": "...", "dealbreakers": "...", "level": 0~4, "activity": 0.1~1, "opinion": "..."}]' : '',
             '}',
             plan.episode ? '- episode는 반드시 채운다.' : '- 새 화가 없으므로 episode는 null로 둔다.',
             '- comments의 postNo는 이번에 반응할 게시글 번호 중 하나여야 한다. 한 게시글에 여러 독자가 댓글을 달고, 서로 답글을 주고받아도 된다. 새 댓글 번호는 그 게시글의 기존 마지막 댓글 다음부터 순서대로 매겨진다.',
-            '- threads는 0~2개. 토론이나 떡밥 정리처럼 독자가 따로 글을 쓸 만할 때만 만든다.',
+            plan.episode ? `- 새 화 게시글 #${plan.episodePostNo}에는 반드시 여러 독자의 댓글을 직접 단다. threads를 만들어도 그 안의 댓글은 새 화 댓글로 치지 않는다.` : '',
+            plan.open
+                ? `- threads는 정확히 1개 만든다. 아래 "이번에 독자가 새로 쓸 글"의 주제를 독자 한 명이 스스로 떠올려 쓴 글이고, topic은 "${plan.open.topic}"이다. 그 글의 comments에 다른 독자 여럿이 의견을 달며 토론한다. 독자마다 입장이 달라야 한다.`
+                : '- threads는 0~2개. 토론이나 떡밥 정리처럼 독자가 따로 글을 쓸 만할 때만 만든다.',
+            '- threads의 topic은 글의 말머리다. episode는 지난 화 이야기, character는 특정 인물 이야기, setting은 세계관과 설정 이야기, theory는 떡밥과 추측 정리, free는 그 밖의 잡담이다.',
+            openPolls.length > 0 ? '- votes는 진행 중인 투표에 이번에 활동한 독자가 던지는 표다. option은 그 투표의 후보 번호(1부터)다. 이미 투표한 독자는 다시 투표하지 않는다. 독자 저마다의 취향과 지금까지의 생각대로 표가 갈려야 하며, 모두가 같은 후보를 고르게 하지 않는다. 투표한 독자는 왜 골랐는지 그 투표 게시글에 댓글로 남기는 것이 자연스럽다.' : '',
+            emptyPoll ? `- 투표 게시글 #${emptyPoll.no}에는 아직 후보가 없다. pollOptions에 지금까지 연재된 내용에 나온 인물 중에서 후보 4~8명을 넣는다. 연재되지 않은 인물은 넣지 않는다. 후보 번호는 pollOptions의 순서를 따른다.` : '',
             '- readerUpdates는 이번에 활동한 독자 모두에 대해 쓴다. scores는 새 화를 읽은 경우에만 넣는다.',
             board.settings.allowNewcomers ? '- newReaders는 보통 비워 두고, 새 독자가 들어올 만한 화제가 있을 때만 1~2명 넣는다. 새 독자도 이번에 댓글을 달 수 있다.' : '',
         ].filter(Boolean).join('\n'),
     ].join('\n\n')
 
+    const opened = plan.open
+    const openLine = opened
+        ? `이번에 독자가 새로 쓸 글의 주제: [${TOPIC_LABELS[opened.topic]}] ${[
+            opened.subject.trim(),
+            opened.episodes ? `${Math.min(opened.episodes.from, opened.episodes.to)}화~${Math.max(opened.episodes.from, opened.episodes.to)}화` : '',
+        ].filter(Boolean).join(', ') || '자유 주제'}${opened.author?.trim() ? `\n글쓴이: ${opened.author.trim()}. threads의 author는 반드시 "${opened.author.trim()}"로 쓰고, ${board.readers.some((reader) => reader.handle === opened.author!.trim()) ? '그 독자의 성격과 취향, 지금 생각대로 쓴다.' : '명단에 없는 지나가던 독자다. 주제에 어울리는 말투로 쓴다.'}` : ''}\n이 주제는 독자가 스스로 꺼내는 이야기다. 작가가 주제를 냈거나 묻는 것이 아니며, 게시판의 누구도 이 주제가 작가에게서 왔다고 알지 못한다. 글쓴이는 자기 생각을 자기 말로 쓰고, "작가님이 물어보셔서", "작가가 올린 주제" 같은 말을 하지 않는다. 댓글을 다는 독자도 작가가 아니라 글쓴이에게 반응한다. 주제가 작품을 비판하는 내용이면 글쓴이는 실제로 그렇게 느낀 독자로서 쓴다. 독자는 연재된 내용과 게시판에서 본 것만 안다. 연재되지 않은 사실이나 이후 전개는 지어내지 않는다.`
+        : ''
     const targets = plan.targetPostNos.map((no) => {
         const post = board.posts.find((item) => item.no === no)!
-        if (post.kind === 'episode') return `#${no} 새로 연재된 ${post.title} (본문은 아래 "새 화 본문")`
+        if (post.kind === 'episode' && no === plan.episodePostNo) return `#${no} 새로 연재된 ${post.title} (본문은 아래 "새 화 본문")`
+        if (post.kind === 'episode') return `${describePost(board, post, 20)}\n(이미 연재된 화다. 독자들이 이 화 게시글에 댓글을 더 단다. 이후 화를 읽은 독자도 있지만 이 화 이야기를 중심으로 쓴다.${plan.focusEpisodeText ? ' 본문은 아래 "다시 읽는 화 본문"' : ''})`
+        if (post.kind === 'poll') return `${describePost(board, post, 20)}\n(작가가 연 투표다.${post.poll?.status === 'open' ? ' 독자들이 투표하고 댓글을 단다.' : ' 이미 마감되었다.'})`
         return describePost(board, post, 20)
     })
     const work = currentWork(board)
@@ -1782,8 +2017,10 @@ export function buildGenerationRequest(plan: GenerationPlan, storyName: string, 
         listed.some((reader) => !active.has(reader.handle))
             ? `이번에는 들어오지 않은 독자(댓글 쓰지 말 것):\n${listed.filter((reader) => !active.has(reader.handle)).map((reader) => describeReader(board, reader, false)).join('\n')}`
             : '',
-        `이번에 반응할 게시글:\n${targets.join('\n\n')}`,
+        openLine,
+        targets.length > 0 ? `이번에 반응할 게시글:\n${targets.join('\n\n')}` : '',
         plan.episode ? `새 화 본문 (${episodeLabel(plan.episode, board)}):\n<episode>\n${plan.episodeText}\n</episode>` : '',
+        plan.focusEpisodeText ? `다시 읽는 화 본문${opened?.episodes ? ' (토론할 화)' : ''}:\n<episode>\n${plan.focusEpisodeText}\n</episode>` : '',
     ].filter(Boolean).join('\n\n')
     return [
         { role: 'system', content: system },
@@ -1907,6 +2144,7 @@ export function applyRosterResult(board: ReaderBoard, reply: Record<string, unkn
 export interface ApplyResult {
     comments: number
     threads: number
+    votes: number
     newReaders: string[]
     dropped: string[]
     returned: string[]
@@ -1921,13 +2159,13 @@ export function applyGenerationResult(
     const now = input.now ?? Date.now()
     const board = plan.board
     const author = board.settings.authorName
-    const result: ApplyResult = { comments: 0, threads: 0, newReaders: [], dropped: [], returned: [] }
+    const result: ApplyResult = { comments: 0, threads: 0, votes: 0, newReaders: [], dropped: [], returned: [] }
     const handles = new Set(board.readers.map((reader) => reader.handle))
     handles.add(author)
 
     if (board.settings.allowNewcomers && Array.isArray(reply.newReaders)) {
         for (const item of reply.newReaders.slice(0, 2)) {
-            const reader = newReaderFrom(item, input.createId(), plan.episodePostNo ?? plan.targetPostNos[0], handles)
+            const reader = newReaderFrom(item, input.createId(), plan.episodePostNo ?? plan.targetPostNos[0] ?? board.nextPostNo, handles)
             if (!reader) continue
             board.readers.push(reader)
             result.newReaders.push(reader.handle)
@@ -1954,6 +2192,34 @@ export function applyGenerationResult(
 
     const targetSet = new Set(plan.targetPostNos)
     const touched = new Set<string>()
+    // Candidates first, so the votes below can point at them.
+    const polls = plan.targetPostNos.map((no) => board.posts.find((post) => post.no === no))
+        .filter((post): post is ReaderBoardPost => post?.poll?.status === 'open')
+    for (const post of polls) {
+        if (post.poll!.options.length > 0 || !Array.isArray(reply.pollOptions)) continue
+        const options = [...new Set(reply.pollOptions.map((item) => text(item, 80).trim()).filter(Boolean))].slice(0, POLL_OPTION_LIMIT)
+        post.poll!.options = options
+        post.poll!.crowd = options.map(() => 0)
+    }
+    if (polls.length > 0 && Array.isArray(reply.votes)) {
+        for (const item of reply.votes) {
+            if (!isRecord(item)) continue
+            const post = polls.find((candidate) => candidate.no === Number(item.postNo)) ?? (polls.length === 1 ? polls[0] : undefined)
+            const handle = text(item.handle ?? item.author, 40).trim()
+            if (!post || !allowed.has(handle) || banned.has(handle) || handle in post.poll!.votes) continue
+            const options = post.poll!.options
+            const byNumber = Number(item.option)
+            const choice = Number.isInteger(byNumber) && byNumber >= 1 && byNumber <= options.length
+                ? byNumber - 1
+                : options.indexOf(text(item.option, 80).trim())
+            if (choice < 0) continue
+            post.poll!.votes[handle] = choice
+            touched.add(handle)
+            result.votes++
+        }
+    }
+    for (const post of polls) updatePollCrowd(board, post)
+    if (polls.some((post) => post.poll!.options.length === 0)) throw new Error('모델이 투표 후보를 정하지 않았습니다.')
     if (Array.isArray(reply.comments)) {
         for (const item of reply.comments) {
             if (!isRecord(item)) continue
@@ -1971,18 +2237,25 @@ export function applyGenerationResult(
             touched.add(name)
         }
     }
+    let lastThreadNo: number | undefined
     if (Array.isArray(reply.threads)) {
-        for (const item of reply.threads.slice(0, 2)) {
+        for (const item of reply.threads.slice(0, plan.open ? 1 : 2)) {
             if (!isRecord(item)) continue
-            const name = authorOf(item.author)
+            const name = plan.open?.author?.trim().slice(0, 40) || authorOf(item.author)
             const title = text(item.title, 300).trim()
             if (!name || !title) continue
+            const topic = plan.open?.topic ?? (READER_BOARD_TOPICS.includes(item.topic as ReaderBoardTopic) ? item.topic as ReaderBoardTopic : 'free')
+            const subject = plan.open
+                ? [plan.open.subject.trim(), plan.open.episodes ? `${Math.min(plan.open.episodes.from, plan.open.episodes.to)}~${Math.max(plan.open.episodes.from, plan.open.episodes.to)}화` : ''].filter(Boolean).join(', ')
+                : ''
             const post: ReaderBoardPost = {
                 no: board.nextPostNo++,
                 kind: 'thread',
                 author: name,
                 title,
                 body: text(item.body, 20000).trim(),
+                topic,
+                ...(subject ? { subject: subject.slice(0, 120) } : {}),
                 // Talk about a side-story episode stays in its tab.
                 ...(plan.episode?.seriesId ? { seriesId: plan.episode.seriesId } : {}),
                 comments: [],
@@ -1991,6 +2264,7 @@ export function applyGenerationResult(
             board.posts.push(post)
             touched.add(name)
             result.threads++
+            lastThreadNo = post.no
             if (Array.isArray(item.comments)) {
                 for (const entry of item.comments) {
                     if (!isRecord(entry)) continue
@@ -2006,7 +2280,7 @@ export function applyGenerationResult(
     }
 
     const rated: { fun: number; immersion: number; plausibility: number; nextIntent: number }[] = []
-    const anchor = plan.episodePostNo ?? plan.targetPostNos[plan.targetPostNos.length - 1]
+    const anchor = plan.episodePostNo ?? plan.targetPostNos.at(-1) ?? lastThreadNo ?? board.nextPostNo - 1
     if (Array.isArray(reply.readerUpdates)) {
         for (const item of reply.readerUpdates) {
             if (!isRecord(item)) continue
@@ -2081,7 +2355,8 @@ export function applyGenerationResult(
             lost: crowd.lost,
         })
     }
-    if (result.comments === 0 && result.threads === 0) throw new Error('모델 응답에 독자 댓글이 없습니다.')
+    if (plan.open && result.threads === 0) throw new Error('모델 응답에 독자 글이 없습니다.')
+    if (result.comments === 0 && result.threads === 0 && result.votes === 0) throw new Error('모델 응답에 독자 댓글이 없습니다.')
     board.pendingAuthor = board.pendingAuthor.filter((item) => !targetSet.has(item.postNo))
     board.updatedAt = now
     return result
@@ -2123,10 +2398,11 @@ export function renderReaderBoardHtml(board: ReaderBoard): string {
         <article class="post kind-${post.kind}${retracted ? ' retracted' : ''}">
             <header>
                 <span class="no">#${post.no}</span>
-                <h2>${escapeHtml(post.title)}${retracted ? ' <small>내려감</small>' : ''}</h2>
+                <h2>${post.topic ? `<small>[${TOPIC_LABELS[post.topic]}]</small> ` : ''}${escapeHtml(post.title)}${retracted ? ' <small>내려감</small>' : ''}</h2>
                 <div class="meta"><b>${escapeHtml(post.author)}</b><span>${formatDate(post.createdAt)}</span></div>
             </header>
             ${post.body ? `<p class="body">${escapeHtml(post.body)}</p>` : ''}
+            ${post.poll ? `<ol class="poll">${pollRanking(post.poll).map((row) => `<li>${escapeHtml(row.label)} <span>${row.votes}표 (${row.percent}%)</span></li>`).join('')}</ol>` : ''}
             ${comments ? `<ul class="comments">${comments}</ul>` : ''}
         </article>`
     }).join('')
@@ -2189,8 +2465,12 @@ ${posts}
 export function renderReaderBoardMarkdown(board: ReaderBoard): string {
     const lines = [`# ${board.name}`, '']
     for (const post of board.posts) {
-        lines.push(`## #${post.no} ${post.title}`, '', `**${post.author}** ${formatDate(post.createdAt)}`, '')
+        lines.push(`## #${post.no} ${post.topic ? `[${TOPIC_LABELS[post.topic]}] ` : ''}${post.title}`, '', `**${post.author}** ${formatDate(post.createdAt)}`, '')
         if (post.body) lines.push(post.body, '')
+        if (post.poll) {
+            for (const row of pollRanking(post.poll)) lines.push(`${row.rank}. ${row.label}: ${row.votes}표 (${row.percent}%)`)
+            lines.push('')
+        }
         for (const { comment } of orderComments(post)) {
             lines.push(`- **${comment.author}** (${post.no}-${comment.no}${comment.replyTo ? `, ↳ ${comment.replyTo}` : ''}): ${comment.text.replace(/\n+/g, ' ')}`)
         }

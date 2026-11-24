@@ -1,8 +1,9 @@
 <script lang="ts">
 
     import Suggestion from './Suggestion.svelte';
-    import { CameraIcon, ChevronUpIcon, ChevronDownIcon, ChevronsUpIcon, ChevronsDownIcon, DatabaseIcon, FileTextIcon, GlobeIcon, ImagePlusIcon, LanguagesIcon, Laugh, MenuIcon, MicOffIcon, PackageIcon, Plus, RefreshCcwIcon, ReplyIcon, Send, StepForwardIcon, XIcon, BrainIcon, ArrowDown, ZapIcon, Maximize2, Minimize2, BookOpenIcon, WandSparklesIcon, Undo2Icon, LoaderCircleIcon, SquareIcon } from "@lucide/svelte";
+    import { CameraIcon, ChevronUpIcon, ChevronDownIcon, ChevronsUpIcon, ChevronsDownIcon, DatabaseIcon, FileTextIcon, GlobeIcon, ImagePlusIcon, LanguagesIcon, Laugh, MenuIcon, MicOffIcon, PackageIcon, Plus, RefreshCcwIcon, ReplyIcon, Send, StepForwardIcon, XIcon, BrainIcon, ArrowDown, ZapIcon, Maximize2, Minimize2, BookOpenIcon, WandSparklesIcon, Undo2Icon, LoaderCircleIcon, SquareIcon, PauseIcon } from "@lucide/svelte";
     import { runInputAssistant } from "src/ts/risubard/inputAssistantRunner";
+    import { startBgmDjTurn } from "src/ts/bgm/djRunner";
     import ShDropdownMenu from 'src/lib/UI/GUI/ShDropdownMenu.svelte';
     import ShDropdownMenuTrigger from 'src/lib/UI/GUI/ShDropdownMenuTrigger.svelte';
     import ShDropdownMenuContent from 'src/lib/UI/GUI/ShDropdownMenuContent.svelte';
@@ -20,10 +21,12 @@
     } from 'src/ts/chatPagination';
     import {
         buildChatTurnNavigation,
+        firstShownTurnFrom,
         normalizeChatNavigationTarget,
+        resolveShownTurn,
     } from 'src/ts/chatTurnNavigation';
     import { oocTurnIndices } from 'src/ts/risubard/oocTurns'
-    import { type Chat as ChatData, type Message, type Database } from "../../ts/storage/database.svelte";
+    import { type Chat as ChatData, type Message, type Database, type character } from "../../ts/storage/database.svelte";
     import { DBState } from 'src/ts/stores.svelte';
     import { getCharImage } from "../../ts/characters";
     import {
@@ -51,7 +54,7 @@
     import { sleep } from "../../ts/util";
     import { language } from "../../lang";
     import { isExpTranslator, translate } from "../../ts/translator/translator";
-    import { alertConfirm, alertError, alertWait, notifySuccess, notifyError, notifyInfo } from "../../ts/alert";
+    import { alertError, alertWait, notifySuccess, notifyError, notifyInfo } from "../../ts/alert";
     import { playNotificationSound } from '../../ts/notificationSound'
 import { isMobile } from 'src/ts/platform'
     import { processScript } from "src/ts/process/scripts";
@@ -181,6 +184,8 @@ import { isMobile } from 'src/ts/platform'
     let pageJumpInput = $state<number | undefined>(1)
     let turnJumpInput = $state<number | undefined>(1)
     let jumpDisplayKey = ''
+    // Turn a turn jump landed on, shown instead of the page's first turn.
+    let landedTurn: number | null = null
     let chatsInstance: any = $state()
     let chatScrollContainer: HTMLElement | undefined = $state()
     let isScrollingToMessage = $state(false)
@@ -225,12 +230,16 @@ import { isMobile } from 'src/ts/platform'
         if (rebootNoticeBusy) return
         void resumeCurrentWikiReboot().catch((cause) => alertError(cause))
     }
-    async function cancelRebootFromNotice() {
+    // A running reboot pauses here and keeps its progress; cancelling lives in the BardWiki toolbar.
+    let composerRebootPause = $derived.by(() => {
+        const status = currentChatSlot?.risuBardWikiReboot?.status
+        return status === 'running' || status === 'stop-requested' ? status : undefined
+    })
+    async function pauseRebootFromComposer() {
         if (rebootNoticeBusy) return
-        if (!await alertConfirm(language.risuBardWikiRebootCancelWarning)) return
         rebootNoticeBusy = true
         try {
-            await cancelCurrentWikiReboot()
+            await stopCurrentWikiReboot()
         }
         catch (cause) {
             alertError(cause)
@@ -270,7 +279,9 @@ import { isMobile } from 'src/ts/platform'
         chatPageSize,
         targetPageNumber - 1,
     ))
-    let targetPageTurnNavigation = $derived(buildChatTurnNavigation(currentChat, targetPageBounds.start, targetPageBounds.end))
+    // Turns are numbered over the whole chat, like the "턴 N" on each message.
+    let chatTurnNavigation = $derived(buildChatTurnNavigation(currentChat))
+    let hiddenOocTurnIndices = $derived(oocTurnIndices(currentChat, DBState.db.risuBardHideOocTurns === true, true))
 
     $effect(() => {
         const nextKey = `${paginationKey}:${chatBounds.page}:${chatBounds.start}`
@@ -278,7 +289,8 @@ import { isMobile } from 'src/ts/platform'
             if (nextKey === jumpDisplayKey) return
             jumpDisplayKey = nextKey
             pageJumpInput = chatBounds.page + 1
-            turnJumpInput = 1
+            turnJumpInput = landedTurn ?? (firstShownTurnFrom(chatTurnNavigation, chatBounds.start, chatBounds.end, hiddenOocTurnIndices) || 1)
+            landedTurn = null
         })
     })
 
@@ -603,23 +615,34 @@ import { isMobile } from 'src/ts/platform'
         else scrollToPageStart(behavior)
     }
 
-    async function jumpToPageTurn() {
-        const page = targetPageNumber
-        pageJumpInput = page
-        if (targetPageTurnNavigation.turnCount === 0) {
-            turnJumpInput = 1
-            await selectChatPage(targetPageBounds.page, false, 'instant')
+    async function jumpToPage() {
+        pageJumpInput = targetPageNumber
+        const { start, end, page } = targetPageBounds
+        // The page's first message still shown; scrollToMessage waits for it to mount.
+        let first = start
+        while (first < end && hiddenOocTurnIndices.has(first)) first++
+        if (first < end) await scrollToMessage(first)
+        else await selectChatPage(page, false, 'instant')
+    }
+
+    /**
+     * Goes to a turn of the whole chat; its page follows. A hidden OOC turn
+     * keeps its number, so the jump lands on the nearest turn still shown
+     * instead of turning the hiding off.
+     */
+    async function jumpToTurn() {
+        if (chatTurnNavigation.turnCount === 0) return jumpToPage()
+        const target = normalizeChatNavigationTarget(turnJumpInput, chatTurnNavigation.turnCount, 1)
+        const shown = resolveShownTurn(chatTurnNavigation, target, hiddenOocTurnIndices)
+        if (shown === 0) {
+            turnJumpInput = target
             return
         }
-        const target = normalizeChatNavigationTarget(
-            turnJumpInput,
-            targetPageTurnNavigation.turnCount,
-            1,
-        )
-        const messageIndex = targetPageTurnNavigation.messageIndexByTurn[target - 1]
-        if (messageIndex !== undefined) await scrollToMessage(messageIndex)
-        pageJumpInput = page
-        turnJumpInput = target
+        landedTurn = shown
+        turnJumpInput = shown
+        await scrollToMessage(chatTurnNavigation.messageIndexByTurn[shown - 1])
+        landedTurn = null
+        turnJumpInput = shown
     }
 
     // Literal bottom of the scroll (end of the latest message).
@@ -832,6 +855,11 @@ import { isMobile } from 'src/ts/platform'
             const destination = resolveGenerationTarget(DBState.db.characters, target)
             if (!destination) return
             destination.chat.message = cha
+            // The BGM auto DJ reads this new message beside the main request.
+            const sentMessage = cha.at(-1)
+            if (!continueResponse && input !== '' && sentMessage?.role === 'user') {
+                startBgmDjTurn({ character: destination.character as character, chat: destination.chat, userInput: sentMessage.data })
+            }
             clearSubmittedDraft()
             if (isTargetVisible()) chatPage = getLatestChatPage(cha.length, chatPageSize)
 
@@ -1449,8 +1477,9 @@ import { isMobile } from 'src/ts/platform'
                             bind:turn={turnJumpInput}
                             pageCount={chatBounds.pageCount}
                             currentPage={chatBounds.page + 1}
-                            turnCount={targetPageTurnNavigation.turnCount}
-                            onJump={jumpToPageTurn}
+                            turnCount={chatTurnNavigation.turnCount}
+                            onJumpPage={jumpToPage}
+                            onJumpTurn={jumpToTurn}
                             onPreviousPage={() => selectChatPage(chatBounds.page - 1)}
                             onNextPage={() => selectChatPage(chatBounds.page + 1, chatBounds.page + 1 >= chatBounds.pageCount - 1)}
                             onFindReplace={() => findReplaceOpen = true}
@@ -1466,10 +1495,6 @@ import { isMobile } from 'src/ts/platform'
                                 <button type="button" data-risubard-wiki-reboot-notice-resume disabled={rebootNoticeBusy} onclick={resumeRebootFromNotice}
                                         class="rounded-full bg-warning px-3 py-1 text-xs font-bold text-on-warning transition-colors hover:bg-warning/85 disabled:opacity-45">
                                     {language.risuBardWikiRebootResume}
-                                </button>
-                                <button type="button" data-risubard-wiki-reboot-notice-cancel disabled={rebootNoticeBusy} onclick={() => void cancelRebootFromNotice()}
-                                        class="rounded-full border border-darkborderc px-3 py-1 text-xs font-bold text-textcolor transition-colors hover:bg-darkbg disabled:opacity-45">
-                                    {language.risuBardWikiRebootCancel}
                                 </button>
                             </div>
                         {/if}
@@ -1757,7 +1782,19 @@ import { isMobile } from 'src/ts/platform'
 
                 {#if currentCharacter?.chaId !== '§playground' && currentCharacter?.chaId && currentChatSlot?.id}
                     <div class="relative order-3 shrink-0 flex items-center h-9" data-risubard-wiki-controls>
-                        {#if $isWikiGenerating}
+                        {#if composerRebootPause}
+                            <button
+                                    type="button"
+                                    data-risubard-wiki-reboot-pause
+                                    onclick={pauseRebootFromComposer}
+                                    disabled={rebootNoticeBusy || composerRebootPause === 'stop-requested'}
+                                    aria-label={composerRebootPause === 'stop-requested' ? language.risuBardWikiRebootStopping : language.risuBardWikiRebootStop}
+                                    title={composerRebootPause === 'stop-requested' ? language.risuBardWikiRebootStopping : language.risuBardWikiRebootStop}
+                                    class="mr-1 shrink-0 flex justify-center items-center w-9 h-9 rounded-full bg-danger text-on-danger shadow-sm transition-colors hover:bg-danger/85 active:bg-danger/75 disabled:opacity-60"
+                            >
+                                <PauseIcon size={14} fill="currentColor" strokeWidth={0} />
+                            </button>
+                        {:else if $isWikiGenerating}
                             <button
                                     type="button"
                                     data-risubard-wiki-cancel

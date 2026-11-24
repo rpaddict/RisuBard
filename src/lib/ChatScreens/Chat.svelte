@@ -35,6 +35,7 @@
     import { removeInlayOccurrence } from './inlayImageControls'
     import PopupButton from "../UI/PopupButton.svelte";
     import PartialEditController from './PartialEditController.svelte';
+    import { createInlineBodyEditor } from './inlineBodyEdit';
     import RisuBardTurnReceipt from './RisuBardTurnReceipt.svelte';
     import type { CanonicalTurnReceipt } from 'src/ts/risubard/memoryWiki';
     import FirstMessageStudioRuntime from '../FirstMessageStudio/FirstMessageStudioRuntime.svelte'
@@ -364,7 +365,35 @@
 
     onDestroy(()=>{
         unsubscribers.forEach(u => u())
+        inlineEditor?.destroy()
     })
+
+    let inlineEditor: ReturnType<typeof createInlineBodyEditor> | null = null
+    let inlineEditorRoot: HTMLElement | null = null
+
+    function inlineEditAllowed() {
+        const chat = DBState.db.characters[selIdState.selId]?.chats[DBState.db.characters[selIdState.selId].chatPage]
+        return !!DBState.db.inlineBodyEdit && !readOnly && idx >= 0 && !editMode && !translated
+            && !isOptimizedStreamingMessage && !chat?.isStreaming && !!bodyRoot
+    }
+
+    function getInlineEditor() {
+        if (!bodyRoot) return null
+        if (inlineEditor && inlineEditorRoot === bodyRoot) return inlineEditor
+        inlineEditor?.destroy()
+        inlineEditorRoot = bodyRoot
+        inlineEditor = createInlineBodyEditor({
+            root: bodyRoot,
+            getSource: () => {
+                const current = DBState.db.characters[selIdState.selId]
+                const msg = current?.chats[current.chatPage]?.message[idx]
+                return msg && msg.data === message ? msg.data : null
+            },
+            onCommit: (newData) => handlePartialEditSave(new CustomEvent('save', { detail: { newData } })),
+            onRejected: () => notifyInfo(language.inlineBodyEditRejected),
+        })
+        return inlineEditor
+    }
 
     function RenderGUIHtml(html:string){
         try {
@@ -715,6 +744,7 @@
             class:prose-invert={$ColorSchemeTypeStore === 'dark'}
             bind:this={bodyRoot}
             onclick={(event) => {
+            if(inlineEditAllowed() && getInlineEditor()?.handleClick(event)) return
             // Controls a bot draws in the message (tabs as labels, inputs) are not a click on the text.
             const clicked = event?.target
             const control = clicked instanceof Element ? clicked.closest('button, label, input, select, textarea, a, summary, [risu-trigger], [risu-btn]') : null

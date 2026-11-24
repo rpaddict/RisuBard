@@ -209,7 +209,8 @@ export async function loadData() {
             }
         } catch (error) {
             failStartupStage(LoadingStatusState, error)
-            alertError(error)
+            // The startup screen shows the file and a fix; an alert would cover it.
+            if (!LoadingStatusState.checksumMismatch) alertError(error)
         }
     }
 }

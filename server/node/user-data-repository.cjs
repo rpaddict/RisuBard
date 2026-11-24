@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const {
     atomicWriteJson,
+    checksumMismatchError,
     commitTransaction,
     moveToTrash,
     readVerifiedJson,
@@ -181,16 +182,16 @@ function createUserDataRepository(options = {}) {
     function readCanonicalBytes(relativePath) {
         const target = resolveInside(dataRoot, relativePath);
         const bytes = fs.readFileSync(target);
+        const actual = crypto.createHash('sha256').update(bytes).digest('hex');
         let expected;
         try {
             expected = fs.readFileSync(`${target}.sha256`, 'utf8').trim();
         } catch (error) {
-            if (error?.code === 'ENOENT') throw checksumMismatch(relativePath);
+            if (error?.code === 'ENOENT') throw checksumMismatchError(target, relativePath, null, actual, 'CANONICAL_FILES_CHANGED');
             throw error;
         }
-        const actual = crypto.createHash('sha256').update(bytes).digest('hex');
         if (!/^[a-f0-9]{64}$/i.test(expected) || expected.toLowerCase() !== actual) {
-            throw checksumMismatch(relativePath);
+            throw checksumMismatchError(target, relativePath, expected, actual, 'CANONICAL_FILES_CHANGED');
         }
         return bytes;
     }

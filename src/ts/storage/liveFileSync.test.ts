@@ -217,4 +217,18 @@ describe('live file metadata reconciliation', () => {
         expect(current.characters[0].desc).toBe('local')
         expect(current.loreBook).toEqual([])
     })
+
+    it('replaces modules only when the snapshot carries them', () => {
+        const modules = [{ id: 'm', name: 'World', lorebook: [{ content: 'old' }] }]
+        const baseline: any = { characters: [], loreBook: [], modules: structuredClone(modules) }
+        const current: any = { characters: [], loreBook: [], modules: structuredClone(modules) }
+        applyLiveFileSnapshot(current, baseline, { characters: [], loreBook: [] })
+        expect(current.modules).toEqual(modules)
+        const incoming = [{ id: 'm', name: 'World', lorebook: [{ content: 'new' }] }]
+        const result = applyLiveFileSnapshot(current, baseline, { characters: [], loreBook: [], modules: incoming })
+        expect(current.modules[0].lorebook[0].content).toBe('new')
+        expect(current.modules).not.toBe(incoming)
+        expect(baseline.modules).toEqual(incoming)
+        expect(result.conflicts).toEqual([])
+    })
 })

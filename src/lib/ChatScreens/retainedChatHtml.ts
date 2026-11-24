@@ -9,7 +9,9 @@ interface ChatHtmlUpdate {
 // asset loading and inlay resolution deliberately modify that DOM themselves.
 function patchChildren(live: Element, previous: Node, next: Node) {
     const oldChildren = Array.from(previous.childNodes)
-    const liveChildren = Array.from(live.childNodes)
+    // Inline editing wraps nodes in a temporary element; patch the nodes it holds.
+    const liveChildren = Array.from(live.childNodes).flatMap(child =>
+        child instanceof Element && child.hasAttribute('data-inline-run') ? Array.from(child.childNodes) : [child])
     const nextChildren = Array.from(next.childNodes)
 
     if (oldChildren.length !== liveChildren.length) {
@@ -24,7 +26,7 @@ function patchChildren(live: Element, previous: Node, next: Node) {
         const nextChild = nextChildren[index]
         const liveChild = liveChildren[index]
         if (!nextChild) {
-            live.removeChild(liveChild)
+            liveChild.parentNode!.removeChild(liveChild)
         } else if (!oldChild) {
             live.appendChild(nextChild.cloneNode(true))
         } else if (!oldChild.isEqualNode(nextChild)) {

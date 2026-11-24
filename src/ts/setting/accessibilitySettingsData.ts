@@ -67,6 +67,14 @@ export const accessibilitySettingsItems: SettingItem[] = [
         keywords: ['click', 'edit', 'message']
     },
     {
+        id: 'acc.inlineBodyEdit',
+        type: 'check',
+        labelKey: 'inlineBodyEdit',
+        bindKey: 'inlineBodyEdit',
+        helpKey: 'inlineBodyEdit',
+        keywords: ['inline', 'edit', 'direct', 'type', 'paragraph', 'message']
+    },
+    {
         id: 'acc.enableBlockPartialEdit',
         type: 'check',
         labelKey: 'enableBlockPartialEdit',
@@ -358,6 +366,7 @@ export const accessibilityEditingItems = pick([
     'acc.sendKeyMobile',
     'acc.fixedChatTextarea',
     'acc.clickToEdit',
+    'acc.inlineBodyEdit',
     'acc.enableBlockPartialEdit',
     'acc.enableDragPartialEdit',
     'acc.longPressToPopupEditor',

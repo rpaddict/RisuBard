@@ -19,8 +19,10 @@
         pageCount?: number
         /** The 1-based page on screen, not the number typed in the field. */
         currentPage?: number
+        /** Turns in the whole chat; the turn field takes the chat's own turn numbers. */
         turnCount?: number
-        onJump?: () => void | Promise<void>
+        onJumpPage?: () => void | Promise<void>
+        onJumpTurn?: () => void | Promise<void>
         onPreviousPage?: () => void | Promise<void>
         onNextPage?: () => void | Promise<void>
         onFindReplace?: () => void
@@ -38,12 +40,17 @@
         pageCount = 1,
         currentPage = 1,
         turnCount = 0,
-        onJump = () => {},
+        onJumpPage = () => {},
+        onJumpTurn = () => {},
         onPreviousPage = () => {},
         onNextPage = () => {},
         onFindReplace = () => {},
         findReplaceDisabled = false,
     }: Props = $props()
+
+    // The jump button follows whichever field was typed in last.
+    let lastEdited = $state<'page' | 'turn'>('turn')
+    const jump = () => lastEdited === 'page' ? onJumpPage() : onJumpTurn()
 
 </script>
 
@@ -79,10 +86,12 @@
             bind:value={page}
             aria-label={language.chatPageJumpAria}
             onfocus={(event) => event.currentTarget.select()}
+            oninput={() => lastEdited = 'page'}
             onkeydown={(event) => {
                 if (event.key === 'Enter') {
                     event.preventDefault()
-                    void onJump()
+                    lastEdited = 'page'
+                    void onJumpPage()
                 }
             }}
         />
@@ -100,16 +109,20 @@
             min="1"
             max={Math.max(1, turnCount)}
             disabled={turnCount === 0}
+            style:width={`${Math.max(3.25, String(turnCount).length * 0.6 + 2.1)}rem`}
             bind:value={turn}
             aria-label={language.chatTurnJumpAria}
             onfocus={(event) => event.currentTarget.select()}
+            oninput={() => lastEdited = 'turn'}
             onkeydown={(event) => {
                 if (event.key === 'Enter') {
                     event.preventDefault()
-                    void onJump()
+                    lastEdited = 'turn'
+                    void onJumpTurn()
                 }
             }}
         />
+        {#if turnCount > 0}<span class="page-total" data-chat-turn-total>/ {turnCount}</span>{/if}
     </label>
     <button
         type="button"
@@ -117,7 +130,7 @@
         data-chat-page-turn-jump-button
         aria-label={language.chatPageTurnJumpAria}
         title={language.chatPageTurnJumpAria}
-        onclick={() => void onJump()}
+        onclick={() => void jump()}
     >
         <ArrowRightToLineIcon size={18} />
     </button>

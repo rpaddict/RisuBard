@@ -67,3 +67,30 @@ export function normalizeChatNavigationTarget(
     if (!Number.isFinite(parsed)) return safeFallback
     return Math.min(max, Math.max(1, Math.floor(parsed)))
 }
+
+/**
+ * The shown turn closest to `turn` (1-based, whole chat): the turn itself,
+ * else the next shown one, else the previous one. Turns whose message index
+ * is in `hidden` (OOC turns the chat hides) keep their numbers but are
+ * skipped. 0 when no turn is shown.
+ */
+export function resolveShownTurn(navigation: ChatTurnNavigation, turn: number, hidden: ReadonlySet<number>): number {
+    const shown = (n: number) => n >= 1 && n <= navigation.turnCount && !hidden.has(navigation.messageIndexByTurn[n - 1])
+    if (shown(turn)) return turn
+    for (let n = turn + 1; n <= navigation.turnCount; n++) if (shown(n)) return n
+    for (let n = Math.min(turn - 1, navigation.turnCount); n >= 1; n--) if (shown(n)) return n
+    return 0
+}
+
+/** The first shown turn in messages [start, end), else the last shown one before start; 0 when none. */
+export function firstShownTurnFrom(navigation: ChatTurnNavigation, start: number, end: number, hidden: ReadonlySet<number>): number {
+    let before = 0
+    for (let n = 1; n <= navigation.turnCount; n++) {
+        const index = navigation.messageIndexByTurn[n - 1]
+        if (hidden.has(index)) continue
+        if (index >= end) break
+        if (index >= start) return n
+        before = n
+    }
+    return before
+}

@@ -292,6 +292,14 @@
         vertical-align: middle;
     }
     :global(.inlay-image-control > img) { margin: 0; }
+    :global([data-inline-editing]) {
+        outline: 1px dashed color-mix(in srgb, var(--color-primary) 60%, transparent);
+        outline-offset: 4px;
+        border-radius: var(--risu-radius-sm);
+        caret-color: var(--color-primary);
+        cursor: text;
+    }
+    :global([data-inline-editing] [contenteditable="false"]) { cursor: default; user-select: none; }
     :global(.x-risu-risu-inlay-image > .inlay-image-control) { width: 100%; max-width: 20rem; }
     :global(.inlay-image-remove) {
         position: absolute;

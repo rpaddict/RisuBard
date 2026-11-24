@@ -46,6 +46,8 @@ export function selectReaderBoardWiki(input: {
     messages: readonly EventOrderMessage[]
     publishedUntil: number
     focus?: { start: number; end: number }
+    /** Events naming this (a character or a setting) come right after the focus. */
+    keyword?: string
     limit?: number
 }): string {
     if (input.publishedUntil < 0) return ''
@@ -80,9 +82,13 @@ export function selectReaderBoardWiki(input: {
 
     const focus = input.focus
     const inFocus = focus ? events.filter((item) => item.position >= focus.start && item.position <= focus.end) : []
-    const earlier = events.filter((item) => !inFocus.includes(item)).reverse()
+    const keyword = input.keyword?.trim().toLowerCase()
+    const named = keyword
+        ? events.filter((item) => !inFocus.includes(item) && `${item.document.title}\n${item.document.content}`.toLowerCase().includes(keyword)).reverse()
+        : []
+    const earlier = events.filter((item) => !inFocus.includes(item) && !named.includes(item)).reverse()
     const picked: typeof events = []
-    for (const item of [...inFocus, ...earlier]) {
+    for (const item of [...inFocus, ...named, ...earlier]) {
         const text = `### ${item.document.title}\n${clip(plainText(item.document.content), EVENT_LIMIT)}`
         if (used + text.length > limit) continue
         used += text.length

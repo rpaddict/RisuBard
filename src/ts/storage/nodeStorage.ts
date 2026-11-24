@@ -8,6 +8,7 @@
 import { language } from "src/lang"
 import { alertInput, waitAlert, notifyError } from "../alert"
 import { decodeRisuSave, encodeRisuSaveLegacy } from "./risuSave"
+import { ChecksumMismatchError, readChecksumMismatch, type ChecksumMismatch } from "./checksumMismatch"
 import { getDatabase, normalizeChat, type Chat, type Message } from "./database.svelte"
 import {
     assembleChatContentPages,
@@ -553,7 +554,10 @@ export class NodeStorage{
             // Keep the server's reason, e.g. which hand-edited file is broken and where.
             const body = await da.text().catch(() => '')
             let detail = body
-            try { detail = JSON.parse(body)?.error ?? body } catch {}
+            let parsed: unknown = null
+            try { parsed = JSON.parse(body); detail = (parsed as any)?.error ?? body } catch {}
+            const mismatch = readChecksumMismatch(parsed)
+            if (mismatch) throw new ChecksumMismatchError(`getItem Error: ${detail}`, mismatch)
             throw detail ? `getItem Error: ${detail}` : "getItem Error"
         }
 
@@ -575,6 +579,17 @@ export class NodeStorage{
     }
     async getItem(key:string):Promise<Buffer> {
         return (await this.getItemWithEtag(key)).value as Buffer
+    }
+    /** Accepts a reviewed file's current contents by rewriting its checksum sidecar. */
+    async acceptChecksum(mismatch: ChecksumMismatch): Promise<void> {
+        const res = await this.authFetch('/api/storage/accept-checksum', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ path: mismatch.path, expected: mismatch.expected, actual: mismatch.actual }),
+        })
+        if (res.ok) return
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error || `HTTP ${res.status}`)
     }
     /** Reads many `cache/` keys in one request per 256 keys; missing keys are null. */
     async getCacheItems(keys: readonly string[]): Promise<(Buffer | null)[]> {

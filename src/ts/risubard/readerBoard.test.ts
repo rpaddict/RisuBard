@@ -14,6 +14,10 @@ import {
     banReader,
     buildGenerationRequest,
     canDeleteEpisode,
+    closePoll,
+    deletePost,
+    pollTally,
+    postSection,
     cleanStoryText,
     deleteEpisode,
     createReaderBoard,
@@ -449,6 +453,23 @@ describe('one post', () => {
         expect(board.pendingAuthor).toEqual([{ postNo: other.no }])
         expect(board.episodes[0].status).toBe('published')
     })
+
+    it('gives a past episode its text again when asked for more comments', () => {
+        const chat = views(6)
+        let board = publish(boardWithReaders(), chat, 0, 1)
+        board = publish(board, chat, 2, 3)
+        const first = board.posts.find((post) => post.kind === 'episode')!
+        const metrics = board.metrics.length
+        const plan = prepareGeneration({ board, chatKey: CHAT, views: chat, onlyPostNo: first.no, random: () => 0 })!
+        expect(plan.targetPostNos).toEqual([first.no])
+        expect(plan.focusEpisodeText).toContain('본문 1')
+        expect(plan.focusEpisodeText).not.toContain('본문 3')
+        const user = buildGenerationRequest(plan, '작품')[1].content
+        expect(user).toContain('다시 읽는 화 본문')
+        applyGenerationResult(plan, { comments: [{ postNo: first.no, author: 'knight0011', text: '다시 봐도 좋네' }] }, { createId })
+        expect(plan.board.posts.find((post) => post.no === first.no)!.comments.at(-1)!.text).toBe('다시 봐도 좋네')
+        expect(plan.board.metrics).toHaveLength(metrics)
+    })
 })
 
 describe('deleting and banning', () => {
@@ -666,5 +687,121 @@ describe('side stories', () => {
         startNewWork(board, { id: 'w2', title: '신작', kind: 'new', chatKey: CHAT })
         expect(board.series[0].status).toBe('ended')
         expect(board.chatTargets).toEqual({})
+    })
+})
+
+describe('forum', () => {
+    it('keeps reader posts and polls apart from the serial', () => {
+        expect(postSection({ kind: 'episode' })).toBe('serial')
+        expect(postSection({ kind: 'event' })).toBe('serial')
+        expect(postSection({ kind: 'thread' })).toBe('forum')
+        expect(postSection({ kind: 'poll' })).toBe('forum')
+    })
+
+    it('tags reader posts with a heading, falling back to free talk', () => {
+        const chat = views(4)
+        const board = publish(boardWithReaders(), chat, 0, 1)
+        const plan = prepareGeneration({ board, chatKey: CHAT, views: chat, range: { start: 2, end: 3 }, random: () => 0 })!
+        applyGenerationResult(plan, {
+            episode: { title: '둘', summary: '요약' },
+            comments: [{ postNo: plan.episodePostNo, author: 'knight0011', text: '좋음' }],
+            threads: [
+                { author: '새벽감자', topic: 'character', title: '쿠루미 이야기', body: '귀엽다' },
+                { author: 'knight0011', topic: 'nonsense', title: '아무말', body: '...' },
+            ],
+        }, { createId })
+        const threads = plan.board.posts.filter((post) => post.kind === 'thread')
+        expect(threads.map((post) => post.topic)).toEqual(['character', 'free'])
+        expect(normalizeReaderBoard(plan.board)!.posts.filter((post) => post.kind === 'thread').map((post) => post.topic)).toEqual(['character', 'free'])
+    })
+
+    it('opens a topic as exactly one reader post about it', () => {
+        const chat = views(6)
+        let board = publish(boardWithReaders(), chat, 0, 1)
+        board = publish(board, chat, 2, 3)
+        const before = board.posts.length
+        const plan = prepareGeneration({ board, chatKey: CHAT, views: chat, open: { kind: 'topic', topic: 'episode', subject: '반전', episodes: { from: 1, to: 1 } }, random: () => 0 })!
+        expect(plan.targetPostNos).toEqual([])
+        expect(plan.episode).toBeUndefined()
+        expect(plan.focusEpisodeText).toContain('본문 1')
+        expect(plan.focusEpisodeText).not.toContain('본문 3')
+        const user = buildGenerationRequest(plan, '작품')[1].content
+        expect(user).toContain('이번에 독자가 새로 쓸 글의 주제: [화 토론] 반전, 1화~1화')
+        expect(user).not.toContain('작가가 연')
+        expect(buildGenerationRequest(plan, '작품')[0].content).not.toContain('작가가 연 주제')
+        applyGenerationResult(plan, {
+            threads: [
+                { author: 'knight0011', title: '1화 반전 납득됨?', body: '글쎄', comments: [{ author: '새벽감자', text: '난 좋았음' }] },
+                { author: '새벽감자', title: '두 번째 글', body: '무시됨' },
+            ],
+        }, { createId })
+        const added = plan.board.posts.slice(before)
+        expect(added).toHaveLength(1)
+        expect(added[0]).toMatchObject({ kind: 'thread', topic: 'episode', subject: '반전, 1~1화' })
+        expect(added[0].comments).toHaveLength(1)
+        expect(() => applyGenerationResult(prepareGeneration({ board, chatKey: CHAT, views: chat, open: { kind: 'topic', topic: 'free', subject: '' }, random: () => 0 })!, { comments: [] }, { createId }))
+            .toThrow('독자 글')
+    })
+
+    it('runs a poll: readers name candidates, vote once, and the result goes to the serial', () => {
+        const chat = views(4)
+        const board = publish(boardWithReaders(), chat, 0, 1)
+        board.audience.subscribers = 1000
+        const plan = prepareGeneration({ board, chatKey: CHAT, views: chat, open: { kind: 'poll', title: '인기투표', options: [] }, random: () => 0 })!
+        const pollNo = plan.targetPostNos[0]
+        expect(plan.board.posts.find((post) => post.no === pollNo)!.kind).toBe('poll')
+        const request = buildGenerationRequest(plan, '작품')
+        expect(request[0].content).toContain('pollOptions')
+        applyGenerationResult(plan, {
+            pollOptions: ['쿠루미', '아오야마', '쿠루미'],
+            votes: [
+                { postNo: pollNo, handle: 'knight0011', option: 2 },
+                { postNo: pollNo, handle: 'knight0011', option: 1 },
+                { postNo: pollNo, handle: '새벽감자', option: '쿠루미' },
+                { postNo: pollNo, handle: '지나가던사람', option: 1 },
+            ],
+            comments: [{ postNo: pollNo, author: '새벽감자', text: '쿠루미 최고' }],
+        }, { createId })
+        const poll = plan.board.posts.find((post) => post.no === pollNo)!.poll!
+        expect(poll.options).toEqual(['쿠루미', '아오야마'])
+        expect(poll.votes).toEqual({ knight0011: 1, 새벽감자: 0 })
+        const tally = pollTally(poll)
+        expect(tally.named).toEqual([1, 1])
+        expect(tally.voters).toBeGreaterThan(2)
+
+        const saved = normalizeReaderBoard(plan.board)!
+        expect(saved.posts.find((post) => post.no === pollNo)!.poll).toEqual(poll)
+
+        const notice = closePoll(saved, pollNo)!
+        expect(postSection(notice)).toBe('serial')
+        expect(notice.body).toContain('1위')
+        expect(saved.posts.find((post) => post.no === pollNo)!.poll!.status).toBe('closed')
+        expect(closePoll(saved, pollNo)).toBeNull()
+    })
+
+    it('lets the author pick who writes the topic post, even a passer-by', () => {
+        const chat = views(2)
+        const board = publish(boardWithReaders(), chat, 0, 1)
+        const plan = prepareGeneration({ board: { ...board, settings: { ...board.settings, readersPerRun: 1 } }, chatKey: CHAT, views: chat, open: { kind: 'topic', topic: 'free', subject: '작가 까기', author: '새벽감자' }, random: () => 0 })!
+        expect(plan.activeHandles).toContain('새벽감자')
+        expect(buildGenerationRequest(plan, '작품')[1].content).toContain('글쓴이: 새벽감자')
+        applyGenerationResult(plan, { threads: [{ author: 'knight0011', title: '솔직히 별로', body: '...' }] }, { createId })
+        expect(plan.board.posts.at(-1)!.author).toBe('새벽감자')
+
+        const stranger = prepareGeneration({ board, chatKey: CHAT, views: chat, open: { kind: 'topic', topic: 'free', subject: '', author: '악플러99' }, random: () => 0 })!
+        expect(buildGenerationRequest(stranger, '작품')[1].content).toContain('명단에 없는 지나가던 독자')
+        applyGenerationResult(stranger, { threads: [{ author: 'knight0011', title: '노잼', body: '...' }] }, { createId })
+        const post = stranger.board.posts.at(-1)!
+        expect(post.author).toBe('악플러99')
+        expect(deletePost(stranger.board, post.no)).toBe(true)
+        expect(stranger.board.posts.some((item) => item.no === post.no)).toBe(false)
+        expect(deletePost(stranger.board, stranger.board.posts.find((item) => item.kind === 'episode')!.no)).toBe(false)
+    })
+
+    it('rejects a poll reply that names no candidates', () => {
+        const chat = views(2)
+        const board = publish(boardWithReaders(), chat, 0, 1)
+        const plan = prepareGeneration({ board, chatKey: CHAT, views: chat, open: { kind: 'poll', title: '투표', options: [] }, random: () => 0 })!
+        expect(() => applyGenerationResult(plan, { comments: [{ postNo: plan.targetPostNos[0], author: 'knight0011', text: '음' }] }, { createId })).toThrow('후보')
     })
 })

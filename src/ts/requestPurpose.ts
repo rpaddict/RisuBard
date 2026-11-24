@@ -16,6 +16,7 @@ export type RequestPurpose =
     | 'character-assistant'
     | 'input-assistant'
     | 'reader-board'
+    | 'bgm-dj'
 
 export const requestPurposeLabels: Record<RequestPurpose, string> = {
     'chat-response': '채팅 답변 생성',
@@ -33,6 +34,7 @@ export const requestPurposeLabels: Record<RequestPurpose, string> = {
     'character-assistant': '캐릭터 비서',
     'input-assistant': '인풋 도우미',
     'reader-board': '독자 게시판',
+    'bgm-dj': 'BGM 자동 DJ',
 }
 
 export function defaultRequestPurpose(

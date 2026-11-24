@@ -295,6 +295,7 @@ export const helpEn = {
         sendKeyMobile: "How messages are sent on mobile.",
         fixedChatTextarea: "Pin the chat input to the bottom of the screen so it stays in place while scrolling.",
         clickToEdit: "Enter edit mode immediately when clicking a chat message.",
+        inlineBodyEdit: "Click a paragraph in a message to type into it directly, without opening edit mode. Clicking elsewhere saves the change and Esc cancels it. Images, status boxes, and text made by macros or scripts stay locked; paragraphs that cannot be matched to the original text open nothing, and Click Text to Edit takes over if it is on.",
         enableBlockPartialEdit: "Show per-block edit controls when hovering over a paragraph/block in a message.",
         longPressToPopupEditor: "Open the popup editor when long-pressing a message.",
         showInputActionBar: "Show a bottom toolbar on multiline text fields with copy, reset, and expand-to-editor buttons.",

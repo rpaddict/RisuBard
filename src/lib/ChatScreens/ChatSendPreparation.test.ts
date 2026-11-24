@@ -51,6 +51,7 @@ function screen(overrides: Record<string, unknown> = {}) {
         registerAbort: () => {}, endGeneration: () => {},
         sendChat: async (_: number, options: unknown) => { calls.push('request'); requests.push(options); return true },
         playNotificationSound: () => {}, alertError: (error: unknown) => errors.push(error),
+        startBgmDjTurn: () => {},
         console: { error: () => {} },
         ...overrides,
     }

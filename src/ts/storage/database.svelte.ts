@@ -77,6 +77,7 @@ import {
 import { createTogglePresetBaseline, type TogglePresetBaseline } from './togglePresetBaseline';
 import type { CanonicalTurnReceipt } from '../risubard/memoryWiki';
 import type { AssistantPromptOverrides } from '../risubard/assistantPrompts';
+import { normalizeBgmLibrary, normalizeBgmPlayerSettings } from '../bgm/library';
 import {
     normalizeAutosaveInterval,
     normalizeAutosaveRetention,
@@ -522,6 +523,7 @@ export function setDatabase(data:Database){
     data.inlayImagePriority ??= true
     data.enableBlockPartialEdit ??= false
     data.enableDragPartialEdit ??= false
+    data.inlineBodyEdit ??= false
     // Concrete default so the settings toggle (reads !!value) and the runtime
     // gate (statusEnabled) agree. Default on — see request-status-toast-infra.md.
     data.showRequestStatus ??= true
@@ -1110,6 +1112,8 @@ export function setDatabase(data:Database){
     })
     data.risuBardInputAssistantPromptPresets = inputAssistantPromptState.presets
     data.risuBardInputAssistantPromptPresetId = inputAssistantPromptState.activePresetId
+    data.bgmLibrary = normalizeBgmLibrary(data.bgmLibrary)
+    data.bgmPlayer = normalizeBgmPlayerSettings(data.bgmPlayer)
     for(const char of data.characters){
         if(char.bardLore){
             const normalizedBardLore = normalizeBardLoreOwnerState(
@@ -1822,6 +1826,7 @@ export interface Database{
     clickToEdit: boolean
     enableBlockPartialEdit: boolean
     enableDragPartialEdit: boolean
+    inlineBodyEdit: boolean
     koboldURL:string
     useAutoSuggestions:boolean
     autoSuggestPrompt:string
@@ -2048,6 +2053,8 @@ export interface Database{
     risuBardInputAssistantPromptPresets?: BardLoreInstructionPreset[]
     risuBardInputAssistantPromptPresetId?: string
     risuBardAssistantPrompts?: AssistantPromptOverrides
+    bgmLibrary?: import('../bgm/library').BgmLibrary
+    bgmPlayer?: import('../bgm/library').BgmPlayerSettings
     textAreaTextSize:number
     combineTranslation:boolean
     dynamicAssets:boolean
@@ -2468,6 +2475,8 @@ export interface character{
     viewScreen: 'emotion'|'none'|'imggen',
     bias: [string, number][]
     emotionImages: [string, string][]
+    /** BGM set this bot plays; unset or missing falls back to the library's default set. */
+    bgmSetId?: string
     globalLore: loreBook[]
     bardLore?: BardLoreState
     risuBardWikiGuide?: string

@@ -23,6 +23,7 @@ import { openAssetViewer, hasImageAssets } from "src/ts/assetViewer.svelte";
     import TextInput from "../UI/GUI/TextInput.svelte";
     import ShInput from "../UI/GUI/ShInput.svelte";
 import ShButton from "../UI/GUI/ShButton.svelte";
+    import { openBgmManager } from "../../ts/bgm/managerState.svelte";
     import ShAccordion from "../UI/GUI/ShAccordion.svelte";
     import NumberInput from "../UI/GUI/NumberInput.svelte";
     import TextAreaInput from "../UI/GUI/TextAreaInput.svelte";
@@ -539,6 +540,21 @@ import ShButton from "../UI/GUI/ShButton.svelte";
                 <Check bind:check={(DBState.db.characters[$selectedCharID] as character).largePortrait} name={language.largePortrait}/>
             </div>
         {/if}
+
+            {#if DBState.db.characters[$selectedCharID].type === 'character'}
+                {@const bgmCharacter = DBState.db.characters[$selectedCharID] as character}
+                <span class="block text-textcolor mt-6 mb-2">{language.bgm.characterSet}</span>
+                <div class="flex items-center gap-2 mb-1" data-bgm-character-set>
+                    <SelectInput className="flex-1" ariaLabel={language.bgm.characterSet} bind:value={() => bgmCharacter.bgmSetId ?? '', (value) => { bgmCharacter.bgmSetId = value ? String(value) : undefined }}>
+                        <OptionInput value="">{language.bgm.characterSetDefault.replace('{name}', DBState.db.bgmLibrary?.sets.find(set => set.id === DBState.db.bgmLibrary?.defaultSetId)?.name ?? '')}</OptionInput>
+                        {#each DBState.db.bgmLibrary?.sets ?? [] as set (set.id)}
+                            <OptionInput value={set.id}>{set.name}</OptionInput>
+                        {/each}
+                    </SelectInput>
+                    <ShButton variant="outline" size="sm" onclick={() => openBgmManager(bgmCharacter.bgmSetId ?? '')}>{language.bgm.manage}</ShButton>
+                </div>
+                <span class="text-textcolor2 text-xs">{language.bgm.characterSetHelp}</span>
+            {/if}
 
             <span class="block text-textcolor mt-6 mb-2">{language.viewScreen}</span>
             <SelectInput className="mb-2" bind:value={DBState.db.characters[$selectedCharID].viewScreen} onchange={() => {

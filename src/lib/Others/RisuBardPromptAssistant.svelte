@@ -516,6 +516,21 @@
         await persist()
     }
 
+    async function rewindTo(message: PromptAssistantMessage) {
+        if (!project || running) return
+        const at = project.messages.findIndex((item) => item.id === message.id)
+        if (at < 0) return
+        const later = project.messages.length - at - 1
+        const question = later > 0 ? `이 질문과 그 뒤의 메시지 ${later}개를 지우고, 질문을 입력창으로 되돌릴까요?` : '이 질문을 지우고 입력창으로 되돌릴까요?'
+        if (!await alertConfirm(draft.trim() ? `${question} 입력창에 쓰던 내용은 이 질문으로 바뀝니다.` : question)) return
+        project.messages = project.messages.slice(0, at)
+        draft = message.text
+        notice = ''
+        await persist()
+        await tick()
+        inputElement?.focus()
+    }
+
     async function exportConversation() {
         if (!project || project.messages.length === 0) return
         const savedAt = new Date()
@@ -903,6 +918,7 @@
                         busy={running}
                         onFork={(item) => void forkFrom(item as PromptAssistantMessage)}
                         onDelete={(item) => void deleteMessage(item as PromptAssistantMessage)}
+                        onRewind={(item) => void rewindTo(item as PromptAssistantMessage)}
                         onCopyFailed={() => { notice = '복사하지 못했습니다.' }}
                     />
                 </article>
