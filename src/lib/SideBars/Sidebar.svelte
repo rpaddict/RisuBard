@@ -870,7 +870,7 @@
         <BarIcon
           ariaLabel={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
           title={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
-          additionalStyle="background-color: var(--color-draculared); color: #fff;"
+          additionalStyle="background-color: var(--color-draculared); color: var(--color-on-danger);"
           onClick={() => {
             menuMode = 0;
             stopServerFromBrowser();
@@ -1355,7 +1355,7 @@
         <BarIcon
           ariaLabel={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
           title={DBState.db.language === 'ko' ? '서버 종료' : 'Stop server'}
-          additionalStyle="background-color: var(--color-draculared); color: #fff;"
+          additionalStyle="background-color: var(--color-draculared); color: var(--color-on-danger);"
           onClick={() => {
             menuMode = 0;
             stopServerFromBrowser();
