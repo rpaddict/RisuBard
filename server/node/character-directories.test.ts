@@ -66,13 +66,15 @@ it.each(['migrate', 'refresh', 'rollback'])('marks only completed journal recove
     expect(reopened.characterDirectoryStatus('char-1').enabled).toBe(action !== 'rollback')
     expect(reopened.exportLegacyDatabase()).toEqual(expected)
 })
-it('permanently deletes a mapped character and retained legacy folder on a normal save', () => {
+it('moves a mapped character and retained legacy folder to trash on a normal save', () => {
     const { dataRoot, repo } = fixture()
     repo.publishCharacterDirectoryMapping('char-1')
     repo.importLegacyDatabase({ characters: [] }, { mode: 'sync' })
     expect(fs.existsSync(path.join(dataRoot, 'characters/Alice'))).toBe(false)
     expect(fs.existsSync(path.join(dataRoot, 'characters/char-1'))).toBe(false)
-    expect(fs.existsSync(path.join(dataRoot, 'trash'))).toBe(false)
+    const trashed = fs.readdirSync(path.join(dataRoot, 'trash'), { recursive: true }).map(String).map((item) => item.split(path.sep).join('/'))
+    expect(trashed.some((item) => item.endsWith('characters/Alice'))).toBe(true)
+    expect(trashed.some((item) => item.endsWith('characters/char-1'))).toBe(true)
     expect(createUserDataRepository({ dataRoot }).exportLegacyDatabase().characters).toEqual([])
 })
 it('publishes an explicit mapping, preserves old folders, and routes restart, writes and deletion by stable IDs', () => {
