@@ -159,6 +159,21 @@
             : [toggle])
     }
 
+    // Group headers show how many options inside are on: a switch or select
+    // whose value is above 0, or a filled text field.
+    function countActiveToggles(items: sidebarToggle[]): number {
+        return items.reduce((sum, toggle) => {
+            if (toggle.type === 'group') return sum + countActiveToggles(toggle.children)
+            if (!toggle.key) return sum
+            const value = toggleVariableTarget[`toggle_${toggle.key}`] ?? ''
+            if (toggle.type === 'text' || toggle.type === 'textarea') {
+                return sum + (value.trim() !== '' && value.trim() !== '0' ? 1 : 0)
+            }
+            if (toggle.type === 'select' || !toggle.type) return sum + (Number(value) > 0 ? 1 : 0)
+            return sum
+        }, 0)
+    }
+
     let toggleDefinitions = $derived(new Map(
         flattenToggles(groupedToggles)
             .filter((toggle) => toggle.key)
@@ -278,6 +293,12 @@
     {/if}
 {/snippet}
 
+{#snippet groupTitle(group: sidebarToggleGroup)}
+    {@const count = countActiveToggles(group.children)}
+    <span class="truncate">{group.value}</span>
+    <span class="toggle-group-count" class:toggle-group-count--zero={count === 0} data-toggle-group-count title={`${count}`}>{count}</span>
+{/snippet}
+
 {#snippet chip(label: string, checked: boolean, onToggle: () => void, dirty: boolean = false)}
     <div class="relative min-w-0" data-toggle-cell="switch">
         <ShButton
@@ -304,22 +325,26 @@
             <div class="relative flex min-w-0 flex-col gap-0.5" data-toggle-cell="select"
                 title={`${toggle.value}: ${toggle.options[Number(toggleVariableTarget[`toggle_${toggle.key}`] || '0')] ?? ''}`}>
                 <span class="truncate px-1 text-[11px] text-textcolor2">{toggle.value}</span>
-                <SelectInput className="w-full" ariaLabel={toggle.value} bind:value={
-                    () => toggleVariableTarget[`toggle_${toggle.key}`] || '0',
-                    (value) => toggleVariableTarget[`toggle_${toggle.key}`] = value
-                }>
-                    {#each toggle.options as option, i}
-                        <OptionInput value={i.toString()}>{option}</OptionInput>
-                    {/each}
-                </SelectInput>
-                {@render dirtyDot(isToggleDirty(toggle))}
+                <div class="relative min-w-0">
+                    <SelectInput className="w-full" ariaLabel={toggle.value} bind:value={
+                        () => toggleVariableTarget[`toggle_${toggle.key}`] || '0',
+                        (value) => toggleVariableTarget[`toggle_${toggle.key}`] = value
+                    }>
+                        {#each toggle.options as option, i}
+                            <OptionInput value={i.toString()}>{option}</OptionInput>
+                        {/each}
+                    </SelectInput>
+                    {@render dirtyDot(isToggleDirty(toggle))}
+                </div>
             </div>
         {:else if toggle.type === 'text'}
             <div class="relative flex min-w-0 flex-col gap-0.5" data-toggle-cell="text"
                 title={`${toggle.value}: ${toggleVariableTarget[`toggle_${toggle.key}`] ?? ''}`}>
                 <span class="truncate px-1 text-[11px] text-textcolor2">{toggle.value}</span>
-                <TextInput className="w-full min-w-0" bind:value={toggleVariableTarget[`toggle_${toggle.key}`]} />
-                {@render dirtyDot(isToggleDirty(toggle))}
+                <div class="relative min-w-0">
+                    <TextInput className="w-full min-w-0" bind:value={toggleVariableTarget[`toggle_${toggle.key}`]} />
+                    {@render dirtyDot(isToggleDirty(toggle))}
+                </div>
             </div>
         {:else if toggle.key}
             {@render chip(
@@ -348,14 +373,17 @@
                         () => isSidebarSectionOpen(sectionBotId, `group:${toggle.value}`),
                         (open) => setSidebarSectionOpen(sectionBotId, `group:${toggle.value}`, open)
                     }>
+                        {#snippet trigger()}{@render groupTitle(toggle as sidebarToggleGroup)}{/snippet}
                         {@render minimalToggles(segmentToggles((toggle as sidebarToggleGroup).children))}
                     </ShAccordion>
                 </div>
             {:else if toggle.type === 'textarea'}
                 <div class="relative mt-2 flex w-full flex-col gap-0.5" data-toggle-cell="textarea">
                     <span class="truncate px-1 text-[11px] text-textcolor2" title={toggle.value}>{toggle.value}</span>
-                    <TextAreaInput className="w-full" height='20' bind:value={toggleVariableTarget[`toggle_${toggle.key}`]} />
-                    {@render dirtyDot(isToggleDirty(toggle))}
+                    <div class="relative min-w-0">
+                        <TextAreaInput className="w-full" height='20' bind:value={toggleVariableTarget[`toggle_${toggle.key}`]} />
+                        {@render dirtyDot(isToggleDirty(toggle))}
+                    </div>
                 </div>
             {:else if toggle.type === 'caption'}
                 <div class="w-full mt-1 text-xs text-textcolor2">
@@ -391,6 +419,7 @@
                         () => isSidebarSectionOpen(sectionBotId, `group:${toggle.value}`),
                         (open) => setSidebarSectionOpen(sectionBotId, `group:${toggle.value}`, open)
                     }>
+                    {#snippet trigger()}{@render groupTitle(toggle as sidebarToggleGroup)}{/snippet}
                     {@render toggles((toggle as sidebarToggleGroup).children, reverse)}
                 </ShAccordion>
             </div>
@@ -537,6 +566,26 @@
         background: var(--color-binding-border);
         box-shadow: 0 0 0 2px var(--color-bgcolor);
         pointer-events: none;
+    }
+    .toggle-group-count {
+        flex-shrink: 0;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 9999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        background: var(--color-binding-border);
+        color: var(--color-textcolor);
+    }
+    .toggle-group-count--zero {
+        background: var(--color-darkborderc);
+        color: var(--color-textcolor2);
     }
     .toggle-row--dirty {
         background: color-mix(in srgb, var(--color-binding) 45%, transparent);

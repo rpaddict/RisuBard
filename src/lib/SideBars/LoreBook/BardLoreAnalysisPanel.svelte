@@ -11,6 +11,7 @@
     import RisuBardGrimoirePromptWorkspace from 'src/lib/Setting/Pages/RisuBardGrimoirePromptWorkspace.svelte'
     import BardLoreAnalysisHelp from './BardLoreAnalysisHelp.svelte'
     import BardLoreLocalSplitReview from './BardLoreLocalSplitReview.svelte'
+    import BardLoreAlwaysActiveReview from './BardLoreAlwaysActiveReview.svelte'
     import { assessBardLoreBulkRisk, hasBardLoreListTitle } from 'src/ts/lorebook/bardLoreListStructure'
     import SolarIcon from './SolarIcon.svelte'
     import disketteIcon from 'src/assets/solar-bold/diskette-bold.svg'
@@ -756,6 +757,7 @@
                 {/if}
             {/if}
         </div>
+        <BardLoreAlwaysActiveReview {entries} disabled={analyzing} {onChange} />
         <div class="coverage-grid">
             <div><strong>{eligibleEntries.length}</strong><span>{language.lorebookWorkspace.bardAnalysisEntries}</span></div>
             <div><strong>{untypedCount}</strong><span>{language.lorebookWorkspace.bardAnalysisUntyped}</span></div>

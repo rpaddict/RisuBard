@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createBardLoreSettings, type BardLoreEntry, type BardLoreSettings } from './bardLore'
-import { BardLoreBudgetError, selectBardLoreEntries } from './bardLoreRetrieval'
+import { selectBardLoreEntries } from './bardLoreRetrieval'
 
 const settings: BardLoreSettings = createBardLoreSettings({
     targetTokens: 400,
@@ -552,13 +552,27 @@ describe('selectBardLoreEntries', () => {
         ])
     })
 
-    it('fails visibly when required entries alone exceed a hard limit', () => {
-        const required = entry('required', { bard: { ...entry('x').bard, sourceLegacyId: 'required', sourceHash: 'required', activation: 'required' } })
+    it('sends unanalyzed always-active entries as required without saving that choice', () => {
+        const rules = entry('rules', { alwaysActive: true, content: '게임 룰', bard: { ...entry('x').bard, sourceLegacyId: 'rules', sourceHash: 'rules', summary: '' } })
+        const analyzed = entry('world', { alwaysActive: true, content: '세계 규칙', bard: { ...entry('x').bard, sourceLegacyId: 'world', sourceHash: 'world', summary: '세계 규칙 요약' } })
 
-        expect(() => select('anything', [required], { required: 900 })).toThrow(BardLoreBudgetError)
+        const result = select('무관한 대화', [rules, analyzed], { rules: 10, world: 10 })
+
+        expect(result.selected.map((item) => [item.entry.id, item.lane])).toEqual([['rules', 'required']])
+        expect(rules.bard.activation).not.toBe('required')
     })
 
-    it('keeps a 150-entry lorebook with 49 legacy always-active entries inside configured soft limits', () => {
+    it('keeps required entries outside the hard limit', () => {
+        const required = entry('required', { bard: { ...entry('x').bard, sourceLegacyId: 'required', sourceHash: 'required', activation: 'required' } })
+        const mall = entry('mall', { content: '시내 데이트', bard: { ...entry('x').bard, sourceLegacyId: 'mall', sourceHash: 'mall', tags: ['시내'] } })
+
+        const result = select('시내', [required, mall], { required: 900, mall: 60 }, { targetTokens: 100, maximumTokens: 100, maxEntries: 5 })
+
+        expect(result.selected.map((item) => item.entry.id)).toEqual(['required', 'mall'])
+        expect(result).toMatchObject({ requiredTokens: 900, contextualTokens: 60 })
+    })
+
+    it('keeps a 150-entry lorebook with 49 analyzed always-active entries inside configured soft limits', () => {
         const entries = Array.from({ length: 150 }, (_, index) => entry('entry-' + index, {
             alwaysActive: index < 49,
             content: index === 87 ? '폴로니안 몰 카페 데이트' : '무관한 설정 ' + index,
@@ -566,6 +580,7 @@ describe('selectBardLoreEntries', () => {
                 ...entry('x').bard,
                 sourceLegacyId: 'entry-' + index,
                 sourceHash: 'entry-' + index,
+                summary: '분석 요약',
                 tags: index === 87 ? ['시내', '데이트'] : ['기타-' + index],
             },
         }))

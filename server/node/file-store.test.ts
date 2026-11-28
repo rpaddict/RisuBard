@@ -358,7 +358,7 @@ describe('journal recovery and trash', () => {
         expect(fs.readFileSync(path.join(root, 'settings/app.json'), 'utf8')).toBe('{}')
     })
 
-    it('replays permanent character deletion after interruption without touching other characters', () => {
+    it('replays character deletion into trash after interruption without touching other characters', () => {
         const root = tempRoot()
         atomicWriteFile(root, 'characters/one/metadata.json', Buffer.from('one'))
         atomicWriteFile(root, 'characters/two/metadata.json', Buffer.from('two'))
@@ -369,6 +369,9 @@ describe('journal recovery and trash', () => {
         recoverTransactions(root)
         expect(fs.existsSync(path.join(root, 'characters/one'))).toBe(false)
         expect(fs.readFileSync(path.join(root, 'characters/two/metadata.json'), 'utf8')).toBe('two')
+        const trashEntries = fs.readdirSync(path.join(root, 'trash'))
+        expect(trashEntries).toHaveLength(1)
+        expect(fs.readFileSync(path.join(root, 'trash', trashEntries[0], 'characters/one/metadata.json'), 'utf8')).toBe('one')
         expect(() => commitTransaction(root, [{ path: 'characters', deleteCharacter: true }])).toThrow(/one character/)
         expect(() => commitTransaction(root, [{ path: '../outside', deleteCharacter: true }])).toThrow(/escapes/)
     })

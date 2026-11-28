@@ -755,25 +755,24 @@
             style:font-size="{0.875 * (DBState.db.zoomsize / 100)}rem"
             style:line-height="{(DBState.db.lineHeight ?? 1.25) * (DBState.db.zoomsize / 100)}rem"
         >
-            {#key `${totalLengthPointer}|${chatReloadPointer}`}
-                <ChatBody
-                    {character}
-                    {firstMessage}
-                    {idx}
-                    {msgDisplay}
-                    {name}
-                    {bodyRoot}
-                    onRemoveInlay={!readOnly && idx >= 0 && !editMode && !translated && !isOptimizedStreamingMessage && !DBState.db.characters[selIdState.selId]?.chats[DBState.db.characters[selIdState.selId].chatPage]?.isStreaming ? removeInlayImage : undefined}
-                    modelShortName={
-                        messageGenerationInfo ? getModelInfo(messageGenerationInfo?.model).shortName : ''
-                    }
-                    role={role ?? null}
-                    bind:translated={translated}
-                    bind:translating={translating}
-                    bind:retranslate={retranslate}
-                    {renderRawStreaming}
-                    {rawStreamingText} />
-            {/key}
+            <ChatBody
+                {character}
+                {firstMessage}
+                {idx}
+                {msgDisplay}
+                {name}
+                {bodyRoot}
+                reloadKey={`${totalLengthPointer}|${chatReloadPointer}`}
+                onRemoveInlay={!readOnly && idx >= 0 && !editMode && !translated && !isOptimizedStreamingMessage && !DBState.db.characters[selIdState.selId]?.chats[DBState.db.characters[selIdState.selId].chatPage]?.isStreaming ? removeInlayImage : undefined}
+                modelShortName={
+                    messageGenerationInfo ? getModelInfo(messageGenerationInfo?.model).shortName : ''
+                }
+                role={role ?? null}
+                bind:translated={translated}
+                bind:translating={translating}
+                bind:retranslate={retranslate}
+                {renderRawStreaming}
+                {rawStreamingText} />
             {#if idx >= 0 && !readOnly && !editMode && !isOptimizedStreamingMessage && partialEditEnabled && (DBState.db.enableBlockPartialEdit || DBState.db.enableDragPartialEdit)}
                 <PartialEditController
                     messageData={message}

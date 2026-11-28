@@ -444,15 +444,18 @@
             <div data-persona-grid class="persona-grid" style:height={`${personaGridHeight}px`} bind:this={gridElement}>
                 {#each activeStore() as persona, i (persona.id ?? i)}
                     <button data-risu-idx={i} class="persona-tile" class:selected={i === selectedIndex()} aria-label={persona.name} title={persona.name} use:tooltip={persona.name} onclick={() => choosePersona(i)}>
-                        {#if persona.icon}
-                            {#await getCharImage(persona.icon, 'plain')}
+                        <span class="persona-thumb">
+                            {#if persona.icon}
+                                {#await getCharImage(persona.icon, 'plain')}
+                                    <span class="persona-placeholder"></span>
+                                {:then image}
+                                    <img src={image} alt="" />
+                                {/await}
+                            {:else}
                                 <span class="persona-placeholder"></span>
-                            {:then image}
-                                <img src={image} alt="" />
-                            {/await}
-                        {:else}
-                            <span class="persona-placeholder"></span>
-                        {/if}
+                            {/if}
+                        </span>
+                        <span data-persona-tile-name class="persona-name">{persona.name || 'User'}</span>
                     </button>
                 {/each}
                 <button
@@ -648,12 +651,15 @@
     .persona-grid-resizer { width: 100%; height: .75rem; display: grid; place-items: center; cursor: row-resize; touch-action: none; }
     .persona-grid-resizer span { width: 2.75rem; height: .2rem; border-radius: 999px; background: var(--color-darkborderc); transition: width .15s ease, background .15s ease; }
     .persona-grid-resizer:hover span, .persona-grid-resizer:focus-visible span { width: 3.5rem; background: var(--color-borderc); }
-    .persona-tile, .persona-create { flex: 0 0 auto; width: 5rem; height: 5rem; overflow: hidden; border: 2px solid transparent; border-radius: calc(var(--risu-radius-lg) * 1.1); background: var(--color-textcolor2); box-shadow: var(--risu-shadow-floating, 0 .4rem 1rem color-mix(in srgb, var(--color-shadow) 12%, transparent)); transition: border-color .16s ease, transform .16s ease, background .16s ease; }
+    .persona-tile { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: .3rem; width: 5rem; min-width: 0; transition: transform .16s ease; }
+    .persona-thumb, .persona-create { flex: 0 0 auto; width: 5rem; height: 5rem; overflow: hidden; border: 2px solid transparent; border-radius: calc(var(--risu-radius-lg) * 1.1); background: var(--color-textcolor2); box-shadow: var(--risu-shadow-floating, 0 .4rem 1rem color-mix(in srgb, var(--color-shadow) 12%, transparent)); transition: border-color .16s ease, transform .16s ease, background .16s ease; }
     .persona-tile:hover, .persona-create:hover { transform: translateY(-1px); }
-    .persona-tile.selected { border-color: var(--color-primary); }
+    .persona-tile.selected .persona-thumb { border-color: var(--color-primary); }
+    .persona-name { display: block; width: 100%; overflow: hidden; color: var(--color-textcolor2); font-size: .75rem; line-height: 1.2; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+    .persona-tile.selected .persona-name { color: var(--color-textcolor); font-weight: 650; }
     .persona-create { display: grid; place-items: center; border-color: var(--color-darkborderc); color: var(--color-textcolor2); background: color-mix(in srgb, var(--color-selected) 34%, var(--color-darkbg)); box-shadow: none; }
     .persona-create:hover { border-color: var(--color-borderc); color: var(--color-textcolor); background: var(--color-selected); }
-    .persona-tile img, .persona-placeholder, .persona-portrait { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+    .persona-thumb img, .persona-placeholder, .persona-portrait { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
     .persona-placeholder { background: color-mix(in srgb, var(--color-textcolor2) 65%, var(--color-darkbg)); }
     .persona-editor { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 1rem 1.25rem; width: 100%; margin-top: .75rem; padding: 1rem; border: 1px solid var(--color-darkborderc); border-radius: calc(var(--risu-radius-lg) * 1.3); background: var(--color-surface-raised); }
     .portrait-column { min-width: 0; }

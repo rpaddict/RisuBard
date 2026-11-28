@@ -340,7 +340,7 @@
 
     function matchesSearch(post: ReaderBoardPost): boolean {
         const episode = post.episodeId ? episodeById.get(post.episodeId) : undefined
-        const title = [post.title, episode?.title ?? '', post.subject ?? ''].join('\n')
+        const title = [post.title, episode?.title ?? ''].join('\n')
         const body = [post.body, ...(post.poll?.options ?? [])].join('\n')
         const fields = searchField === 'author' ? [post.author]
             : searchField === 'title' ? [title]
@@ -1645,7 +1645,6 @@
                             {#if retracted}<span class="tag warn">내려감</span>{/if}
                             {#if episode?.editedAt}<span class="tag subtle">수정됨</span>{/if}
                             {#if pending}<span class="tag subtle">반응 대기</span>{/if}
-                            {#if post.subject}<span class="tag subtle">{post.subject}</span>{/if}
                             {#if post.poll?.status === 'closed'}<span class="tag subtle">마감</span>{/if}
                         </header>
                         <p class="meta post-meta"><b class:author-name={post.kind === 'author' || post.kind === 'episode'}>{post.author}</b> <span class="tabular">{formatTime(post.createdAt)}</span>{#if turns} <span class="tabular">{turns}</span>{/if} <span class="tabular post-no">#{post.no}</span>{#if isFolded && post.comments.length > 0} <span class="tabular">댓글 {post.comments.length}</span>{/if}</p>

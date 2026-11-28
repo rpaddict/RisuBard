@@ -390,12 +390,44 @@ function appendRawStyle(target: HTMLElement, property: string, value: string): v
     target.setAttribute('style', `${existing}${separator}${existing ? ' ' : ''}${property}: ${value};`);
 }
 
+const SPACED_PROSE_TAGS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'UL', 'OL', 'PRE']);
+const PROSE_WRAPPER_TAGS = new Set(['DIV', 'SECTION', 'ARTICLE', 'MAIN', 'BLOCKQUOTE']);
+
+function isSpacingWrapper(element: HTMLElement): boolean {
+    if (!PROSE_WRAPPER_TAGS.has(element.tagName)) return false;
+    const display = element.style.display;
+    if (display.startsWith('table') || display.startsWith('inline')) return false;
+    return Array.from(element.children).some(child =>
+        SPACED_PROSE_TAGS.has(child.tagName) || isSpacingWrapper(child as HTMLElement));
+}
+
+// Arca's editor gives paragraphs no margin of their own, so the gap the app draws between
+// paragraphs is written inline. Bots often wrap the whole reply in one block, so the gap is
+// added inside such wrappers as well; a block that already carries its own margin keeps it.
+function applyNestedSpacing(parent: HTMLElement, spacing: string): void {
+    const blocks = Array.from(parent.children) as HTMLElement[];
+    blocks.forEach((block, index) => {
+        const wrapper = isSpacingWrapper(block);
+        if (index < blocks.length - 1
+            && !block.style.marginBottom
+            && (wrapper || SPACED_PROSE_TAGS.has(block.tagName))) {
+            appendRawStyle(block, 'margin-bottom', spacing);
+        }
+        if (wrapper) {
+            applyNestedSpacing(block, spacing);
+        }
+    });
+}
+
 function applyTopLevelSpacing(container: HTMLElement, paragraphSpacingPercent: number | undefined): void {
     const blocks = Array.from(container.children) as HTMLElement[];
-    const spacingEm = normalizeArcaChatParagraphSpacingPercent(paragraphSpacingPercent) / 100;
+    const spacing = `${normalizeArcaChatParagraphSpacingPercent(paragraphSpacingPercent) / 100}em`;
     blocks.forEach((block, index) => {
         if (index < blocks.length - 1) {
-            appendRawStyle(block, 'margin-bottom', `${spacingEm}em`);
+            appendRawStyle(block, 'margin-bottom', spacing);
+        }
+        if (isSpacingWrapper(block)) {
+            applyNestedSpacing(block, spacing);
         }
     });
 }
@@ -885,6 +917,14 @@ async function exportChildNodes(
 ): Promise<void> {
     const outputDocument = target.ownerDocument;
     for (const child of Array.from(parent.childNodes)) {
+        // A `display: contents` wrapper, such as the message body's painter span, draws no box,
+        // so its children are exported in its place and keep their spacing as top-level blocks.
+        if (child instanceof HTMLElement
+            && !shouldDropElement(child)
+            && getStyleValue(options.readStyle(child), 'display') === 'contents') {
+            await exportChildNodes(child, target, options);
+            continue;
+        }
         // Controls such as a bot's fixed FAB buttons are dropped, not snapshotted: rendered on
         // their own they leave transparent images that Arca shows as blank space.
         if (child instanceof HTMLElement

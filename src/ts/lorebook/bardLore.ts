@@ -714,9 +714,43 @@ function activationFor(entry: loreBook): BardLoreActivation {
     return splitAliases(entry.key, entry.secondkey).length > 0 ? 'keyed' : 'retrieve'
 }
 
+/** Base Grimoire entries whose source lorebook entry is enabled and always active. */
+export function alwaysActiveBardLoreEntries(entries: BardLoreEntry[]): BardLoreEntry[] {
+    return entries.filter((entry) => entry.alwaysActive
+        && !entry.bard.derivedFromId
+        && entry.bard.activation !== 'never')
+}
+
+/**
+ * Until analysis gives it a summary, an always-active entry keeps the author's "always send this" rule.
+ * Retrieval applies this at selection time only, so it is never saved and follows later lorebook edits.
+ */
+export function isAutoRequiredBardLoreEntry(entry: BardLoreEntry): boolean {
+    return entry.alwaysActive && !entry.bard.derivedFromId && entry.bard.activation !== 'never' && !entry.bard.summary.trim()
+}
+
+/** Marks the chosen always-active entries required and returns the others to key or relevance retrieval. */
+export function setAlwaysActiveBardLoreRequired(entries: BardLoreEntry[], requiredIds: ReadonlySet<string>): BardLoreEntry[] {
+    const candidates = new Set(alwaysActiveBardLoreEntries(entries).map((entry) => entry.id))
+    return entries.map((entry) => {
+        if (!candidates.has(entry.id) || isAutoRequiredBardLoreEntry(entry)) return entry
+        const required = requiredIds.has(entry.id)
+        const activation: BardLoreActivation = required
+            ? 'required'
+            : entry.bard.activation !== 'required'
+            ? entry.bard.activation
+            : splitAliases(entry.key, entry.secondkey ?? '').length > 0 || entry.bard.aliases.length > 0 ? 'keyed' : 'retrieve'
+        return activation === entry.bard.activation ? entry : { ...entry, bard: { ...entry.bard, activation } }
+    })
+}
+
+function readTrimmedId(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : ''
+}
+
 export function createBardLoreEntry(entry: loreBook): BardLoreEntry {
-    if (!entry.id?.trim()) throw new Error('Grimoire entries require a stable ID.')
-    const id = entry.id.trim()
+    const id = readTrimmedId(entry.id)
+    if (!id) throw new Error('Grimoire entries require a stable ID.')
     return {
         ...safeStructuredClone(entry),
         id,
@@ -742,7 +776,7 @@ function withoutBardMetadata(entry: BardLoreEntry): loreBook {
 }
 
 function uniqueSourceId(entry: loreBook, index: number, retained: Set<string>): string {
-    const saved = entry.id?.trim() ?? ''
+    const saved = readTrimmedId(entry.id)
     if (saved && !retained.has(saved)) return saved
     const base = `legacy-${fingerprintLegacyLore(entry).slice(6)}-${index + 1}`
     let id = base
@@ -751,8 +785,8 @@ function uniqueSourceId(entry: loreBook, index: number, retained: Set<string>): 
     return id
 }
 
-function allocateSourceId(preferred: string | undefined, used: Set<string>, createId: () => string): string {
-    let id = preferred?.trim() ?? ''
+function allocateSourceId(preferred: unknown, used: Set<string>, createId: () => string): string {
+    let id = readTrimmedId(preferred)
     if (id && !used.has(id)) {
         used.add(id)
         return id
@@ -907,7 +941,7 @@ export function applyMaterializedBardLoreEntries(
 ): { state: BardLoreState; legacyEntries: loreBook[] } {
     const retainedIds = new Set<string>()
     const baseEntries = entries.filter((entry) => !entry.bard.derivedFromId).filter((entry) => {
-        const id = entry.id?.trim()
+        const id = readTrimmedId(entry.id)
         if (!id || retainedIds.has(id)) return false
         retainedIds.add(id)
         return true
@@ -1121,11 +1155,11 @@ export function upgradeLegacyLorebook(
     createId: () => string,
     settings: BardLoreSettings,
 ): BardLoreState {
-    const reserved = new Set(entries.map((entry) => entry.id?.trim()).filter((id): id is string => Boolean(id)))
+    const reserved = new Set(entries.map((entry) => readTrimmedId(entry.id)).filter(Boolean))
     const retained = new Set<string>()
 
     const metadata = entries.map((entry): BardLoreMetadata => {
-        let id = entry.id?.trim() ?? ''
+        let id = readTrimmedId(entry.id)
         if (!id || retained.has(id)) {
             do id = createId().trim()
             while (!id || reserved.has(id) || retained.has(id))

@@ -265,7 +265,7 @@ describe('persona builder character lorebook search', () => {
 })
 
 describe('lorebook recursion steps', () => {
-    it('uses bounded Bard Lore entries instead of legacy always-active character lore', async () => {
+    it('uses bounded Bard Lore entries instead of analyzed always-active character lore', async () => {
         mockModuleSources.length = 0
         const bardEntry = (id: string, content: string, activation: string, aliases: string[] = [], tags: string[] = []) => ({
             ...lore(id, aliases.join(', '), content),
@@ -295,7 +295,7 @@ describe('lorebook recursion steps', () => {
                     { ...lore('format', '', 'STATUS FORMAT'), id: 'format' },
                     { ...lore('mall', '', 'MALL DATE FACT'), id: 'mall' },
                     { ...lore('dorm', '', 'DORM FACT'), id: 'dorm' },
-                    { ...lore('Legacy dump', '', 'LEGACY WORLD DUMP'), alwaysActive: true },
+                    { ...lore('Legacy dump', '', 'LEGACY WORLD DUMP'), id: 'dump', alwaysActive: true },
                 ],
                 bardLore: {
                     schemaVersion: 2,
@@ -305,6 +305,7 @@ describe('lorebook recursion steps', () => {
                         bardEntry('format', 'STATUS FORMAT', 'required').bard,
                         bardEntry('mall', 'MALL DATE FACT', 'retrieve', [], ['시내']).bard,
                         bardEntry('dorm', 'DORM FACT', 'retrieve', [], ['기숙사']).bard,
+                        { ...bardEntry('dump', 'LEGACY WORLD DUMP', 'retrieve', [], ['세계']).bard, summary: '세계 설정 덤프' },
                     ],
                     derivedEntries: [],
                 },

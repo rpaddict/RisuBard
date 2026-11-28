@@ -24,6 +24,7 @@
         translating: boolean
         retranslate: boolean
         bodyRoot?: HTMLElement|null
+        reloadKey?: string
         modelShortName: string
         renderRawStreaming?: boolean
         rawStreamingText?: string
@@ -40,6 +41,7 @@
         translating = $bindable(false),
         retranslate = $bindable(false),
         bodyRoot,
+        reloadKey = '',
         modelShortName = '',
         renderRawStreaming = false,
         rawStreamingText = '',
@@ -265,7 +267,10 @@
         }
     }
 
-    let markParsingResult = $derived.by(() => markParsing(msgDisplay, character, idx))
+    let markParsingResult = $derived.by(() => {
+        reloadKey
+        return markParsing(msgDisplay, character, idx)
+    })
 
     function onHtmlRendered() {
         checkImg()

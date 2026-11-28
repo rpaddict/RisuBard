@@ -486,6 +486,28 @@ function chronologicalEvents<T extends { document: MarkdownWikiDocument }>(
     return selected.map((item) => item.document.type === 'event' ? events[next++] : item)
 }
 
+const MAX_STALE_SCENE_EVENTS = 3
+
+// A scene page is injected every turn as the current state. When analysis
+// records later events without rewriting it, the model follows the old snapshot
+// back into a finished scene, so the page says which later events it misses.
+function staleSceneNote(scene: MarkdownWikiDocument, documents: readonly MarkdownWikiDocument[]): string {
+    if (scene.type !== 'scene') return ''
+    const covered = new Set(scene.sourceMessageIds)
+    const recordedAt = (event: MarkdownWikiDocument) => event.created ?? event.updated
+    const later = documents.filter(event => event.type === 'event' && event.status === 'active'
+        && recordedAt(event) > scene.updated
+        && !event.sourceMessageIds.every(id => covered.has(id)))
+        .sort((left, right) => (left.sequence ?? 0) - (right.sequence ?? 0)
+            || recordedAt(left).localeCompare(recordedAt(right)))
+    if (!later.length) return ''
+    const listed = later.slice(-MAX_STALE_SCENE_EVENTS)
+        .map(event => event.sequence ? `event #${event.sequence} "${event.title}"` : `"${event.title}"`)
+    const omitted = later.length - listed.length
+    return `[Outdated scene snapshot: this page was not updated after ${omitted ? `${omitted} earlier events and ` : ''}${listed.join(', ')}. `
+        + 'Where it conflicts with those events or the recent chat, they are current; continue from the latest point, not from this page.]'
+}
+
 export function inquireMarkdownDocuments(
     input: MarkdownInquiryInput
 ): MarkdownInquiryResult {
@@ -496,11 +518,15 @@ export function inquireMarkdownDocuments(
         const documents = input.documents.filter(document => isEligible(document, input)
             && (document.contextMode === 'always' || document.type === 'scene'))
             .slice(0, MAX_REQUIRED_DOCUMENTS)
-        const sources = documents.map(document => ({
-            id: `narrative-memory:wiki:${document.relativePath}`,
-            kind: 'memory' as const, role: 'system' as const,
-            content: document.content, tokens: countInquiryTokens(document.content), priority: 200,
-        }))
+        const sources = documents.map(document => {
+            const note = staleSceneNote(document, input.documents)
+            const content = note ? `${note}\n\n${document.content}` : document.content
+            return {
+                id: `narrative-memory:wiki:${document.relativePath}`,
+                kind: 'memory' as const, role: 'system' as const,
+                content, tokens: countInquiryTokens(content), priority: 200,
+            }
+        })
         const selectedTokens = sources.reduce((sum, source) => sum + source.tokens, 0)
         return {
             mode: 'v2-current', graphRevision: input.documents.length, indexRevision: input.documents.length,

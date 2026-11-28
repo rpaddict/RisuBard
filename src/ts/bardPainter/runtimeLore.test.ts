@@ -101,16 +101,15 @@ it('uses Grimoire aliases and excludes entries marked never', async () => {
     expect(refs).not.toContain('HIDDEN PROFILE')
 })
 
-it('reports a Grimoire required-lore budget error without sending an unbounded fallback', async () => {
+it('sends Grimoire required lore even when it is larger than the retrieval hard limit', async () => {
     const char = mocks.db.characters[0]
     char.globalLore = [lore('required', '', 'required text '.repeat(100))]
     char.bardLore = upgradeLegacyLorebook(char.globalLore, () => 'unused', createBardLoreSettings({ targetTokens: 500, maximumTokens: 500 }))
     char.bardLore.mode = 'bard'
     char.bardLore.metadata[0].activation = 'required'
     const session = new PainterSession('bot', 'chat')
-    expect(await session.prepare()).toBe(false)
-    expect(session.state.error).not.toBe('')
-    expect(mocks.request).not.toHaveBeenCalled()
+    expect(await session.prepare()).toBe(true)
+    expect(session.state.error).toBe('')
 })
 
 it('does not include character lore when the option is off or no entries match', async () => {

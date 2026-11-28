@@ -57,6 +57,17 @@ function patchNode(live: Node, previous: Node, next: Node) {
                 live.setAttribute(attribute.name, attribute.value)
             }
         }
+        if (live instanceof HTMLInputElement && (live.type === 'checkbox' || live.type === 'radio')) {
+            const nextChecked = next.hasAttribute('checked')
+            if (previous.hasAttribute('checked') !== nextChecked) {
+                live.checked = nextChecked
+            }
+        } else if (live instanceof HTMLOptionElement) {
+            const nextSelected = next.hasAttribute('selected')
+            if (previous.hasAttribute('selected') !== nextSelected) {
+                live.selected = nextSelected
+            }
+        }
         patchChildren(live, previous, next)
     } else if (live.nodeValue !== next.nodeValue) {
         live.nodeValue = next.nodeValue
@@ -73,16 +84,53 @@ function createParserElement() {
     return parserDocument.createElement('div')
 }
 
+function getElementPath(root: Node, target: Element): number[] {
+    const path: number[] = []
+    for (let el: Element | null = target; el && el !== root; el = el.parentElement) {
+        const parent = el.parentElement
+        if (!parent) break
+        path.unshift(Array.prototype.indexOf.call(parent.children, el))
+    }
+    return path
+}
+
+function captureScrolledDescendants(root: HTMLElement) {
+    const saved: Array<{ el: HTMLElement; path: number[]; top: number; left: number }> = []
+    for (const el of root.querySelectorAll<HTMLElement>('*')) {
+        if (el.scrollTop !== 0 || el.scrollLeft !== 0) {
+            saved.push({ el, path: getElementPath(root, el), top: el.scrollTop, left: el.scrollLeft })
+        }
+    }
+    return saved
+}
+
+function restoreScrolledDescendants(root: HTMLElement, saved: Array<{ el: HTMLElement; path: number[]; top: number; left: number }>) {
+    for (const entry of saved) {
+        let target: Element | null = entry.el.isConnected ? entry.el : root
+        if (!entry.el.isConnected) {
+            for (const index of entry.path) {
+                target = target?.children[index] ?? null
+            }
+        }
+        if (target instanceof HTMLElement) {
+            if (target.scrollTop !== entry.top) target.scrollTop = entry.top
+            if (target.scrollLeft !== entry.left) target.scrollLeft = entry.left
+        }
+    }
+}
+
 /** Svelte action for already-sanitized chat HTML. Keeps the last committed DOM while parsing. */
 export function retainedChatHtml(node: HTMLElement, initial: ChatHtmlUpdate) {
     let previous: Node = createParserElement()
     let revision = 0
 
     function commit(html: string) {
+        const savedScrolls = captureScrolledDescendants(node)
         const next = createParserElement()
         next.innerHTML = html
         patchChildren(node, previous, next)
         previous = next
+        if (savedScrolls.length > 0) restoreScrolledDescendants(node, savedScrolls)
     }
 
     function update(options: ChatHtmlUpdate) {

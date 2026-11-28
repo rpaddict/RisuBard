@@ -1839,7 +1839,7 @@ function describePoll(poll: ReaderBoardPoll): string {
 function describePost(board: ReaderBoard, post: ReaderBoardPost, commentLimit: number): string {
     const comments = post.comments.slice(-commentLimit)
     const skipped = post.comments.length - comments.length
-    const heading = post.topic ? `[${TOPIC_LABELS[post.topic]}${post.subject ? `: ${post.subject}` : ''}] ` : post.kind === 'poll' ? '[투표] ' : ''
+    const heading = post.topic ? `[${TOPIC_LABELS[post.topic]}] ` : post.kind === 'poll' ? '[투표] ' : ''
     return [
         `#${post.no} [${post.author}] ${heading}${post.title}`,
         post.body ? post.body : '',
@@ -1991,7 +1991,7 @@ export function buildGenerationRequest(plan: GenerationPlan, storyName: string, 
         ? `이번에 독자가 새로 쓸 글의 주제: [${TOPIC_LABELS[opened.topic]}] ${[
             opened.subject.trim(),
             opened.episodes ? `${Math.min(opened.episodes.from, opened.episodes.to)}화~${Math.max(opened.episodes.from, opened.episodes.to)}화` : '',
-        ].filter(Boolean).join(', ') || '자유 주제'}${opened.author?.trim() ? `\n글쓴이: ${opened.author.trim()}. threads의 author는 반드시 "${opened.author.trim()}"로 쓰고, ${board.readers.some((reader) => reader.handle === opened.author!.trim()) ? '그 독자의 성격과 취향, 지금 생각대로 쓴다.' : '명단에 없는 지나가던 독자다. 주제에 어울리는 말투로 쓴다.'}` : ''}\n이 주제는 독자가 스스로 꺼내는 이야기다. 작가가 주제를 냈거나 묻는 것이 아니며, 게시판의 누구도 이 주제가 작가에게서 왔다고 알지 못한다. 글쓴이는 자기 생각을 자기 말로 쓰고, "작가님이 물어보셔서", "작가가 올린 주제" 같은 말을 하지 않는다. 댓글을 다는 독자도 작가가 아니라 글쓴이에게 반응한다. 주제가 작품을 비판하는 내용이면 글쓴이는 실제로 그렇게 느낀 독자로서 쓴다. 독자는 연재된 내용과 게시판에서 본 것만 안다. 연재되지 않은 사실이나 이후 전개는 지어내지 않는다.`
+        ].filter(Boolean).join(', ') || '자유 주제'}${opened.author?.trim() ? `\n글쓴이: ${opened.author.trim()}. threads의 author는 반드시 "${opened.author.trim()}"로 쓰고, ${board.readers.some((reader) => reader.handle === opened.author!.trim()) ? '그 독자의 성격과 취향, 지금 생각대로 쓴다.' : '명단에 없는 지나가던 독자다. 주제에 어울리는 말투로 쓴다.'}` : ''}\n이 주제 문구는 글감일 뿐이며 게시판에는 보이지 않는다. 글쓴이는 이 글감으로 자기 글을 새로 쓰고, 제목도 그 글의 내용에 맞게 글쓴이가 직접 짓는다. 주제 문구를 제목이나 본문에 그대로 옮겨 적지 않는다. 이 주제는 독자가 스스로 꺼내는 이야기다. 작가가 주제를 냈거나 묻는 것이 아니며, 게시판의 누구도 이 주제가 작가에게서 왔다고 알지 못한다. 글쓴이는 자기 생각을 자기 말로 쓰고, "작가님이 물어보셔서", "작가가 올린 주제" 같은 말을 하지 않는다. 댓글을 다는 독자도 작가가 아니라 글쓴이에게 반응한다. 주제가 작품을 비판하는 내용이면 글쓴이는 실제로 그렇게 느낀 독자로서 쓴다. 독자는 연재된 내용과 게시판에서 본 것만 안다. 연재되지 않은 사실이나 이후 전개는 지어내지 않는다.`
         : ''
     const targets = plan.targetPostNos.map((no) => {
         const post = board.posts.find((item) => item.no === no)!
@@ -2245,17 +2245,14 @@ export function applyGenerationResult(
             const title = text(item.title, 300).trim()
             if (!name || !title) continue
             const topic = plan.open?.topic ?? (READER_BOARD_TOPICS.includes(item.topic as ReaderBoardTopic) ? item.topic as ReaderBoardTopic : 'free')
-            const subject = plan.open
-                ? [plan.open.subject.trim(), plan.open.episodes ? `${Math.min(plan.open.episodes.from, plan.open.episodes.to)}~${Math.max(plan.open.episodes.from, plan.open.episodes.to)}화` : ''].filter(Boolean).join(', ')
-                : ''
             const post: ReaderBoardPost = {
                 no: board.nextPostNo++,
                 kind: 'thread',
                 author: name,
                 title,
                 body: text(item.body, 20000).trim(),
+                // The subject the author opened is only material for the reader's own post; it is never shown.
                 topic,
-                ...(subject ? { subject: subject.slice(0, 120) } : {}),
                 // Talk about a side-story episode stays in its tab.
                 ...(plan.episode?.seriesId ? { seriesId: plan.episode.seriesId } : {}),
                 comments: [],

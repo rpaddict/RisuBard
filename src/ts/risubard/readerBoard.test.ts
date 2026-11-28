@@ -737,7 +737,10 @@ describe('forum', () => {
         }, { createId })
         const added = plan.board.posts.slice(before)
         expect(added).toHaveLength(1)
-        expect(added[0]).toMatchObject({ kind: 'thread', topic: 'episode', subject: '반전, 1~1화' })
+        expect(added[0]).toMatchObject({ kind: 'thread', topic: 'episode' })
+        // The opened subject is material only: not stored on the post, so it is never shown.
+        expect(added[0].subject).toBeUndefined()
+        expect(user).toContain('제목도 그 글의 내용에 맞게 글쓴이가 직접 짓는다')
         expect(added[0].comments).toHaveLength(1)
         expect(() => applyGenerationResult(prepareGeneration({ board, chatKey: CHAT, views: chat, open: { kind: 'topic', topic: 'free', subject: '' }, random: () => 0 })!, { comments: [] }, { createId }))
             .toThrow('독자 글')

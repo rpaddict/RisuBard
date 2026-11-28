@@ -531,6 +531,40 @@ describe('exportArcaHtml', () => {
         expect(last.style.marginBottom).toBe('');
     });
 
+    it('unwraps the display-contents message body so its paragraphs get spacing', async () => {
+        const root = document.createElement('div');
+        root.innerHTML = '<span data-painter-body style="display: contents"><p>첫 문단</p><p>둘째 문단</p></span>';
+
+        const html = await exportArcaHtml(root, {
+            paragraphSpacingPercent: 100,
+            readStyle: element => (element as HTMLElement).style,
+        });
+        const output = document.createElement('div');
+        output.innerHTML = html;
+
+        expect(output.querySelector('span')).toBeNull();
+        expect(Array.from(output.children).map(child => (child as HTMLElement).style.marginBottom))
+            .toEqual(['1em', '']);
+    });
+
+    it('adds paragraph spacing inside a wrapper that holds the whole reply', async () => {
+        const root = document.createElement('div');
+        root.innerHTML = '<div class="bot-body"><p>첫 문단</p><p>둘째 문단</p><div><p>셋째</p><p style="margin-bottom: 4px">넷째</p><p>다섯째</p></div><p>끝</p></div>';
+
+        const html = await exportArcaHtml(root, {
+            paragraphSpacingPercent: 150,
+            readStyle: element => (element as HTMLElement).style,
+        });
+        const output = document.createElement('div');
+        output.innerHTML = html;
+        const paragraphs = Array.from(output.querySelectorAll('p')) as HTMLElement[];
+        const innerWrapper = paragraphs[2].parentElement as HTMLElement;
+
+        expect(paragraphs.map(paragraph => paragraph.style.marginBottom))
+            .toEqual(['1.5em', '1.5em', '1.5em', '4px', '', '']);
+        expect(innerWrapper.style.marginBottom).toBe('1.5em');
+    });
+
     it('inlines safe computed styles and rewrites unsupported flex rows as table cells', async () => {
         const root = document.createElement('div');
         root.innerHTML = `

@@ -949,8 +949,8 @@ function createUserDataRepository(options = {}) {
         const sidebarCharacters = mode === 'merge' ? mergeById(previousIndex.characters, characters) : characters;
         const sidebar = { schemaVersion: 1, updatedAt: Date.now(), characters: sidebarCharacters, collections };
         operations.push({ path: 'index/sidebar.json', data: jsonBytes(sidebar) });
-        // Ordinary saves permanently delete explicitly removed characters. Keep
-        // backup/import replacement recovery separate from user deletion.
+        // Ordinary saves move removed characters to trash (auto-purged after the retention window).
+        // Keep backup/import replacement recovery separate from user deletion.
         const deletedAssetCandidates = new Set();
         if (mode === 'sync') {
             const retainedIds = new Set(characters.map(character => character.id));

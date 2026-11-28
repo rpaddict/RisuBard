@@ -48,4 +48,59 @@ describe('retainedChatHtml', () => {
         expect(node.querySelector('td')).toBeNull()
         expect(node.textContent).toBe('cell')
     })
+
+    test('preserves scroll position of inner scrollable panels across in-place and fallback updates', async () => {
+        const node = document.createElement('span')
+        const action = retainedChatHtml(node, render('<div class="panel"><div class="body"><p>Item 1</p></div></div>'))
+        await flush()
+        const body = node.querySelector<HTMLElement>('.body')!
+        body.scrollTop = 240
+        body.scrollLeft = 18
+
+        action.update(render('<div class="panel"><div class="body"><p>Banner</p><p>Item 1</p></div></div>'))
+        await flush()
+        expect(node.querySelector('.body')).toBe(body)
+        expect(body.scrollTop).toBe(240)
+        expect(body.scrollLeft).toBe(18)
+
+        // Force fallback rebuild by mutating live child count
+        node.appendChild(document.createComment('extra'))
+        action.update(render('<div class="panel"><div class="body"><p>Item 2</p></div></div>'))
+        await flush()
+        const rebuilt = node.querySelector<HTMLElement>('.body')!
+        expect(rebuilt).not.toBe(body)
+        expect(rebuilt.scrollTop).toBe(240)
+        expect(rebuilt.scrollLeft).toBe(18)
+    })
+
+    test('syncs live checked state when radio checked attribute moves after user interaction', async () => {
+        const node = document.createElement('span')
+        document.body.append(node)
+        try {
+            const action = retainedChatHtml(
+                node,
+                render('<input type="radio" name="tab" id="a" checked><input type="radio" name="tab" id="b">'),
+            )
+            await flush()
+            const a = node.querySelector<HTMLInputElement>('#a')!
+            const b = node.querySelector<HTMLInputElement>('#b')!
+            // Simulate user clicking #b (sets dirty checkedness flag)
+            b.checked = true
+            expect(a.checked).toBe(false)
+            expect(b.checked).toBe(true)
+
+            // Programmatic redraw moves checked from #a to #b, then back to #a
+            action.update(render('<input type="radio" name="tab" id="a"><input type="radio" name="tab" id="b" checked>'))
+            await flush()
+            expect(a.checked).toBe(false)
+            expect(b.checked).toBe(true)
+
+            action.update(render('<input type="radio" name="tab" id="a" checked><input type="radio" name="tab" id="b">'))
+            await flush()
+            expect(a.checked).toBe(true)
+            expect(b.checked).toBe(false)
+        } finally {
+            node.remove()
+        }
+    })
 })

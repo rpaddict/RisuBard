@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { loreBook } from '../storage/database.svelte'
 import {
+    alwaysActiveBardLoreEntries,
     applyMaterializedBardLoreEntries,
+    isAutoRequiredBardLoreEntry,
+    setAlwaysActiveBardLoreRequired,
     createBardLoreEntry,
     createBardLoreSettings,
     fingerprintLegacyLore,
@@ -82,6 +85,38 @@ describe('upgradeLegacyLorebook', () => {
             content: 'Edited in the legacy editor',
             bard: { summary: '분석 요약' },
         })
+    })
+
+    it('keeps the saved activation of unanalyzed always-active entries so later lorebook edits still apply', () => {
+        const rules = lore({ id: 'rules', key: '룰', alwaysActive: true })
+        const state = upgradeLegacyLorebook([rules], () => 'unused', settings)
+
+        const entries = materializeBardLoreEntries(state, [rules])
+
+        expect(entries[0].bard.activation).toBe('keyed')
+        expect(isAutoRequiredBardLoreEntry(entries[0])).toBe(true)
+        expect(isAutoRequiredBardLoreEntry(materializeBardLoreEntries(state, [{ ...rules, alwaysActive: false }])[0])).toBe(false)
+    })
+
+    it('lets analyzed always-active entries be chosen as required or returned to retrieval', () => {
+        const sources = [
+            lore({ id: 'rules', alwaysActive: true }),
+            lore({ id: 'list', key: 'NPC', alwaysActive: true }),
+            lore({ id: 'fresh', alwaysActive: true }),
+            lore({ id: 'plain' }),
+        ]
+        const state = upgradeLegacyLorebook(sources, () => 'unused', settings)
+        state.metadata[0] = { ...state.metadata[0], activation: 'retrieve', summary: '룰' }
+        state.metadata[1] = { ...state.metadata[1], activation: 'required', summary: '명부' }
+        const entries = materializeBardLoreEntries(state, sources)
+
+        expect(alwaysActiveBardLoreEntries(entries).map((entry) => entry.id)).toEqual(['rules', 'list', 'fresh'])
+        expect(isAutoRequiredBardLoreEntry(entries[2])).toBe(true)
+
+        const next = setAlwaysActiveBardLoreRequired(entries, new Set(['rules']))
+
+        expect(next.map((entry) => entry.bard.activation)).toEqual(['required', 'keyed', 'retrieve', 'retrieve'])
+        expect(next[2]).toBe(entries[2])
     })
 
     it('commits ordinary Grimoire edits to legacy lore while retaining only metadata in Grimoire', () => {
@@ -506,5 +541,24 @@ describe('upgradeLegacyLorebook', () => {
 
         expect(fingerprintLegacyLore(source)).toBe(fingerprintLegacyLore({ ...source }))
         expect(fingerprintLegacyLore(source)).not.toBe(fingerprintLegacyLore({ ...source, content: 'two' }))
+    })
+
+    it('replaces non-string legacy lore IDs safely without throwing', () => {
+        const settings = createBardLoreSettings()
+        const malformed = [
+            lore({ id: 123 as unknown as string, comment: 'Numeric ID', content: 'body 1' }),
+            lore({ id: { nested: true } as unknown as string, comment: 'Object ID', content: 'body 2' }),
+            lore({ id: 'valid-id', comment: 'Valid ID', content: 'body 3' }),
+        ]
+        let nextId = 1
+        const createId = () => `gen-${nextId++}`
+
+        const upgraded = upgradeLegacyLorebook(malformed, createId, settings)
+        expect(upgraded.metadata.map((item) => item.sourceLegacyId)).toEqual(['gen-1', 'gen-2', 'valid-id'])
+
+        nextId = 10
+        const normalized = normalizeBardLoreOwnerState(upgraded, malformed, createId)
+        expect(normalized?.legacyEntries.map((entry) => entry.id)).toEqual(['gen-10', 'gen-11', 'valid-id'])
+        expect(normalized?.state.metadata.map((item) => item.sourceLegacyId)).toEqual(['gen-10', 'gen-11', 'valid-id'])
     })
 })

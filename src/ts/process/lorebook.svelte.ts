@@ -767,6 +767,8 @@ export async function loadLoreBookV3Prompt(options?: (ChatContext & { renderedFi
         const isBardCharacterLore = act.sourceIdentity.scopeId === characterScopeId
             && 'bard' in act.sourceIdentity.entry
         if(isBardCharacterLore && bardSettings){
+            // Required entries are sent every turn by definition; the hard limit bounds retrieved context only.
+            if(act.requestStatusKind === 'grimoireRequired') return true
             if(bardUsedTokens + act.tokens > bardSettings.maximumTokens){
                 throw new BardLoreBudgetError('Selected Grimoire entries exceed the configured hard limit after prompt rendering.')
             }

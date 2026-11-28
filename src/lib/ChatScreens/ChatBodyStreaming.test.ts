@@ -43,20 +43,25 @@ async function settle() {
 }
 
 async function render(html: string, onRemoveInlay?: (id: string, occurrence: number) => void) {
-    const state = new SvelteMap([['html', html]])
+    const state = new SvelteMap<string, string>([['html', html], ['reloadKey', '0|0:0']])
     const target = document.createElement('div')
     document.body.append(target)
     mounted.push(mount(ChatBody, {
         target,
         props: {
             get msgDisplay() { return state.get('html')! },
+            get reloadKey() { return state.get('reloadKey')! },
             idx: 1, character: 'test', role: 'char', translated: false,
             retranslate: false, translating: false, modelShortName: '', bodyRoot: target,
             onRemoveInlay,
         },
     }))
     await settle()
-    return { target, update: (html: string) => state.set('html', html) }
+    return {
+        target,
+        update: (html: string) => state.set('html', html),
+        reload: (reloadKey: string) => state.set('reloadKey', reloadKey),
+    }
 }
 
 describe('streaming chat body', () => {
@@ -142,5 +147,22 @@ describe('streaming chat body', () => {
         finishOld('<p>Outdated</p>')
         await settle()
         expect(target.textContent).toBe('Newest')
+    })
+
+    test('re-parses in place on reloadKey changes and preserves inner panel scroll', async () => {
+        vi.mocked(ParseMarkdown)
+            .mockImplementationOnce(async () => '<div class="panel"><div class="body"><p>Before</p></div></div>')
+            .mockImplementationOnce(async () => '<div class="panel"><div class="body"><p>After</p></div></div>')
+        const { target, reload } = await render('same message')
+        const body = target.querySelector<HTMLElement>('.body')!
+        body.scrollTop = 320
+
+        reload('0|0:1')
+        await settle()
+
+        expect(ParseMarkdown).toHaveBeenCalledTimes(2)
+        expect(target.querySelector('.body')).toBe(body)
+        expect(body.scrollTop).toBe(320)
+        expect(body.textContent).toBe('After')
     })
 })

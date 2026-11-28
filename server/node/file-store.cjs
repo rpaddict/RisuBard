@@ -278,10 +278,7 @@ function publishTransaction(root, journal, journalPath, options = {}) {
     for (const entry of journal.entries) {
         reportImportProgress('publish-files', published + skipped, journal.entries.length, entry.path);
         if (entry.action === 'delete-character') {
-            const target = characterDeletionPath(root, entry.path);
-            fs.rmSync(target, { recursive: true, force: true });
-            fsyncDirectory(path.dirname(target));
-            noteTree(root, target);
+            trashCharacterDirectory(root, entry.path, journal.id);
             published += 1;
             if (options.failAfterPublish === published) throw new Error('simulated crash during transaction publish');
             continue;
@@ -415,6 +412,24 @@ function characterDeletionPath(root, relativePath) {
         if (fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) throw new Error('Character deletion uses a symbolic link');
     }
     return target;
+}
+
+function trashCharacterDirectory(root, relativePath, journalId) {
+    const target = characterDeletionPath(root, relativePath);
+    if (!fs.existsSync(target)) return null;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const token = String(journalId || Date.now().toString(36)).slice(0, 8);
+    let destination = resolveInside(root, path.join('trash', `${stamp}-${token}`, relativePath));
+    let suffix = 2;
+    while (fs.existsSync(destination)) {
+        destination = resolveInside(root, path.join('trash', `${stamp}-${token}-${suffix++}`, relativePath));
+    }
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.renameSync(target, destination);
+    noteTree(root, target);
+    fsyncDirectory(path.dirname(target));
+    fsyncDirectory(path.dirname(destination));
+    return destination;
 }
 
 function commitTransaction(root, operations, options = {}) {

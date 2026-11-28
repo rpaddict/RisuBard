@@ -1,4 +1,4 @@
-import { createBardLoreSettings, type BardLoreEntry, type BardLoreSettings } from './bardLore'
+import { createBardLoreSettings, isAutoRequiredBardLoreEntry, type BardLoreEntry, type BardLoreSettings } from './bardLore'
 import { bardLoreEntrySatisfiesPlan, compileBardLoreIndex, planBardLoreQuery, type BardLoreQueryPlan } from './bardLoreQueryPlanner'
 
 export type BardLoreSelectionReason = 'required' | 'key' | 'alias' | 'entity' | 'facet' | 'sparse' | 'link' | 'graph'
@@ -102,7 +102,10 @@ function tokenCount(entry: BardLoreEntry, tokenCounts: Record<string, number>): 
 
 export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSelectionResult {
     const settings = createBardLoreSettings(input.settings)
-    const eligible = input.entries.filter((entry) =>
+    const entries = input.entries.map((entry) => isAutoRequiredBardLoreEntry(entry) && entry.bard.activation !== 'required'
+        ? { ...entry, bard: { ...entry.bard, activation: 'required' as const } }
+        : entry)
+    const eligible = entries.filter((entry) =>
         entry.enabled !== false
         && entry.mode !== 'folder'
         && entry.mode !== 'child'
@@ -125,9 +128,6 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
         selectedIds.add(entry.id)
         requiredTokens += tokens
         totalTokens += tokens
-    }
-    if (totalTokens > settings.maximumTokens) {
-        throw new BardLoreBudgetError('Required Grimoire entries exceed the configured hard limit.')
     }
 
     const currentQuery = input.priorityQuery?.trim() || input.query
@@ -284,7 +284,7 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
             break
         }
         const nextTokens = tokenCount(candidate.entry, input.tokenCounts)
-        if (totalTokens + nextTokens > settings.maximumTokens) {
+        if (contextualTokens + nextTokens > settings.maximumTokens) {
             exclusionReasons.set(candidate.entry.id, 'token-limit')
             continue
         }
@@ -297,7 +297,7 @@ export function selectBardLoreEntries(input: BardLoreSelectionInput): BardLoreSe
     }
 
     const eligibleIds = new Set(eligible.map((entry) => entry.id))
-    const excluded = input.entries
+    const excluded = entries
         .filter((entry) => !selectedIds.has(entry.id))
         .map((entry): BardLoreExclusion => ({
             entry,

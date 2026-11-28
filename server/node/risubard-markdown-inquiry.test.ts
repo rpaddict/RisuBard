@@ -45,6 +45,26 @@ describe('progressive Markdown inquiry', () => {
         const optional = inquireMarkdownDocuments({ documents: [pinned, hidden], currentInput: '계획', contextSelection: 'auto' })
         expect(optional.sources).toEqual([])
     })
+    test('marks a required scene page that later events have outrun', () => {
+        const scene = document({ id: 'scene', type: 'scene', title: '현재 장면', relativePath: 'scene/current-scene.md',
+            content: '## 현재 장면\n\n- 포지션 7 끝에 서 있다.', contextMode: 'always',
+            sourceMessageIds: ['m1', 'm2'], updated: '2026-08-16T00:10:00.000Z' })
+        const event = (sequence: number, ids: string[], created: string) => document({ id: `event-${sequence}`,
+            type: 'event', title: `포지션 ${sequence - 12}`, relativePath: `events/${sequence}.md`,
+            content: '- 진행', sequence, sourceMessageIds: ids, created, updated: created })
+        const covered = event(19, ['m2'], '2026-08-16T00:09:00.000Z')
+        const later = [event(20, ['m3'], '2026-08-16T00:20:00.000Z'), event(21, ['m4'], '2026-08-16T00:30:00.000Z')]
+        const read = (documents: MarkdownWikiDocument[]) => inquireMarkdownDocuments({
+            documents, currentInput: '', contextSelection: 'required' }).sources[0].content
+        expect(read([scene, covered])).toBe(scene.content)
+        const stale = read([scene, covered, ...later])
+        expect(stale).toContain('[Outdated scene snapshot')
+        expect(stale).toContain('event #20 "포지션 8", event #21 "포지션 9"')
+        expect(stale).not.toContain('event #19')
+        expect(stale.endsWith(scene.content)).toBe(true)
+        // A scene rewritten after those events is current again.
+        expect(read([{ ...scene, updated: '2026-08-16T00:40:00.000Z' }, covered, ...later])).toBe(scene.content)
+    })
     test('finds an old event by its [사건N] number or by the in-story date it recorded', () => {
         // Three hundred later events all mention the gun, so wording alone ranks the first one last.
         const events = Array.from({ length: 300 }, (_, index) => document({
